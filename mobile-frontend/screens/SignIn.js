@@ -13,7 +13,7 @@ import Input from "../components/Input";
 import Button from "../components/Button";
 import { Mail, Lock, LogIn } from "lucide-react-native";
 import { useNavigation } from "@react-navigation/native";
-import { supabase } from "../database/supabase";
+import { supabase } from "../services/supabase";
 
 const SignIn = () => {
   const navigation = useNavigation();

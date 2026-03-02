@@ -18,9 +18,10 @@ import SignIn from "./screens/SignIn";
 import SignUp from "./screens/SignUp";
 import Profile from "./screens/Profile";
 import Home from "./screens/Home";
-import { supabase } from "./database/supabase";
+import { supabase } from "./services/supabase";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import NavBar from "./components/NavBar";
+import ExerciseList from "./screens/ExerciseList";
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -43,7 +44,12 @@ function Navigation() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {user ? (
         // User is logged in - show app screens with bottom navigation
-        <Stack.Screen name="MainApp" component={NavBar} />
+        <>
+          <Stack.Screen name="MainApp" component={NavBar} />
+          <Stack.Screen name="Home" component={Home} />
+          <Stack.Screen name="Exercises" component={ExerciseList} />
+          <Stack.Screen name="Profile" component={Profile} />
+        </>
       ) : (
         // User is not logged in - show auth screens
         <>

@@ -9,7 +9,7 @@ import {
   Image,
   ActivityIndicator,
 } from "react-native";
-import { supabase } from "../database/supabase";
+import { supabase } from "../services/supabase";
 import { useAuth } from "../context/AuthContext";
 import Input from "../components/Input";
 import Button from "../components/Button";
@@ -22,7 +22,6 @@ import {
   Edit2,
   Save,
 } from "lucide-react-native";
-
 
 export default function Profile() {
   const { signOut: authSignOut } = useAuth();
@@ -115,21 +114,21 @@ export default function Profile() {
   }
 
   async function signOut() {
-  Alert.alert("Sign Out", "Are you sure you want to sign out?", [
-    { text: "Cancel", style: "cancel" },
-    {
-      text: "Sign Out",
-      style: "destructive",
-      onPress: async () => {
-        try {
-          await authSignOut();
-        } catch (error) {
-          Alert.alert("Error", error.message);
-        }
+    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Sign Out",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await authSignOut();
+          } catch (error) {
+            Alert.alert("Error", error.message);
+          }
+        },
       },
-    },
-  ]);
-}
+    ]);
+  }
   if (loading) {
     return (
       <View style={styles.loadingContainer}>

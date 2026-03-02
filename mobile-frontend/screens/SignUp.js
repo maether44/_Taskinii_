@@ -14,7 +14,7 @@ import Input from "../components/Input";
 import Button from "../components/Button";
 import { Mail, Lock, User, UserPlus } from "lucide-react-native";
 import { useNavigation } from "@react-navigation/native";
-import { supabase } from "../database/supabase";
+import { supabase } from "../services/supabase";
 
 const SignUp = () => {
   const navigation = useNavigation();
