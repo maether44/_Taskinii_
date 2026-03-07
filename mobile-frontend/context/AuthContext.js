@@ -1,18 +1,18 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase }    from '../lib/supabase';
-import { getProfile }  from '../services/profileService';
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { supabase } from "../lib/supabase";
+import { getProfile } from "../services/profileService";
 
 const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
-  const [user,      setUser]      = useState(null);
-  const [isNewUser, setIsNewUser] = useState(false);
-  const [loading,   setLoading]   = useState(true);
+  const [user, setUser] = useState(null);
+  const [isNewUser, setIsNewUser] = useState();
+  const [loading, setLoading] = useState(true);
 
   const resolveUser = async (sessionUser) => {
     if (!sessionUser) {
       setUser(null);
-      setIsNewUser(false);
+      // setIsNewUser(false);
       setLoading(false);
       return;
     }
@@ -22,7 +22,7 @@ export function AuthProvider({ children }) {
     try {
       const profile = await getProfile(sessionUser.id);
       // New user = exists but hasn't completed onboarding yet
-      setIsNewUser(!profile?.goal);
+      setIsNewUser(!(profile?.goal && profile?.onboarded));
     } catch {
       // Profile row doesn't exist yet — brand new signup
       setIsNewUser(true);
@@ -38,8 +38,10 @@ export function AuthProvider({ children }) {
     });
 
     // Listen for sign in / sign out events
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_, session) => resolveUser(session?.user ?? null)
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_, session) =>
+      resolveUser(session?.user ?? null),
     );
 
     return () => subscription.unsubscribe();
@@ -52,11 +54,14 @@ export function AuthProvider({ children }) {
   const signOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
-    setIsNewUser(false);
+    // commented that line because user is not new just signed out
+    // setIsNewUser(false);
   };
 
   return (
-    <AuthContext.Provider value={{ user, isNewUser, loading, markOnboardingComplete, signOut }}>
+    <AuthContext.Provider
+      value={{ user, isNewUser, loading, markOnboardingComplete, signOut }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -64,6 +69,6 @@ export function AuthProvider({ children }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) throw new Error('useAuth must be used within an AuthProvider');
+  if (!context) throw new Error("useAuth must be used within an AuthProvider");
   return context;
 }

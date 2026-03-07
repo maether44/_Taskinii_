@@ -644,7 +644,7 @@ export default function OnBoardingGoal({ onComplete }) {
                       key={i}
                       style={[
                         s.planDayWrap,
-                        i < ob.aiPlan.days.length - 1 && {
+                        i < (ob.aiPlan.days?.length ?? 0) - 1 && {
                           borderBottomWidth: 1,
                           borderBottomColor: T.border,
                         },

@@ -22,6 +22,12 @@ import Profile from "./screens/Profile";
 import NavBar from "./components/NavBar";
 import OnBoardingGoal from "./screens/OnBoardingGoal";
 import MealLogger from "./screens/nutrition/MealLogger";
+import FoodDetail from "./screens/nutrition/FoodDetail";
+import SleepLog from "./screens/sleep/SleepLog";
+import WorkoutActive from "./screens/workout/WorkoutActive";
+import WorkoutSummary from "./screens/workout/WorkoutSummary";
+import ExerciseInfo from "./screens/ExerciseInfo";
+import ExerciseCard from "./components/ExerciseCard";
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -31,6 +37,12 @@ const Stack = createStackNavigator();
 // Navigation component that uses auth context
 function Navigation() {
   const { user, isNewUser, loading } = useAuth();
+
+  console.log("🔐 Auth State:", {
+    user: user?.email || "No user",
+    isNewUser,
+    userName: user?.user_metadata?.full_name || "No name",
+  });
 
   if (loading) {
     return (
@@ -58,6 +70,12 @@ function Navigation() {
           <Stack.Screen name="MainApp" component={NavBar} />
           <Stack.Screen name="Profile" component={Profile} />
           <Stack.Screen name="MealLogger" component={MealLogger} />
+          <Stack.Screen name="FoodDetail" component={FoodDetail} />
+          <Stack.Screen name="SleepLog" component={SleepLog} />
+          <Stack.Screen name="WorkoutActive" component={WorkoutActive} />
+          <Stack.Screen name="WorkoutSummary" component={WorkoutSummary} />
+          <Stack.Screen name="ExerciseCard" component={ExerciseCard} />
+          <Stack.Screen name="ExerciseInfo" component={ExerciseInfo} />
         </>
       )}
     </Stack.Navigator>

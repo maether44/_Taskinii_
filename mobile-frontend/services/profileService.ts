@@ -21,6 +21,7 @@ export const saveOnboardingProfile = async (userId, answers) => {
     weight_kg: parseFloat(answers.weight),
     goal: answers.goal,
     activity_level: answers.activity,
+    onboarded: true,
     updated_at: new Date().toISOString(),
     experience: answers.experience,
     equipment: answers.equipment,
