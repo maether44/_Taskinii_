@@ -33,14 +33,14 @@ export function useAppTour({ activeTab, onTabPress, showOnMount }) {
   const glow = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    console.log("🎯 Tour useEffect triggered - showOnMount:", showOnMount);
+    // console.log("🎯 Tour useEffect triggered - showOnMount:", showOnMount);
     if (!showOnMount) return;
 
-    console.log("🎯 Tour showOnMount triggered");
+    // console.log("🎯 Tour showOnMount triggered");
     hasTourBeenSeen().then((seen) => {
-      console.log("🎯 Tour already seen:", seen);
+    //   console.log("🎯 Tour already seen:", seen);
       if (!seen) {
-        console.log("🎯 Showing tour in 800ms");
+        // console.log("🎯 Showing tour in 800ms");
         setTimeout(() => setVisible(true), 800);
       }
     });

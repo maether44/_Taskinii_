@@ -16,19 +16,21 @@ import PostureAI from "../screens/PostureAI";
 import Insights from "../screens/Insights";
 import Training from "../screens/Training";
 import AppTour from "./onBoarding/AppTour";
+import YaraAssistant from "./YaraAssistant";
+
 import { useAuth } from "../context/AuthContext";
 
 const Tab = createBottomTabNavigator();
 
 export default function NavBar() {
-  const { shouldShowTour } = useAuth();
+  const { shouldShowTour, user } = useAuth();
   const navRef = useRef(null);
   const [activeTab, setActiveTab] = useState("Home");
 
-  console.log("📱 NavBar render - shouldShowTour:", shouldShowTour);
+  // console.log("📱 NavBar render - shouldShowTour:", shouldShowTour);
 
   const handleTabPress = (tabName) => {
-    console.log("📱 NavBar handleTabPress:", tabName);
+    // console.log("📱 NavBar handleTabPress:", tabName);
     if (navRef.current) {
       navRef.current.navigate(tabName);
       setActiveTab(tabName);
@@ -57,7 +59,7 @@ export default function NavBar() {
             const state = e.data.state;
             if (state && state.routes && state.routes[state.index]) {
               const newTab = state.routes[state.index].name;
-              console.log("📱 Tab changed to:", newTab);
+              // console.log("📱 Tab changed to:", newTab);
               setActiveTab(newTab);
             }
           },
@@ -123,6 +125,9 @@ export default function NavBar() {
         onTabPress={handleTabPress}
         showOnMount={shouldShowTour}
       />
+
+      <YaraAssistant userProfile={user?.user_metadata} />
+      
     </View>
   );
 }

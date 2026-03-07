@@ -39,8 +39,8 @@
   },
   "private": true,
   "devDependencies": {
+    "@types/react": "~19.1.0",
     "@babel/plugin-transform-private-methods": "^7.28.6",
-    "@types/react": "~19.1.10",
     "metro-react-native-babel-preset": "^0.77.0",
     "react-test-renderer": "19.1.0",
     "typescript": "~5.9.2"

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { registerTourRef }   from './tourRefs';
+import { registerTourRef }   from './onBoarding/tourRefs';
 import {
   Animated, Dimensions, KeyboardAvoidingView, Platform,
   ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,

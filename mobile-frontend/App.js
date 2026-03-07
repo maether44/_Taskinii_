@@ -30,6 +30,7 @@ import ExerciseInfo from "./screens/ExerciseInfo";
 import ExerciseCard from "./components/ExerciseCard";
 import AppTour from "./components/onBoarding/AppTour";
 
+
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
 
