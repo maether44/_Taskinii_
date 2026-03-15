@@ -1,4 +1,5 @@
 {
+<<<<<<< HEAD
   "name": "bodyq-landing",
   "private": true,
   "version": "0.0.0",
@@ -10,10 +11,20 @@
     "preview": "vite preview"
   },
   "dependencies": {
+=======
+  "dependencies": {
+<<<<<<<< HEAD:package.json
+    "react-native-paper": "^5.15.0"
+========
+>>>>>>> origin/midway_webpage
     "framer-motion": "^11.0.3",
     "lucide-react": "^0.563.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+<<<<<<< HEAD
+=======
+    "react-router-dom": "^6.30.3",
+>>>>>>> origin/midway_webpage
     "rollup": "^4.57.1"
   },
   "devDependencies": {
@@ -25,5 +36,9 @@
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.5",
     "vite": "^7.3.1"
+<<<<<<< HEAD
+=======
+>>>>>>>> origin/midway_webpage:frontend/package.json
+>>>>>>> origin/midway_webpage
   }
 }
