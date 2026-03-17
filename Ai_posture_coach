@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>AI Posture Coach Pro</title>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#07090d;--bg2:#0c1018;--bg3:#111820;--panel:#0a0f16;
+  --border:#1a2535;--border2:#243040;
+  --green:#00ff88;--green2:#00cc6a;--green-glow:rgba(0,255,136,.25);
+  --red:#ff3355;--red-glow:rgba(255,51,85,.25);
+  --amber:#ffaa00;--amber-glow:rgba(255,170,0,.2);
+  --cyan:#00c8ff;--cyan-glow:rgba(0,200,255,.2);
+  --text:#c8d8e8;--text-dim:#4a6a8a;--text-mid:#7a9ab8;
+  --font-head:'Orbitron',monospace;
+  --font-body:'Rajdhani',sans-serif;
+  --font-mono:'Share Tech Mono',monospace;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-body);overflow-x:hidden}
+#app{display:grid;grid-template-columns:1fr 340px;grid-template-rows:auto 1fr;grid-template-areas:"hdr hdr""feed panel";min-height:100vh}
+
+/* HEADER */
+header{grid-area:hdr;display:flex;align-items:center;justify-content:space-between;padding:10px 20px;gap:10px;flex-wrap:wrap;background:var(--bg2);border-bottom:1px solid var(--border);position:relative;z-index:20}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-icon{width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,var(--green),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 0 18px var(--green-glow);flex-shrink:0}
+.logo-text{font-family:var(--font-head);font-size:12px;font-weight:700;color:var(--green);letter-spacing:2px}
+.logo-sub{font-family:var(--font-mono);font-size:8px;color:var(--text-dim);letter-spacing:2px;display:block;margin-top:2px}
+.hdr-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ex-label{font-family:var(--font-mono);font-size:10px;color:var(--text-dim);letter-spacing:1px;white-space:nowrap}
+select#exSel{background:var(--bg3);border:1px solid var(--border);color:var(--text);font-family:var(--font-mono);font-size:11px;padding:7px 10px;border-radius:6px;cursor:pointer;outline:none;min-width:150px;transition:border-color .2s}
+select#exSel:focus{border-color:var(--green)}
+select#exSel option{background:var(--bg2)}
+.btn{font-family:var(--font-head);font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:8px 14px;border-radius:6px;border:1px solid;cursor:pointer;transition:all .2s;white-space:nowrap}
+.btn-go{background:var(--green);border-color:var(--green);color:#000;box-shadow:0 0 14px var(--green-glow)}
+.btn-go:hover{box-shadow:0 0 26px rgba(0,255,136,.5);transform:translateY(-1px)}
+.btn-stop{background:transparent;border-color:var(--red);color:var(--red)}
+.btn-stop:hover{background:var(--red-glow)}
+.btn-ghost{background:transparent;border-color:var(--border);color:var(--text-dim)}
+.btn-ghost:hover{border-color:var(--cyan);color:var(--cyan)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--text-dim);transition:all .3s;flex-shrink:0}
+.dot.live{background:var(--green);box-shadow:0 0 8px var(--green);animation:blink 1.6s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
+.voice-btn{display:flex;align-items:center;gap:5px;padding:7px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;cursor:pointer;transition:all .2s;font-family:var(--font-mono);font-size:9px;color:var(--text-dim)}
+.voice-btn.on{border-color:var(--amber);color:var(--amber);background:var(--amber-glow)}
+
+/* FEED */
+#feedArea{grid-area:feed;position:relative;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden;min-height:400px}
+#vid{position:absolute;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+#cvs{position:absolute;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+#placeholder{display:flex;flex-direction:column;align-items:center;gap:14px;z-index:2;text-align:center;padding:20px}
+.ph-icon{font-size:52px;opacity:.25}
+.ph-txt{font-family:var(--font-mono);font-size:11px;color:var(--text-dim);line-height:2}
+#scoreOverlay{position:absolute;top:14px;left:14px;z-index:6;background:rgba(7,9,13,.82);border:1px solid var(--border);border-radius:10px;padding:10px 14px;backdrop-filter:blur(6px);min-width:108px}
+.ov-lbl{font-family:var(--font-mono);font-size:9px;color:var(--text-dim);letter-spacing:2px;text-transform:uppercase;margin-bottom:3px}
+.ov-val{font-family:var(--font-head);font-size:30px;font-weight:900;line-height:1;transition:color .3s}
+.ov-bar{height:3px;background:var(--border);border-radius:2px;margin-top:5px;overflow:hidden}
+.ov-fill{height:100%;border-radius:2px;transition:width .35s,background .3s}
+#phaseOverlay{position:absolute;top:14px;right:14px;z-index:6;background:rgba(7,9,13,.82);border:1px solid var(--border);border-radius:10px;padding:10px 14px;backdrop-filter:blur(6px);text-align:right}
+.phase-val{font-family:var(--font-head);font-size:12px;font-weight:700;color:var(--cyan);letter-spacing:1px}
+.angle-val{font-family:var(--font-mono);font-size:11px;color:var(--text-dim);margin-top:2px}
+#repFlash{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(0);font-family:var(--font-head);font-size:68px;font-weight:900;color:var(--green);text-shadow:0 0 40px var(--green),0 0 80px var(--green-glow);pointer-events:none;opacity:0;z-index:10;letter-spacing:4px}
+#repFlash.pop{animation:repPop .65s cubic-bezier(.17,.67,.32,1.3) forwards}
+@keyframes repPop{0%{transform:translate(-50%,-50%) scale(0);opacity:1}55%{transform:translate(-50%,-50%) scale(1.1);opacity:1}100%{transform:translate(-50%,-50%) scale(1.5);opacity:0}}
+#restOverlay{position:absolute;inset:0;z-index:15;background:rgba(7,9,13,.93);backdrop-filter:blur(10px);display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px}
+#restOverlay.show{display:flex}
+.rest-lbl{font-family:var(--font-mono);font-size:11px;color:var(--cyan);letter-spacing:3px;text-transform:uppercase}
+.rest-time{font-family:var(--font-head);font-size:96px;font-weight:900;color:var(--cyan);line-height:1;text-shadow:0 0 40px var(--cyan-glow)}
+.rest-sub{font-family:var(--font-body);font-size:16px;color:var(--text-mid)}
+#fpsEl{position:absolute;bottom:10px;right:10px;font-family:var(--font-mono);font-size:9px;color:var(--text-dim);background:rgba(7,9,13,.6);padding:3px 7px;border-radius:4px;z-index:5}
+
+/* PANEL */
+#panel{grid-area:panel;background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto}
+.psec{padding:15px 17px;border-bottom:1px solid var(--border)}
+.psec:last-child{border-bottom:none}
+.psec-title{font-family:var(--font-mono);font-size:9px;color:var(--text-dim);letter-spacing:3px;text-transform:uppercase;margin-bottom:11px;display:flex;align-items:center;gap:8px}
+.psec-title::before{content:'';display:block;width:14px;height:2px;background:var(--green);border-radius:1px}
+.ex-name{font-family:var(--font-head);font-size:18px;font-weight:700;color:var(--text);margin-bottom:4px}
+.ex-desc{font-size:12px;color:var(--text-dim);line-height:1.65}
+.stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.scard{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:9px 11px;transition:border-color .3s}
+.scard.hi{border-color:var(--green)}
+.scard-lbl{font-family:var(--font-mono);font-size:8px;color:var(--text-dim);letter-spacing:2px;text-transform:uppercase;margin-bottom:3px}
+.scard-val{font-family:var(--font-head);font-size:22px;font-weight:700;line-height:1;color:var(--green)}
+.scard-val.dim{color:var(--text-dim)}
+.set-row{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:10px}
+.set-dot{width:26px;height:26px;border-radius:50%;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-family:var(--font-head);font-size:9px;color:var(--text-dim);transition:all .3s}
+.set-dot.done{border-color:var(--green);background:rgba(0,255,136,.12);color:var(--green)}
+.set-dot.active{border-color:var(--cyan);background:rgba(0,200,255,.1);color:var(--cyan);box-shadow:0 0 10px var(--cyan-glow)}
+.set-config{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.set-config label{font-family:var(--font-mono);font-size:9px;color:var(--text-dim);letter-spacing:1px}
+.set-config input{width:44px;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-family:var(--font-mono);font-size:11px;padding:4px 6px;border-radius:5px;text-align:center;outline:none}
+.set-config input:focus{border-color:var(--green)}
+#cueBox{background:var(--bg3);border:1px solid var(--border);border-left:3px solid var(--amber);border-radius:6px;padding:11px 13px;font-size:14px;font-weight:600;color:var(--amber);line-height:1.5;min-height:50px;transition:color .3s,border-color .3s}
+#cueBox.good{border-left-color:var(--green);color:var(--green)}
+#jointList{display:flex;flex-direction:column;gap:7px}
+.jitem{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:var(--bg3);border-radius:6px;border:1px solid var(--border);font-family:var(--font-mono);font-size:11px;transition:border-color .3s}
+.jitem.ok{border-color:rgba(0,255,136,.22)}
+.jitem.bad{border-color:rgba(255,51,85,.28)}
+.jname{color:var(--text)}
+.jangle{color:var(--text-dim);font-size:10px}
+.jbadge{font-size:9px;padding:2px 7px;border-radius:20px;font-weight:700;letter-spacing:1px}
+.jbadge.ok{background:rgba(0,255,136,.1);color:var(--green)}
+.jbadge.bad{background:rgba(255,51,85,.1);color:var(--red)}
+
+/* HEATMAP */
+#heatmapWrap{display:flex;justify-content:center;padding:6px 0}
+#heatmapSvg{width:130px;height:auto}
+.hm-legend{margin-top:8px;display:flex;align-items:center;justify-content:center;gap:6px;font-family:var(--font-mono);font-size:9px;color:var(--text-dim)}
+.hm-swatch{width:40px;height:4px;border-radius:3px;background:linear-gradient(90deg,var(--green),var(--amber),var(--red))}
+
+/* PLANK TIMER shown in rep card */
+#plankDisplay{display:none;font-family:var(--font-head);font-size:22px;font-weight:700;color:var(--cyan)}
+
+#panel::-webkit-scrollbar{width:3px}
+#panel::-webkit-scrollbar-track{background:var(--bg2)}
+#panel::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+@media(max-width:820px){
+  #app{grid-template-columns:1fr;grid-template-rows:auto auto 1fr;grid-template-areas:"hdr""panel""feed"}
+  #feedArea{min-height:55vh}
+  #panel{max-height:45vh;border-left:none;border-top:1px solid var(--border)}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">���️</div>
+    <div>
+      <div class="logo-text">AI Posture Coach Pro</div>
+      <span class="logo-sub">Beginner-Friendly · Real-Time AI</span>
+    </div>
+  </div>
+  <div class="hdr-controls">
+    <span class="ex-label">Exercise:</span>
+    <select id="exSel">
+      <option value="pushup">Push-Up</option>
+      <option value="pullup">Pull-Up</option>
+      <option value="bicepCurl">Bicep Curl</option>
+      <option value="shoulderPress">Shoulder Press</option>
+      <option value="squat">Squat</option>
+      <option value="lunge">Lunge</option>
+      <option value="plank">Plank (Hold)</option>
+      <option value="situp">Sit-Up</option>
+    </select>
+    <div class="dot" id="dot"></div>
+    <button class="btn btn-go"   id="startBtn">▶ Start</button>
+    <button class="btn btn-stop" id="stopBtn"  style="display:none">■ Stop</button>
+    <button class="btn btn-ghost"id="resetBtn">↺ Reset</button>
+    <div class="voice-btn on" id="voiceBtn" title="Toggle voice coaching">
+      <span>���</span><span id="voiceLbl">Voice ON</span>
+    </div>
+  </div>
+</header>
+
+<!-- FEED -->
+<div id="feedArea">
+  <video id="vid" autoplay muted playsinline></video>
+  <canvas id="cvs"></canvas>
+
+  <div id="placeholder">
+    <div class="ph-icon">���</div>
+    <div class="ph-txt">
+      Click <strong style="color:var(--green)">▶ Start</strong> and allow camera access<br/>
+      Chrome or Firefox recommended<br/>
+      <span style="font-size:10px;opacity:.6">Powered by MediaPipe Pose · All processing is local</span>
+    </div>
+  </div>
+
+  <div id="scoreOverlay">
+    <div class="ov-lbl">Form Score</div>
+    <div class="ov-val" id="scoreVal" style="color:var(--text-dim)">—</div>
+    <div class="ov-bar"><div class="ov-fill" id="scoreFill" style="width:0%"></div></div>
+  </div>
+
+  <div id="phaseOverlay">
+    <div class="phase-val" id="phaseVal">READY</div>
+    <div class="angle-val" id="angleVal">—</div>
+  </div>
+
+  <div id="repFlash">REP!</div>
+
+  <div id="restOverlay">
+    <div class="rest-lbl">Rest Between Sets</div>
+    <div class="rest-time" id="restTime">60</div>
+    <div class="rest-sub">Set <span id="restSetNum">1</span> complete — good work!</div>
+    <button class="btn btn-go" id="skipRestBtn" style="margin-top:8px">Skip Rest ▶</button>
+  </div>
+
+  <div id="fpsEl">0 fps</div>
+</div>
+
+<!-- PANEL -->
+<div id="panel">
+
+  <div class="psec">
+    <div class="psec-title">Exercise</div>
+    <div class="ex-name" id="exName">Push-Up</div>
+    <div class="ex-desc" id="exDesc">Start in high plank. Lower chest toward floor, then press back up.</div>
+  </div>
+
+  <div class="psec">
+    <div class="psec-title">Live Stats</div>
+    <div class="stats-row">
+      <div class="scard hi">
+        <div class="scard-lbl">Reps</div>
+        <div class="scard-val" id="repEl">0</div>
+        <div id="plankDisplay">0:00</div>
+      </div>
+      <div class="scard">
+        <div class="scard-lbl">Set</div>
+        <div class="scard-val" id="setEl">1</div>
+      </div>
+      <div class="scard">
+        <div class="scard-lbl">Form %</div>
+        <div class="scard-val dim" id="formEl">—</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="psec">
+    <div class="psec-title">Set Tracker</div>
+    <div class="set-row" id="setDots"></div>
+    <div class="set-config">
+      <label>SETS</label>
+      <input type="number" id="cfgSets" value="3" min="1" max="10"/>
+      <label>REPS</label>
+      <input type="number" id="cfgReps" value="10" min="1" max="50"/>
+      <label>REST(s)</label>
+      <input type="number" id="cfgRest" value="60" min="10" max="300"/>
+    </div>
+  </div>
+
+  <div class="psec">
+    <div class="psec-title">AI Coaching</div>
+    <div id="cueBox">Start camera and begin your set…</div>
+  </div>
+
+  <div class="psec">
+    <div class="psec-title">Body Heatmap <span style="font-size:8px;color:var(--text-dim);letter-spacing:1px;margin-left:4px">PROBLEM AREAS</span></div>
+    <div id="heatmapWrap">
+      <!-- SVG body silhouette with named heat regions -->
+      <svg id="heatmapSvg" viewBox="0 0 100 230" xmlns="http://www.w3.org/2000/svg">
+        <!-- silhouette (faint base) -->
+        <g fill="#2a3a4a" opacity="0.35">
+          <circle cx="50" cy="14" r="11"/>
+          <rect x="46" y="24" width="8" height="9" rx="2"/>
+          <rect x="28" y="33" width="44" height="54" rx="7"/>
+          <rect x="14" y="35" width="13" height="38" rx="5" transform="rotate(-6 20 54)"/>
+          <rect x="73" y="35" width="13" height="38" rx="5" transform="rotate(6 80 54)"/>
+          <rect x="9"  y="74" width="11" height="32" rx="5" transform="rotate(-9 14 90)"/>
+          <rect x="80" y="74" width="11" height="32" rx="5" transform="rotate(9 86 90)"/>
+          <rect x="31" y="89" width="16" height="46" rx="5"/>
+          <rect x="53" y="89" width="16" height="46" rx="5"/>
+          <rect x="31" y="137" width="15" height="44" rx="5"/>
+          <rect x="54" y="137" width="15" height="44" rx="5"/>
+          <rect x="27" y="179" width="20" height="9" rx="4"/>
+          <rect x="53" y="179" width="20" height="9" rx="4"/>
+        </g>
+        <!-- heat regions colored by JS -->
+        <g id="hmRegions">
+          <circle id="hm-head"      cx="50" cy="14" r="11"                                     fill="none" opacity="0.8"/>
+          <rect   id="hm-neck"      x="46" y="24" width="8" height="9" rx="2"                  fill="none" opacity="0.8"/>
+          <rect   id="hm-shoulders" x="24" y="31" width="52" height="16" rx="5"                fill="none" opacity="0.8"/>
+          <rect   id="hm-torso"     x="30" y="47" width="40" height="42" rx="4"                fill="none" opacity="0.8"/>
+          <rect   id="hm-larm"      x="14" y="35" width="13" height="36" rx="5" transform="rotate(-6 20 53)" fill="none" opacity="0.8"/>
+          <rect   id="hm-rarm"      x="73" y="35" width="13" height="36" rx="5" transform="rotate(6 80 53)"  fill="none" opacity="0.8"/>
+          <rect   id="hm-lforearm"  x="9"  y="74" width="11" height="30" rx="5" transform="rotate(-9 14 89)" fill="none" opacity="0.8"/>
+          <rect   id="hm-rforearm"  x="80" y="74" width="11" height="30" rx="5" transform="rotate(9 86 89)"  fill="none" opacity="0.8"/>
+          <rect   id="hm-lthigh"    x="32" y="90" width="15" height="45" rx="5"                fill="none" opacity="0.8"/>
+          <rect   id="hm-rthigh"    x="53" y="90" width="15" height="45" rx="5"                fill="none" opacity="0.8"/>
+          <rect   id="hm-lshin"     x="32" y="138" width="14" height="42" rx="5"               fill="none" opacity="0.8"/>
+          <rect   id="hm-rshin"     x="54" y="138" width="14" height="42" rx="5"               fill="none" opacity="0.8"/>
+        </g>
+      </svg>
+    </div>
+    <div class="hm-legend">
+      <span>Good</span><div class="hm-swatch"></div><span>Needs work</span>
+    </div>
+  </div>
+
+  <div class="psec">
+    <div class="psec-title">Joint Analysis</div>
+    <div id="jointList">
+      <div class="jitem" style="color:var(--text-dim);font-size:11px;justify-content:center">No pose detected yet</div>
+    </div>
+  </div>
+
+</div>
+</div><!-- /app -->
+
+<script>
+'use strict';
+
+/* ── UTILITIES ─────────────────────────────────────────────────── */
+function angleBetween(A,B,C){
+  const ax=A.x-B.x,ay=A.y-B.y,cx=C.x-B.x,cy=C.y-B.y;
+  const dot=ax*cx+ay*cy, mag=Math.hypot(ax,ay)*Math.hypot(cx,cy);
+  if(!mag) return 0;
+  return Math.acos(Math.max(-1,Math.min(1,dot/mag)))*(180/Math.PI);
+}
+function heatColor(f){
+  // f: 0=green, 0.5=amber, 1=red
+  const r=f<.5?Math.round(f*2*255):255;
+  const g=f<.5?255:Math.round((1-(f-.5)*2)*170);
+  return `rgba(${r},${g},0,0.75)`;
+}
+
+/* ── VOICE COACHING ────────────────────────────────────────────── */
+let voiceEnabled  = true;
+let lastSpokenTxt = '';
+let lastSpeakTime = 0;
+const SPEAK_GAP   = 4500;
+
+function speak(text){
+  if(!voiceEnabled||!window.speechSynthesis) return;
+  const now=Date.now();
+  if(text===lastSpokenTxt && now-lastSpeakTime<SPEAK_GAP) return;
+  lastSpokenTxt=text; lastSpeakTime=now;
+  window.speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(text);
+  u.rate=1.05; u.pitch=1.0; u.volume=0.9;
+  const voices=window.speechSynthesis.getVoices();
+  const pref=voices.find(v=>v.lang.startsWith('en')&&v.localService)||voices[0];
+  if(pref) u.voice=pref;
+  window.speechSynthesis.speak(u);
+}
+if(window.speechSynthesis){
+  speechSynthesis.getVoices();
+  speechSynthesis.addEventListener('voiceschanged',()=>speechSynthesis.getVoices());
+}
+
+/* ── EXERCISE LIBRARY ──────────────────────────────────────────── */
+/*
+  angleGroups : joints to measure   [A, vertex-B, C]
+  formRules   : pass/fail per rule with cue + heatmap regions
+  repConfig   : zone-based 4-phase state machine
+                startZone = "ready" position
+                midZone   = "peak" position (bottom of squat, top of curl…)
+                endZone   = back to "ready" → rep counted
+                minROM    = minimum degrees of travel required
+  isPlank     : use hold-timer instead
+*/
+const EXERCISES={
+
+  pushup:{
+    name:'Push-Up',
+    desc:'Plank position: lower chest to floor then press back up. Keep elbows tucked and body straight throughout.',
+    angleGroups:[
+      {id:'lElbow',label:'Left Elbow',    pts:[11,13,15]},
+      {id:'rElbow',label:'Right Elbow',   pts:[12,14,16]},
+      {id:'lHip',  label:'Hip Align (L)', pts:[11,23,25]},
+      {id:'rHip',  label:'Hip Align (R)', pts:[12,24,26]},
+    ],
+    formRules:[
+      {id:'lElbow',min:50,max:175,cue:'Tuck your elbows in — they should point backward, not out to the sides', regions:['hm-larm','hm-lforearm']},
+      {id:'rElbow',min:50,max:175,cue:'Tuck your elbows in — they should point backward, not out to the sides', regions:['hm-rarm','hm-rforearm']},
+      {id:'lHip',  min:155,max:180,cue:'Your hips are sagging — squeeze your core and glutes to stay straight',  regions:['hm-torso','hm-lthigh']},
+      {id:'rHip',  min:155,max:180,cue:'Your hips are sagging — squeeze your core and glutes to stay straight',  regions:['hm-torso','hm-rthigh']},
+    ],
+    repConfig:{joint:'lElbow',startZone:{lo:145,hi:180},midZone:{lo:50,hi:100},endZone:{lo:145,hi:180},minROM:50},
+    isPlank:false,
+  },
+
+  pullup:{
+    name:'Pull-Up',
+    desc:'Hang with arms fully extended. Drive elbows down to pull chin above bar, then lower slowly. Side view works best.',
+    angleGroups:[
+      {id:'lElbow',label:'Left Elbow',    pts:[11,13,15]},
+      {id:'rElbow',label:'Right Elbow',   pts:[12,14,16]},
+      {id:'lShldr',label:'Left Shoulder', pts:[13,11,23]},
+      {id:'rShldr',label:'Right Shoulder',pts:[14,12,24]},
+    ],
+    formRules:[
+      {id:'lElbow',min:30,max:175,cue:'Pull all the way up — your chin must clear the bar',     regions:['hm-larm','hm-lforearm']},
+      {id:'rElbow',min:30,max:175,cue:'Pull all the way up — your chin must clear the bar',     regions:['hm-rarm','hm-rforearm']},
+      {id:'lShldr',min:10,max:70, cue:'Don\'t shrug your shoulders — actively pull them down', regions:['hm-shoulders']},
+      {id:'rShldr',min:10,max:70, cue:'Don\'t shrug your shoulders — actively pull them down', regions:['hm-shoulders']},
+    ],
+    repConfig:{joint:'lElbow',startZone:{lo:145,hi:180},midZone:{lo:30,hi:80},endZone:{lo:145,hi:180},minROM:65},
+    isPlank:false,
+  },
+
+  bicepCurl:{
+    name:'Bicep Curl',
+    desc:'Stand tall. Curl weight from hip to shoulder height, keeping elbows pinned to your sides at all times.',
+    angleGroups:[
+      {id:'lElbow',label:'Left Elbow',     pts:[11,13,15]},
+      {id:'rElbow',label:'Right Elbow',    pts:[12,14,16]},
+      {id:'lShldr',label:'Elbow Swing (L)',pts:[13,11,23]},
+      {id:'rShldr',label:'Elbow Swing (R)',pts:[14,12,24]},
+    ],
+    formRules:[
+      {id:'lElbow',min:25,max:165,cue:'Curl through the full range of motion — squeeze hard at the top', regions:['hm-lforearm']},
+      {id:'rElbow',min:25,max:165,cue:'Curl through the full range of motion — squeeze hard at the top', regions:['hm-rforearm']},
+      {id:'lShldr',min:0, max:45, cue:'Your elbow is swinging forward — pin it to your side',            regions:['hm-larm']},
+      {id:'rShldr',min:0, max:45, cue:'Your elbow is swinging forward — pin it to your side',            regions:['hm-rarm']},
+    ],
+    repConfig:{joint:'lElbow',startZone:{lo:140,hi:180},midZone:{lo:25,hi:75},endZone:{lo:140,hi:180},minROM:65},
+    isPlank:false,
+  },
+
+  shoulderPress:{
+    name:'Shoulder Press',
+    desc:'Start with hands at shoulder height, elbows bent. Press straight up to full extension. Brace your core.',
+    angleGroups:[
+      {id:'lElbow',label:'Left Elbow',   pts:[11,13,15]},
+      {id:'rElbow',label:'Right Elbow',  pts:[12,14,16]},
+      {id:'lHip',  label:'Back Arch (L)',pts:[11,23,25]},
+      {id:'rHip',  label:'Back Arch (R)',pts:[12,24,26]},
+    ],
+    formRules:[
+      {id:'lElbow',min:55,max:175,cue:'Press to full arm extension — lock out overhead',regions:['hm-larm','hm-lforearm']},
+      {id:'rElbow',min:55,max:175,cue:'Press to full arm extension — lock out overhead',regions:['hm-rarm','hm-rforearm']},
+      {id:'lHip',  min:150,max:180,cue:'You are arching your lower back — brace your core tighter', regions:['hm-torso']},
+      {id:'rHip',  min:150,max:180,cue:'You are arching your lower back — brace your core tighter', regions:['hm-torso']},
+    ],
+    repConfig:{joint:'lElbow',startZone:{lo:60,hi:110},midZone:{lo:150,hi:180},endZone:{lo:60,hi:110},minROM:55},
+    isPlank:false,
+  },
+
+  squat:{
+    name:'Squat',
+    desc:'Feet shoulder-width apart. Lower until thighs are parallel to floor, chest up, then drive through heels to stand.',
+    angleGroups:[
+      {id:'lKnee',label:'Left Knee',  pts:[23,25,27]},
+      {id:'rKnee',label:'Right Knee', pts:[24,26,28]},
+      {id:'lHip', label:'Torso (L)',  pts:[11,23,25]},
+      {id:'rHip', label:'Torso (R)',  pts:[12,24,26]},
+    ],
+    formRules:[
+      {id:'lKnee',min:60,max:175,cue:'Squat deeper — aim for thighs parallel to the floor',       regions:['hm-lthigh','hm-lshin']},
+      {id:'rKnee',min:60,max:175,cue:'Squat deeper — aim for thighs parallel to the floor',       regions:['hm-rthigh','hm-rshin']},
+      {id:'lHip', min:60,max:125,cue:'Keep your chest up — you are leaning too far forward',      regions:['hm-torso']},
+      {id:'rHip', min:60,max:125,cue:'Keep your chest up — you are leaning too far forward',      regions:['hm-torso']},
+    ],
+    repConfig:{joint:'lKnee',startZone:{lo:155,hi:180},midZone:{lo:60,hi:105},endZone:{lo:155,hi:180},minROM:55},
+    isPlank:false,
+  },
+
+  lunge:{
+    name:'Lunge',
+    desc:'Step forward and lower your back knee toward the floor. Front knee stays over ankle; torso stays upright.',
+    angleGroups:[
+      {id:'lKnee',label:'Front Knee', pts:[23,25,27]},
+      {id:'rKnee',label:'Back Knee',  pts:[24,26,28]},
+      {id:'torso',label:'Torso',      pts:[11,23,25]},
+    ],
+    formRules:[
+      {id:'lKnee',min:80,max:105,cue:'Front knee at 90 degrees — do not let it go past your toes',regions:['hm-lthigh','hm-lshin']},
+      {id:'rKnee',min:70,max:115,cue:'Lower your back knee closer toward the floor',              regions:['hm-rthigh','hm-rshin']},
+      {id:'torso',min:80,max:180,cue:'Stand tall — keep your torso upright during the lunge',     regions:['hm-torso']},
+    ],
+    repConfig:{joint:'lKnee',startZone:{lo:155,hi:180},midZone:{lo:80,hi:105},endZone:{lo:155,hi:180},minROM:55},
+    isPlank:false,
+  },
+
+  plank:{
+    name:'Plank (Hold)',
+    desc:'Forearms and toes on floor. Keep your whole body in a straight line. Hips must stay level — no sagging.',
+    angleGroups:[
+      {id:'lHip',  label:'Hip Level (L)',   pts:[11,23,25]},
+      {id:'rHip',  label:'Hip Level (R)',   pts:[12,24,26]},
+      {id:'lShldr',label:'Shoulder Pos (L)',pts:[13,11,23]},
+      {id:'rShldr',label:'Shoulder Pos (R)',pts:[14,12,24]},
+    ],
+    formRules:[
+      {id:'lHip',  min:155,max:180,cue:'Adjust your hips — your whole body should form one straight line', regions:['hm-torso','hm-lthigh']},
+      {id:'rHip',  min:155,max:180,cue:'Adjust your hips — your whole body should form one straight line', regions:['hm-torso','hm-rthigh']},
+      {id:'lShldr',min:50, max:100,cue:'Stack your shoulders directly over your elbows',                    regions:['hm-shoulders','hm-larm']},
+      {id:'rShldr',min:50, max:100,cue:'Stack your shoulders directly over your elbows',                    regions:['hm-shoulders','hm-rarm']},
+    ],
+    repConfig:null,
+    isPlank:true,
+  },
+
+  situp:{
+    name:'Sit-Up',
+    desc:'Knees bent, feet flat. Curl your upper body toward your knees squeezing abs, then lower with control.',
+    angleGroups:[
+      {id:'lHip', label:'Hip Flexion (L)',pts:[11,23,25]},
+      {id:'rHip', label:'Hip Flexion (R)',pts:[12,24,26]},
+      {id:'lKnee',label:'Knee Angle (L)', pts:[23,25,27]},
+      {id:'rKnee',label:'Knee Angle (R)', pts:[24,26,28]},
+    ],
+    formRules:[
+      {id:'lHip', min:30,max:145,cue:'Curl all the way up — squeeze your abs at the top',          regions:['hm-torso']},
+      {id:'rHip', min:30,max:145,cue:'Curl all the way up — squeeze your abs at the top',          regions:['hm-torso']},
+      {id:'lKnee',min:70,max:110,cue:'Keep knees bent at about 90 degrees, feet on the floor',    regions:['hm-lthigh','hm-lshin']},
+      {id:'rKnee',min:70,max:110,cue:'Keep knees bent at about 90 degrees, feet on the floor',    regions:['hm-rthigh','hm-rshin']},
+    ],
+    repConfig:{joint:'lHip',startZone:{lo:120,hi:160},midZone:{lo:30,hi:75},endZone:{lo:120,hi:160},minROM:50},
+    isPlank:false,
+  },
+
+};
+
+/* ── SKELETON CONNECTIONS ──────────────────────────────────────── */
+const SKEL=[
+  [11,12],[11,23],[12,24],[23,24],
+  [11,13],[13,15],[15,17],[15,19],[17,19],
+  [12,14],[14,16],[16,18],[16,20],[18,20],
+  [23,25],[25,27],[27,29],[27,31],[29,31],
+  [24,26],[26,28],[28,30],[28,32],[30,32],
+  [0,1],[1,2],[2,3],[3,7],[0,4],[4,5],[5,6],[6,8],[9,10],
+];
+
+/* ── APP STATE ─────────────────────────────────────────────────── */
+let curEx='pushup', repCount=0, repState='idle', formScore=0;
+let running=false, lastFT=performance.now();
+let badJoints=new Set(), curAngles={}, lastCue='', hlJoint=null;
+let repFlashTO=null;
+
+// EMA smoothing
+const EMA_A=0.22, emaMap={};
+
+// Phase confirmation (prevents noise spikes from counting)
+const CONF_FRAMES=5, COOLDOWN_MS=700, MIN_ROM_DEF=25;
+let phFrames=0, pendPhase=null, coolUntil=0;
+let sesMin=Infinity, sesMax=-Infinity;
+
+// Plank
+let plankStart=null, plankSecs=0;
+
+// Sets
+let currentSet=1;
+
+// Heatmap accumulation
+const hmAccum={};
+
+/* ── DOM REFS ──────────────────────────────────────────────────── */
+const vid=document.getElementById('vid');
+const cvs=document.getElementById('cvs');
+const ctx=cvs.getContext('2d');
+const startBtn=document.getElementById('startBtn');
+const stopBtn=document.getElementById('stopBtn');
+const resetBtn=document.getElementById('resetBtn');
+const voiceBtn=document.getElementById('voiceBtn');
+const voiceLbl=document.getElementById('voiceLbl');
+const exSel=document.getElementById('exSel');
+const dotEl=document.getElementById('dot');
+const placeholder=document.getElementById('placeholder');
+const repFlash=document.getElementById('repFlash');
+const scoreValEl=document.getElementById('scoreVal');
+const scoreFillEl=document.getElementById('scoreFill');
+const phaseValEl=document.getElementById('phaseVal');
+const angleValEl=document.getElementById('angleVal');
+const restOvEl=document.getElementById('restOverlay');
+const restTimeEl=document.getElementById('restTime');
+const restSetNumEl=document.getElementById('restSetNum');
+const skipRestBtn=document.getElementById('skipRestBtn');
+const fpsEl=document.getElementById('fpsEl');
+const repEl=document.getElementById('repEl');
+const setEl=document.getElementById('setEl');
+const formEl=document.getElementById('formEl');
+const setDots=document.getElementById('setDots');
+const cueBox=document.getElementById('cueBox');
+const jointList=document.getElementById('jointList');
+const exName=document.getElementById('exName');
+const exDesc=document.getElementById('exDesc');
+const cfgSets=document.getElementById('cfgSets');
+const cfgReps=document.getElementById('cfgReps');
+const cfgRest=document.getElementById('cfgRest');
+const plankDisplay=document.getElementById('plankDisplay');
+
+/* ── HELPERS ───────────────────────────────────────────────────── */
+function scoreColor(p){ return p>=80?'var(--green)':p>=50?'var(--amber)':'var(--red)'; }
+
+function flashRep(){
+  repFlash.classList.remove('pop');
+  void repFlash.offsetWidth;
+  repFlash.classList.add('pop');
+  clearTimeout(repFlashTO);
+  repFlashTO=setTimeout(()=>repFlash.classList.remove('pop'),700);
+}
+
+function buildSetDots(){
+  const n=parseInt(cfgSets.value)||3;
+  setDots.innerHTML='';
+  for(let i=1;i<=n;i++){
+    const d=document.createElement('div');
+    d.className='set-dot'+(i<currentSet?' done':i===currentSet?' active':'');
+    d.textContent=i;
+    setDots.appendChild(d);
+  }
+}
+
+/* ── REST TIMER ────────────────────────────────────────────────── */
+let restInterval=null;
+function startRest(){
+  let secs=parseInt(cfgRest.value)||60;
+  restSetNumEl.textContent=currentSet;
+  restTimeEl.textContent=secs;
+  restOvEl.classList.add('show');
+  speak(`Set ${currentSet} complete! Rest for ${secs} seconds.`);
+  restInterval=setInterval(()=>{
+    secs--;
+    restTimeEl.textContent=secs;
+    if(secs<=3&&secs>0) speak(String(secs));
+    if(secs<=0) endRest();
+  },1000);
+}
+function endRest(){
+  clearInterval(restInterval);
+  restOvEl.classList.remove('show');
+  currentSet++;
+  repCount=0; repState='idle'; phFrames=0; pendPhase=null;
+  sesMin=Infinity; sesMax=-Infinity;
+  repEl.textContent='0';
+  setEl.textContent=currentSet;
+  buildSetDots();
+  speak('Begin your next set!');
+}
+skipRestBtn.addEventListener('click',endRest);
+
+/* ── HEATMAP ───────────────────────────────────────────────────── */
+function updateHeatmap(){
+  const ex=EXERCISES[curEx];
+  for(const rule of ex.formRules){
+    for(const rid of rule.regions){
+      if(!hmAccum[rid]) hmAccum[rid]={bad:0,total:0};
+      hmAccum[rid].total++;
+      if(badJoints.has(rule.id)) hmAccum[rid].bad++;
+    }
+  }
+  for(const [rid,d] of Object.entries(hmAccum)){
+    const el=document.getElementById(rid);
+    if(!el) continue;
+    const frac=d.total>8?d.bad/d.total:0;
+    el.setAttribute('fill', frac<0.04?'none':heatColor(frac));
+  }
+}
+function resetHeatmap(){
+  for(const k in hmAccum) delete hmAccum[k];
+  document.querySelectorAll('#hmRegions [id^="hm-"]').forEach(el=>el.setAttribute('fill','none'));
+}
+
+/* ── RESET ─────────────────────────────────────────────────────── */
+function doReset(){
+  repCount=0; repState='idle'; formScore=0;
+  badJoints.clear(); curAngles={}; lastCue=''; hlJoint=null;
+  for(const k in emaMap) delete emaMap[k];
+  phFrames=0; pendPhase=null; coolUntil=0;
+  sesMin=Infinity; sesMax=-Infinity;
+  plankStart=null; plankSecs=0;
+  currentSet=1;
+  repEl.textContent='0'; setEl.textContent='1';
+  formEl.textContent='—'; formEl.style.color='var(--text-dim)';
+  scoreValEl.textContent='—'; scoreValEl.style.color='var(--text-dim)';
+  scoreFillEl.style.width='0%';
+  phaseValEl.textContent='READY'; angleValEl.textContent='—';
+  cueBox.textContent='Start camera and begin your set…'; cueBox.className='';
+  jointList.innerHTML='<div class="jitem" style="color:var(--text-dim);font-size:11px;justify-content:center">No pose detected yet</div>';
+  buildSetDots();
+  resetHeatmap();
+  restOvEl.classList.remove('show');
+  clearInterval(restInterval);
+  const ex=EXERCISES[curEx];
+  repEl.style.display=ex.isPlank?'none':'';
+  plankDisplay.style.display=ex.isPlank?'block':'none';
+}
+
+/* ── APPLY EXERCISE ────────────────────────────────────────────── */
+function applyEx(key){
+  curEx=key;
+  const ex=EXERCISES[key];
+  exName.textContent=ex.name;
+  exDesc.textContent=ex.desc;
+  doReset();
+  if(running) speak(ex.name+'. '+ex.desc.split('.')[0]+'.');
+}
+
+/* ── MAIN POSE HANDLER ─────────────────────────────────────────── */
+function onResults(results){
+  const now=performance.now();
+  fpsEl.textContent=Math.round(1000/(now-lastFT))+' fps';
+  lastFT=now;
+
+  cvs.width=vid.videoWidth||640;
+  cvs.height=vid.videoHeight||480;
+  ctx.clearRect(0,0,cvs.width,cvs.height);
+
+  if(!results.poseLandmarks){ phaseValEl.textContent='NO POSE'; phFrames=0; pendPhase=null; return; }
+
+  const lm=results.poseLandmarks;
+  const W=cvs.width, H=cvs.height;
+  const pts=lm.map(p=>({x:p.x*W,y:p.y*H,z:p.z,v:p.visibility}));
+  const ex=EXERCISES[curEx];
+
+  // Visibility gate for primary joint
+  let primaryOK=true;
+  if(ex.repConfig){
+    const ag=ex.angleGroups.find(a=>a.id===ex.repConfig.joint);
+    if(ag) for(const i of ag.pts) if(!pts[i]||pts[i].v<0.5){primaryOK=false;break;}
+  }
+
+  // Raw angles (visibility-gated)
+  const raw={};
+  for(const ag of ex.angleGroups){
+    const [a,b,c]=ag.pts;
+    if(!pts[a]||!pts[b]||!pts[c]) continue;
+    if(pts[a].v<0.4||pts[b].v<0.4||pts[c].v<0.4) continue;
+    raw[ag.id]=angleBetween(pts[a],pts[b],pts[c]);
+  }
+
+  // EMA smoothing
+  for(const [id,v] of Object.entries(raw)){
+    emaMap[id]=emaMap[id]===undefined?v:EMA_A*v+(1-EMA_A)*emaMap[id];
+  }
+  curAngles={...emaMap};
+
+  // Form validation
+  let passed=0; badJoints.clear();
+  let activeCue='', activeJoint=null;
+  for(const rule of ex.formRules){
+    const a=curAngles[rule.id]; if(a===undefined) continue;
+    if(a>=rule.min&&a<=rule.max){ passed++; }
+    else{ badJoints.add(rule.id); if(!activeCue){activeCue=rule.cue;activeJoint=rule.id;} }
+  }
+  const total=ex.formRules.filter(r=>curAngles[r.id]!==undefined).length;
+  formScore=total>0?Math.round(passed/total*100):100;
+
+  // Score UI
+  const sc=scoreColor(formScore);
+  scoreValEl.textContent=formScore+'%'; scoreValEl.style.color=sc;
+  scoreFillEl.style.width=formScore+'%'; scoreFillEl.style.background=sc;
+  formEl.textContent=formScore+'%'; formEl.style.color=sc;
+
+  // Coaching cue + voice
+  const cueText=activeCue||(primaryOK?'Great form! Keep going!':'');
+  if(cueText!==lastCue){
+    lastCue=cueText;
+    cueBox.textContent=cueText||'Move into position to start…';
+    cueBox.className=activeCue?'':'good';
+    if(activeCue) speak(activeCue);
+  }
+  hlJoint=activeJoint;
+
+  // PLANK hold timer
+  if(ex.isPlank){
+    const good=formScore>=70;
+    if(good){ if(!plankStart)plankStart=Date.now(); plankSecs=Math.floor((Date.now()-plankStart)/1000); }
+    else plankStart=null;
+    const m=Math.floor(plankSecs/60),s=plankSecs%60;
+    plankDisplay.textContent=m+':'+String(s).padStart(2,'0');
+    phaseValEl.textContent=good?'HOLDING':'FIX FORM';
+    angleValEl.textContent='—';
+    if(good&&plankSecs>0&&plankSecs%10===0) speak(plankSecs+' seconds. Keep it up!');
+  }
+
+  // REP counting (4-phase gated state machine)
+  else if(ex.repConfig&&primaryOK){
+    const {joint,startZone,midZone,endZone,minROM}=ex.repConfig;
+    const angle=curAngles[joint];
+    if(angle!==undefined){
+      if(angle<sesMin)sesMin=angle;
+      if(angle>sesMax)sesMax=angle;
+      const rom=sesMax-sesMin;
+      const inZ=(a,z)=>a>=z.lo&&a<=z.hi;
+
+      // Determine candidate next phase
+      let candidate=null;
+      if(repState==='idle'    &&inZ(angle,startZone)) candidate='atStart';
+      else if(repState==='atStart'&&inZ(angle,midZone))   candidate='atMid';
+      else if(repState==='atMid'  &&inZ(angle,endZone))   candidate='atEnd';
+
+      // Frame confirmation gate
+      if(candidate&&candidate===pendPhase) phFrames++;
+      else{ pendPhase=candidate; phFrames=candidate?1:0; }
+
+      if(phFrames>=CONF_FRAMES){
+        if(pendPhase==='atStart'&&repState==='idle'){
+          repState='atStart'; phFrames=0; pendPhase=null;
+          sesMin=angle; sesMax=angle;
+        }
+        else if(pendPhase==='atMid'&&repState==='atStart'){
+          repState='atMid'; phFrames=0; pendPhase=null;
+        }
+        else if(pendPhase==='atEnd'&&repState==='atMid'){
+          const romOk=rom>=(minROM||MIN_ROM_DEF);
+          const tOk=now>=coolUntil;
+          const formOk=formScore>=50;
+
+          if(romOk&&tOk&&formOk){
+            repCount++;
+            repEl.textContent=repCount;
+            flashRep();
+            coolUntil=now+COOLDOWN_MS;
+            speak(String(repCount));
+
+            // Set completion check
+            const targetReps=parseInt(cfgReps.value)||10;
+            const totalSets=parseInt(cfgSets.value)||3;
+            if(repCount>=targetReps){
+              if(currentSet<totalSets){
+                setTimeout(startRest,600);
+              } else {
+                speak('Workout complete! Amazing work!');
+                setTimeout(()=>{cueBox.textContent='��� All sets complete! Excellent work!';cueBox.className='good';},700);
+              }
+            }
+          } else if(!formOk){
+            speak('Fix your form — that rep does not count');
+          } else if(!romOk){
+            speak('Use the full range of motion');
+          }
+
+          // Always cycle back to start position
+          repState='atStart'; phFrames=0; pendPhase=null;
+          sesMin=angle; sesMax=angle;
+        }
+      }
+
+      const inCool=now<coolUntil;
+      phaseValEl.textContent=inCool?'COOLDOWN':
+        repState==='idle'?'GET READY':
+        repState==='atStart'?'START POS':
+        repState==='atMid'?'TOP / MID':repState.toUpperCase();
+      angleValEl.textContent=Math.round(angle)+'°';
+    }
+  } else if(!primaryOK){
+    phaseValEl.textContent='MOVE CLOSER'; angleValEl.textContent='—';
+  }
+
+  // Heatmap update
+  updateHeatmap();
+
+  // Joint panel
+  let html='';
+  for(const ag of ex.angleGroups){
+    const a=curAngles[ag.id]; if(a===undefined) continue;
+    const bad=badJoints.has(ag.id);
+    html+=`<div class="jitem ${bad?'bad':'ok'}">
+      <span class="jname">${ag.label}</span>
+      <span class="jangle">${Math.round(a)}°</span>
+      <span class="jbadge ${bad?'bad':'ok'}">${bad?'FIX':'OK'}</span>
+    </div>`;
+  }
+  jointList.innerHTML=html||'<div class="jitem" style="color:var(--text-dim);font-size:11px;justify-content:center">Calculating…</div>';
+
+  // Draw skeleton
+  drawSkeleton(pts,ex);
+}
+
+/* ── DRAW SKELETON ─────────────────────────────────────────────── */
+function drawSkeleton(pts,ex){
+  const badIdx=new Set(), hlIdx=new Set();
+  for(const rule of ex.formRules){
+    if(badJoints.has(rule.id)){
+      const ag=ex.angleGroups.find(a=>a.id===rule.id);
+      if(ag) ag.pts.forEach(i=>badIdx.add(i));
+    }
+  }
+  if(hlJoint){
+    const ag=ex.angleGroups.find(a=>a.id===hlJoint);
+    if(ag) ag.pts.forEach(i=>hlIdx.add(i));
+  }
+
+  // Draw connections
+  for(const [a,b] of SKEL){
+    const pA=pts[a],pB=pts[b];
+    if(!pA||!pB||pA.v<0.3||pB.v<0.3) continue;
+    const hl=hlIdx.has(a)||hlIdx.has(b);
+    const bad=!hl&&(badIdx.has(a)||badIdx.has(b));
+    ctx.beginPath(); ctx.moveTo(pA.x,pA.y); ctx.lineTo(pB.x,pB.y);
+    if(hl){       ctx.strokeStyle='rgba(255,51,85,.95)'; ctx.lineWidth=4; ctx.shadowColor='#ff3355'; ctx.shadowBlur=14;}
+    else if(bad){ ctx.strokeStyle='rgba(255,51,85,.7)';  ctx.lineWidth=2.5; ctx.shadowColor='transparent'; ctx.shadowBlur=0;}
+    else{         ctx.strokeStyle='rgba(0,255,136,.82)'; ctx.lineWidth=2;   ctx.shadowColor='rgba(0,255,136,.4)'; ctx.shadowBlur=7;}
+    ctx.stroke();
+  }
+  ctx.shadowBlur=0;
+
+  // Draw landmark dots
+  for(let i=0;i<pts.length;i++){
+    const p=pts[i]; if(!p||p.v<0.3) continue;
+    const hl=hlIdx.has(i), bad=!hl&&badIdx.has(i);
+    ctx.beginPath(); ctx.arc(p.x,p.y,hl?7:4.5,0,Math.PI*2);
+    if(hl){      ctx.fillStyle='#ff3355'; ctx.shadowColor='#ff3355'; ctx.shadowBlur=16;}
+    else if(bad){ctx.fillStyle='rgba(255,51,85,.85)'; ctx.shadowBlur=0;}
+    else{        ctx.fillStyle='rgba(0,255,136,.88)'; ctx.shadowColor='rgba(0,255,136,.5)'; ctx.shadowBlur=9;}
+    ctx.fill();
+  }
+  ctx.shadowBlur=0;
+
+  // Angle labels at monitored joint vertices
+  ctx.font='bold 11px "Share Tech Mono",monospace';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  for(const ag of ex.angleGroups){
+    const a=curAngles[ag.id]; if(a===undefined) continue;
+    const pb=pts[ag.pts[1]]; if(!pb||pb.v<0.3) continue;
+    const bad=badJoints.has(ag.id), hl=hlJoint===ag.id;
+    const txt=Math.round(a)+'°';
+    const tw=ctx.measureText(txt).width+10;
+    ctx.fillStyle='rgba(7,9,13,.82)';
+    ctx.beginPath();
+    if(ctx.roundRect) ctx.roundRect(pb.x-tw/2,pb.y-23,tw,15,3);
+    else ctx.rect(pb.x-tw/2,pb.y-23,tw,15);
+    ctx.fill();
+    ctx.fillStyle=hl?'#ff3355':bad?'#ff8080':'#00ff88';
+    ctx.fillText(txt,pb.x,pb.y-15);
+  }
+}
+
+/* ── MEDIAPIPE ─────────────────────────────────────────────────── */
+let pose=null, mpCam=null;
+function initPose(){
+  pose=new Pose({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose/${f}`});
+  pose.setOptions({modelComplexity:1,smoothLandmarks:true,enableSegmentation:false,smoothSegmentation:false,minDetectionConfidence:0.55,minTrackingConfidence:0.55});
+  pose.onResults(onResults);
+}
+async function startCamera(){
+  if(running) return;
+  try{
+    if(!pose) initPose();
+    placeholder.style.display='none';
+    vid.style.display='block'; cvs.style.display='block';
+    mpCam=new Camera(vid,{onFrame:async()=>{await pose.send({image:vid});},width:1280,height:720});
+    await mpCam.start();
+    running=true;
+    dotEl.classList.add('live');
+    startBtn.style.display='none'; stopBtn.style.display='';
+    phaseValEl.textContent='DETECTING…';
+    const ex=EXERCISES[curEx];
+    speak(ex.name+'. '+ex.desc.split('.')[0]+'.');
+  } catch(e){
+    console.error(e);
+    cueBox.textContent='Camera access denied. Please allow permissions and reload.';
+  }
+}
+function stopCamera(){
+  if(!running) return;
+  mpCam?.stop(); mpCam=null;
+  running=false;
+  dotEl.classList.remove('live');
+  startBtn.style.display=''; stopBtn.style.display='none';
+  placeholder.style.display='flex';
+  vid.style.display='none'; cvs.style.display='none';
+  ctx.clearRect(0,0,cvs.width,cvs.height);
+  phaseValEl.textContent='READY';
+  window.speechSynthesis?.cancel();
+}
+
+/* ── EVENTS ────────────────────────────────────────────────────── */
+startBtn.addEventListener('click',startCamera);
+stopBtn.addEventListener('click',stopCamera);
+resetBtn.addEventListener('click',doReset);
+exSel.addEventListener('change',()=>applyEx(exSel.value));
+cfgSets.addEventListener('change',buildSetDots);
+voiceBtn.addEventListener('click',()=>{
+  voiceEnabled=!voiceEnabled;
+  voiceBtn.classList.toggle('on',voiceEnabled);
+  voiceLbl.textContent=voiceEnabled?'Voice ON':'Voice OFF';
+  if(!voiceEnabled) window.speechSynthesis?.cancel();
+});
+
+/* ── INIT ──────────────────────────────────────────────────────── */
+applyEx('pushup');
+</script>
+</body>
+</html>
