@@ -1,23 +1,20 @@
 const express = require("express");
-const userRoute = require("./Routes/userRoute");
-const connectDB = require("./Configuration/connectDB");
-
-var cors = require("cors");
-const app = express();
+const cors = require("cors");
 const dotenv = require("dotenv");
 dotenv.config();
 
-const port = process.env.PORT;
-connectDB();
+const authRoute = require("./Routes/auth");
+const userRoute = require("./Routes/userRoute");
+
+const app = express();
+const port = process.env.PORT || 5000;
+
 app.use(cors());
-
-app.listen(port, (er) => {
-  if (er) {
-    console.log(er);
-  } else {
-    console.log(`server is running on port ${port}`);
-  }
-});
-
 app.use(express.json());
+
+app.use("/api/auth", authRoute);
 app.use("/api", userRoute);
+
+app.listen(port, () => {
+  console.log(`✅ Server running on port ${port}`);
+});

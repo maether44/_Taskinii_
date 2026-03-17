@@ -1,8 +1,11 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { ArrowRight, Play } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const Hero = () => {
+    const navigate = useNavigate();
+
     return (
         <section style={{
             minHeight: '100vh',
@@ -62,6 +65,7 @@ const Hero = () => {
                     <motion.button
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
+                        onClick={() => navigate('/register')}
                         style={{
                             backgroundColor: 'var(--color-primary)',
                             color: 'white',
@@ -72,6 +76,8 @@ const Hero = () => {
                             display: 'flex',
                             alignItems: 'center',
                             gap: '0.5rem',
+                            cursor: 'pointer',
+                            border: 'none',
                             boxShadow: '0 10px 30px rgba(111, 75, 242, 0.5)'
                         }}
                     >
@@ -91,7 +97,8 @@ const Hero = () => {
                             border: '2px solid rgba(255,255,255,0.2)',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '0.5rem'
+                            gap: '0.5rem',
+                            cursor: 'pointer',
                         }}
                     >
                         <Play size={20} fill="white" /> See Demo
