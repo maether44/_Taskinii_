@@ -7,10 +7,7 @@ import {
   AntDesign,
 } from "@expo/vector-icons";
 import { StyleSheet, View } from "react-native";
-import { Train } from "lucide-react-native";
-
 import Home from "../screens/Home";
-import ExerciseList from "../screens/ExerciseList";
 import Nutrition from "../screens/Nutrition";
 import PostureAI from "../screens/PostureAI";
 import Insights from "../screens/Insights";
@@ -76,11 +73,11 @@ export default function NavBar() {
         />
 
         <Tab.Screen
-          name="Exercises"
-          component={ExerciseList}
+          name="Nutrition"
+          component={Nutrition}
           options={{
             tabBarIcon: ({ color, size }) => (
-              <Ionicons name="barbell" size={size} color={color} />
+              <MaterialCommunityIcons name="nutrition" size={size} color={color} />
             ),
           }}
         />
@@ -89,22 +86,9 @@ export default function NavBar() {
           name="PostureAI"
           component={PostureAI}
           options={{
+            tabBarLabel: "Posture",
             tabBarIcon: ({ color, size }) => (
               <AntDesign name="scan" size={size} color={color} />
-            ),
-          }}
-        />
-
-        <Tab.Screen
-          name="Nutrition"
-          component={Nutrition}
-          options={{
-            tabBarIcon: ({ color, size }) => (
-              <MaterialCommunityIcons
-                name="nutrition"
-                size={size}
-                color={color}
-              />
             ),
           }}
         />
@@ -113,8 +97,19 @@ export default function NavBar() {
           name="Calendar"
           component={Training}
           options={{
+            tabBarLabel: "Training",
             tabBarIcon: ({ color, size }) => (
-              <Ionicons name="calendar-outline" size={size} color={color} />
+              <Ionicons name="barbell-outline" size={size} color={color} />
+            ),
+          }}
+        />
+
+        <Tab.Screen
+          name="Insights"
+          component={Insights}
+          options={{
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="analytics-outline" size={size} color={color} />
             ),
           }}
         />

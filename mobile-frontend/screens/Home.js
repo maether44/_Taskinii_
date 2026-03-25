@@ -5,10 +5,13 @@ import {
     StyleSheet, Text, TouchableOpacity,
     View
 } from 'react-native';
+import CalorieRingHero from '../components/home/CalorieRingHero';
+import WaterTracker from '../components/home/WaterTracker';
 import MacroBar from '../components/shared/MacroBar';
 import RingProgress from '../components/shared/RingProgress';
 import { registerTourRef } from '../components/tour/tourRefs';
 import { useNutrition } from '../hooks/useNutrition';
+import { useProfile } from '../hooks/useProfile';
 
 const C = {
     bg: '#0F0B1E', card: '#161230', border: '#1E1A35',
@@ -25,8 +28,10 @@ function greeting() {
     return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
 }
 
-export default function Home({ navigate }) {
+export default function Home({ navigation }) {
+    const navigate = navigation.navigate.bind(navigation);
     const { eaten: calEatenHook, protein, carbs, fat, goals, waterMl, logWater, loading } = useNutrition();
+    const { name, loading: profileLoading, proteinTarget, carbsTarget, fatTarget } = useProfile();
     const [workoutDone, setWorkoutDone] = useState(false);
     const fadeIn = useRef(new Animated.Value(0)).current;
 
@@ -40,12 +45,10 @@ export default function Home({ navigate }) {
     const calBurned     = workoutDone ? 320 : 0;
     const calRemaining  = Math.max(calorieTarget - calEaten + calBurned, 0);
     const calPct        = Math.min(calEaten / calorieTarget, 1);
-    const waterPct      = Math.min((waterMl ?? 0) / waterTarget, 1);
-    const waterGlasses  = Math.round((waterMl ?? 0) / 250);
 
     const RECOVERY = { score: 72, hrv: 58, restingHR: 62, readiness: 'Good' };
     const WEEK     = { workouts: [true, true, false, true, false, false, false] };
-    const userName  = 'You';
+    const userName  = name || 'You';
 
     const recoveryColor =
         RECOVERY.score >= 67 ? C.green :
@@ -58,58 +61,30 @@ export default function Home({ navigate }) {
                 showsVerticalScrollIndicator={false}
                 style={{ opacity: fadeIn }}
             >
-                {/* HEADER */}
+                {/* DATE + AVATAR ROW */}
                 <View style={s.header}>
-                    <View>
-                        <Text style={s.greeting}>{greeting()},</Text>
-                        <Text style={s.name}>{userName} 👋</Text>
-                    </View>
+                    <Text style={s.date}>
+                        {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                    </Text>
                     <TouchableOpacity
                         style={s.avatar}
-                        onPress={() => navigate && navigate('Profile')}
+                        onPress={() => navigate('Profile')}
                     >
-                        <Text style={s.avatarText}>Y</Text>
+                        <Text style={s.avatarText}>{userName.charAt(0).toUpperCase()}</Text>
                     </TouchableOpacity>
                 </View>
 
-                <Text style={s.date}>
-                    {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-                </Text>
-
-                {/* CALORIES */}
+                {/* HERO — greeting + animated calorie ring + macro pills */}
                 <View ref={r => registerTourRef('home_calories', r)} collapsable={false} style={s.card}>
-                    <Text style={s.cardLabel}>CALORIES</Text>
-                    <View style={s.calorieRow}>
-                        <RingProgress size={120} stroke={10} progress={calPct} color={C.lime}>
-                            <View style={{ alignItems: 'center' }}>
-                                <Text style={s.ringNum}>{calEaten}</Text>
-                                <Text style={s.ringLbl}>eaten</Text>
-                            </View>
-                        </RingProgress>
-                        <View style={s.calSide}>
-                            <View style={s.calStat}>
-                                <Text style={s.calStatNum}>{calorieTarget}</Text>
-                                <Text style={s.calStatLbl}>🎯 goal</Text>
-                            </View>
-                            <View style={s.calDivider} />
-                            <View style={s.calStat}>
-                                <Text style={s.calStatNum}>{calBurned}</Text>
-                                <Text style={s.calStatLbl}>🔥 burned</Text>
-                            </View>
-                            <View style={s.calDivider} />
-                            <View style={s.calStat}>
-                                <Text style={[s.calStatNum, { color: calRemaining > 0 ? C.lime : C.red }]}>
-                                    {calRemaining}
-                                </Text>
-                                <Text style={s.calStatLbl}>remaining</Text>
-                            </View>
-                        </View>
-                    </View>
-                    <View style={s.macros}>
-                        <MacroBar label="Protein" eaten={protein ?? 0} goal={goals?.daily_protein ?? 150} color={C.purple} />
-                        <MacroBar label="Carbs"   eaten={carbs ?? 0} goal={goals?.daily_carbs   ?? 250} color={C.accent} />
-                        <MacroBar label="Fat"     eaten={fat ?? 0} goal={goals?.daily_fat     ?? 65}  color={C.lime} />
-                    </View>
+                    <CalorieRingHero
+                        calorieGoal={calorieTarget}
+                        caloriesEaten={calEaten}
+                        protein={{ eaten: protein ?? 0, goal: proteinTarget ?? goals?.protein_target ?? 150 }}
+                        carbs={{ eaten: carbs ?? 0,   goal: carbsTarget   ?? goals?.carbs_target   ?? 250 }}
+                        fat={{ eaten: fat ?? 0,       goal: fatTarget     ?? goals?.fat_target     ?? 65  }}
+                        name={userName}
+                        loading={loading || profileLoading}
+                    />
                     <TouchableOpacity
                         style={s.logMealBtn}
                         onPress={() => navigate && navigate('FoodScanner', {
@@ -118,9 +93,9 @@ export default function Home({ navigate }) {
                             currentCarbs:    carbs ?? 0,
                             currentFat:      fat ?? 0,
                             goalCalories:    calorieTarget,
-                            goalProtein:     goals?.daily_protein ?? 150,
-                            goalCarbs:       goals?.daily_carbs   ?? 250,
-                            goalFat:         goals?.daily_fat     ?? 65,
+                            goalProtein:     proteinTarget ?? goals?.protein_target ?? 150,
+                            goalCarbs:       carbsTarget   ?? goals?.carbs_target   ?? 250,
+                            goalFat:         fatTarget     ?? goals?.fat_target     ?? 65,
                         })}
                     >
                         <Text style={s.logMealTxt}>+ Log a Meal</Text>
@@ -164,21 +139,17 @@ export default function Home({ navigate }) {
                     </View>
                 </View>
 
-                {/* WATER + STEPS + SLEEP */}
-                <View ref={r => registerTourRef('home_water', r)} collapsable={false} style={s.threeRow}>
-                    <View style={[s.smallCard, { flex: 1.1 }]}>
-                        <Text style={s.smallCardLabel}>💧 Water</Text>
-                        <Text style={s.smallCardNum}>{((waterMl ?? 0) / 1000).toFixed(1)}</Text>
-                        <Text style={s.smallCardUnit}>L</Text>
-                        <View style={s.smallBarBg}>
-                            <View style={[s.smallBarFill, { width: `${waterPct * 100}%`, backgroundColor: '#0A84FF' }]} />
-                        </View>
-                        <Text style={s.smallCardSub}>{waterGlasses}/{Math.round(waterTarget / 250)} glasses</Text>
-                        <TouchableOpacity style={s.addWaterBtn} onPress={() => logWater(250)}>
-                            <Text style={s.addWaterTxt}>+ 250ml</Text>
-                        </TouchableOpacity>
-                    </View>
+                {/* WATER TRACKER */}
+                <View ref={r => registerTourRef('home_water', r)} collapsable={false}>
+                    <WaterTracker
+                        waterMl={waterMl ?? 0}
+                        waterGoalMl={waterTarget}
+                        logWater={logWater}
+                    />
+                </View>
 
+                {/* STEPS + SLEEP */}
+                <View style={s.threeRow}>
                     <View style={[s.smallCard, { flex: 1 }]}>
                         <Text style={s.smallCardLabel}>👟 Steps</Text>
                         <Text style={s.smallCardNum}>0k</Text>
@@ -195,7 +166,7 @@ export default function Home({ navigate }) {
                         <View style={s.smallBarBg}>
                             <View style={[s.smallBarFill, { width: '0%', backgroundColor: C.purple }]} />
                         </View>
-                        <TouchableOpacity style={s.addWaterBtn} onPress={() => navigate && navigate('SleepLog')}>
+                        <TouchableOpacity style={s.addWaterBtn} onPress={() => navigate('SleepLog')}>
                             <Text style={s.addWaterTxt}>Edit</Text>
                         </TouchableOpacity>
                     </View>
@@ -265,12 +236,10 @@ export default function Home({ navigate }) {
 const s = StyleSheet.create({
     root: { flex: 1, backgroundColor: C.bg },
     scroll: { paddingHorizontal: 16, paddingTop: 52, paddingBottom: 20 },
-    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-    greeting: { color: C.sub, fontSize: 14 },
-    name: { color: C.text, fontSize: 24, fontWeight: '800', letterSpacing: -0.5 },
-    avatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.purple, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: C.accent },
-    avatarText: { color: '#fff', fontSize: 18, fontWeight: '800' },
-    date: { color: C.sub, fontSize: 12, marginBottom: 20 },
+    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
+    avatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: C.purple, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: C.accent },
+    avatarText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+    date: { color: C.sub, fontSize: 13, fontWeight: '500' },
     card: { backgroundColor: C.card, borderRadius: 20, padding: 18, marginBottom: 14, borderWidth: 1, borderColor: C.border },
     cardLabel: { color: C.sub, fontSize: 10, fontWeight: '800', letterSpacing: 1.2, marginBottom: 14 },
     cardTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },

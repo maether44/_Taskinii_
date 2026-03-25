@@ -65,7 +65,8 @@ const WORKOUT_HISTORY = [
   { name:'Cardio',     date:'4 days ago',   completed:true,  duration:30, calories:295 },
 ];
 
-export default function Training({ navigate }) {
+export default function Training({ navigation }) {
+  const navigate = navigation.navigate.bind(navigation);
   const [selected, setSelected] = useState(todayIdx);
 
   const selectedWorkout = PLAN.days[selected];

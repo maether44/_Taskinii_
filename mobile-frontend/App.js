@@ -11,6 +11,7 @@ import {
 } from "@expo-google-fonts/outfit";
 import { Inter_400Regular, Inter_600SemiBold } from "@expo-google-fonts/inter";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
 import { registerRootComponent } from "expo";
@@ -126,22 +127,24 @@ export default function App() {
   };
 
   return (
-    <SafeAreaProvider>
-      <AuthProvider>
-        <View style={styles.container} onLayout={onLayoutRootView}>
-          <StatusBar style="auto" />
-          <NavigationContainer>
-            <Navigation />
-          </NavigationContainer>
-          <YaraAssistant userProfile={userProfile} />
-          <AppTour
-            key={tourKey}
-            activeTab={activeTab}
-            onTabPress={setActiveTab}
-          />
-        </View>
-      </AuthProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <AuthProvider>
+          <View style={styles.container} onLayout={onLayoutRootView}>
+            <StatusBar style="auto" />
+            <NavigationContainer>
+              <Navigation />
+            </NavigationContainer>
+            <YaraAssistant userProfile={userProfile} />
+            <AppTour
+              key={tourKey}
+              activeTab={activeTab}
+              onTabPress={setActiveTab}
+            />
+          </View>
+        </AuthProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 

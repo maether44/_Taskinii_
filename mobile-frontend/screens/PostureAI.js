@@ -41,7 +41,8 @@ const EXERCISES = [
 const severityColor  = { good:'#34C759', medium:'#FF9500', low:'#FFD60A' };
 const severityBg     = { good:'#34C75918', medium:'#FF950018', low:'#FFD60A18' };
 
-export default function PostureAI({ navigate }) {
+export default function PostureAI({ navigation }) {
+  const navigate = navigation.navigate.bind(navigation);
   const [scanning, setScanning]   = useState(false);
   const [scanned,  setScanned]    = useState(true);
   const [score,    setScore]      = useState(88);

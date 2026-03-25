@@ -37,7 +37,8 @@ const C = {
   red:    '#FF3B30',
 };
 
-export default function Nutrition({ navigate }) {
+export default function Nutrition({ navigation }) {
+  const navigate = navigation.navigate.bind(navigation);
   const [tab, setTab] = useState('today');
 
   const {
