@@ -4,77 +4,14 @@
  * AI backend: Groq (llama-3.1-8b-instant)
  */
 import {
-  Animated, Dimensions, KeyboardAvoidingView, Platform,
+  Animated, KeyboardAvoidingView, Platform,
   ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { useEffect, useRef, useState } from 'react';
 import { registerTourRef } from '../tour/tourRefs';
 import { useProfile } from '../hooks/useProfile';
+import { callYaraCoach } from '../lib/groqAPI';
 
-const GROQ_API_KEY = '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';
-const { width: W } = Dimensions.get('window');
-
-// ─── System prompt built from real Supabase profile ───────────────────────────
-function buildSystem(profile, targets) {
-  const base = `You are Yara, a warm and direct personal fitness coach inside the BodyQ app.
-
-Your voice:
-- Conversational, human, coach-like. No AI stiffness.
-- Short paragraphs. Plain language. Like a coach texting back.
-- Never say "Great question!", "Certainly!", or "As an AI..."
-- Confident. Honest. Caring but no-fluff.
-
-Your expertise: fitness programming, progressive overload, nutrition, macros,
-sports performance, recovery, sleep, motivation, mindset.
-
-Rules:
-- Keep replies to 2–4 short paragraphs unless a plan is requested.
-- NEVER ask the user for info already in their profile below.
-- Always reference their profile when giving advice.
-- Never give dangerous medical advice. Refer to a physio for serious pain.`;
-
-  if (!profile) return base;
-
-  const goalMap = {
-    lose_fat: 'lose body fat', gain_muscle: 'build muscle',
-    gain_weight: 'gain weight', maintain: 'maintain fitness',
-    build_habits: 'build healthy habits',
-  };
-  const age = profile.date_of_birth
-    ? new Date().getFullYear() - new Date(profile.date_of_birth).getFullYear()
-    : 'unknown';
-
-  return base + `
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-USER PROFILE — memorise this, never ask for it again:
-• Name: ${profile.full_name || 'User'}
-• Goal: ${goalMap[profile.goal] || profile.goal || 'unknown'}
-• Gender: ${profile.gender || 'unknown'} | Age: ${age} | Height: ${profile.height_cm || '?'}cm | Weight: ${profile.weight_kg || '?'}kg
-• Activity level: ${profile.activity_level || 'moderate'}
-• Daily calorie target: ${targets?.daily_calories || '?'} kcal
-• Protein / Carbs / Fat targets: ${targets?.protein_target || '?'}g / ${targets?.carbs_target || '?'}g / ${targets?.fat_target || '?'}g
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Use this to give precise, personalised advice every time.`;
-}
-
-async function callGroq(history, profile, targets) {
-  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_API_KEY}` },
-    body: JSON.stringify({
-      model:      'llama-3.1-8b-instant',
-      max_tokens: 512,
-      messages:   [
-        { role: 'system', content: buildSystem(profile, targets) },
-        ...history,
-      ],
-    }),
-  });
-  const body = await res.json();
-  if (!res.ok) throw new Error(JSON.stringify(body?.error ?? body));
-  return body.choices?.[0]?.message?.content ?? "I'm having trouble connecting. Try again in a moment.";
-}
 
 const SUGGESTIONS = [
   "What should I eat today?",
@@ -174,7 +111,7 @@ export default function YaraAssistant() {
 
     apiHistory.current = [...apiHistory.current, { role: 'user', content: msg }];
     try {
-      const reply = await callGroq(apiHistory.current, profile, targets);
+      const reply = await callYaraCoach(apiHistory.current, profile, targets);
       apiHistory.current = [...apiHistory.current, { role: 'assistant', content: reply }];
       setMessages(prev => [...prev, { from: 'yara', text: reply, time: fmtTime() }]);
     } catch (err) {

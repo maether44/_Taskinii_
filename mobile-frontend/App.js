@@ -37,7 +37,7 @@ import WorkoutSummary from "./screens/workout/WorkoutSummary";
 import PostureAI from "./screens/PostureAI";
 import FoodScannerScreen from "./components/food-scanner/FoodScannerScreen";
 import YaraAssistant from "./components/YaraAssistant";
-import AppTour, { resetTour } from "./components/onBoarding/AppTour";
+import AppTour from "./components/onBoarding/AppTour";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -88,8 +88,6 @@ function Navigation() {
 
 export default function App() {
   const [appIsReady, setAppIsReady] = useState(false);
-  const [userProfile, setUserProfile] = useState(null);
-  const [tourKey, setTourKey] = useState(0);
   const [activeTab, setActiveTab] = useState("Home");
 
   useEffect(() => {
@@ -103,7 +101,7 @@ export default function App() {
           "Inter-Regular": Inter_400Regular,
           "Inter-SemiBold": Inter_600SemiBold,
         });
-        const { data, error } = await supabase.auth.getSession();
+        const { error } = await supabase.auth.getSession();
         if (error) console.log("Supabase error:", error.message);
         else console.log("Supabase connected!");
       } catch (e) {
@@ -121,11 +119,6 @@ export default function App() {
 
   if (!appIsReady) return null;
 
-  const replayTour = async () => {
-    await resetTour();
-    setTourKey((k) => k + 1);
-  };
-
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
@@ -135,9 +128,8 @@ export default function App() {
             <NavigationContainer>
               <Navigation />
             </NavigationContainer>
-            <YaraAssistant userProfile={userProfile} />
+            <YaraAssistant />
             <AppTour
-              key={tourKey}
               activeTab={activeTab}
               onTabPress={setActiveTab}
             />

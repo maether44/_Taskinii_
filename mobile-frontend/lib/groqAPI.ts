@@ -116,7 +116,7 @@ export async function generateAIPlan(answers) {
 }
 
 // ============================================
-// Yara chatbot assistant
+// Yara chatbot assistant (onboarding profile shape)
 // ============================================
 
 function buildYaraSystem(profile) {
@@ -178,6 +178,81 @@ export async function callYara(history, profile) {
       max_tokens: 512,
       messages: [
         { role: 'system', content: buildYaraSystem(profile) },
+        ...history,
+      ],
+    }),
+  });
+
+  const body = await res.json();
+  if (!res.ok) throw new Error(JSON.stringify(body?.error ?? body));
+  return body.choices?.[0]?.message?.content
+    ?? "I'm having trouble connecting. Try again in a moment.";
+}
+
+// ============================================
+// Yara coach — Supabase profile shape
+// Used by YaraAssistant.js (reads profile via useProfile hook)
+// ============================================
+
+function buildYaraCoachSystem(profile: any, targets: any) {
+  const base = `You are Yara, a warm and direct personal fitness coach inside the BodyQ app.
+
+Your voice:
+- Conversational, human, coach-like. No AI stiffness.
+- Short paragraphs. Plain language. Like a coach texting back.
+- Never say "Great question!", "Certainly!", or "As an AI..."
+- Confident. Honest. Caring but no-fluff.
+
+Your expertise: fitness programming, progressive overload, nutrition, macros,
+sports performance, recovery, sleep, motivation, mindset.
+
+Rules:
+- Keep replies to 2–4 short paragraphs unless a plan is requested.
+- NEVER ask the user for info already in their profile below.
+- Always reference their profile when giving advice.
+- Never give dangerous medical advice. Refer to a physio for serious pain.`;
+
+  if (!profile) return base;
+
+  const goalMap: Record<string, string> = {
+    lose_fat: 'lose body fat', gain_muscle: 'build muscle',
+    gain_weight: 'gain weight', maintain: 'maintain fitness',
+    build_habits: 'build healthy habits',
+  };
+  const age = profile.date_of_birth
+    ? new Date().getFullYear() - new Date(profile.date_of_birth).getFullYear()
+    : 'unknown';
+
+  return base + `
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+USER PROFILE — memorise this, never ask for it again:
+• Name: ${profile.full_name || 'User'}
+• Goal: ${goalMap[profile.goal] || profile.goal || 'unknown'}
+• Gender: ${profile.gender || 'unknown'} | Age: ${age} | Height: ${profile.height_cm || '?'}cm | Weight: ${profile.weight_kg || '?'}kg
+• Activity level: ${profile.activity_level || 'moderate'}
+• Daily calorie target: ${targets?.daily_calories || '?'} kcal
+• Protein / Carbs / Fat targets: ${targets?.protein_target || '?'}g / ${targets?.carbs_target || '?'}g / ${targets?.fat_target || '?'}g
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Use this to give precise, personalised advice every time.`;
+}
+
+export async function callYaraCoach(
+  history: { role: string; content: string }[],
+  profile: any,
+  targets: any,
+): Promise<string> {
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type':  'application/json',
+      'Authorization': `Bearer ${GROQ_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model:      'llama-3.1-8b-instant',
+      max_tokens: 512,
+      messages: [
+        { role: 'system', content: buildYaraCoachSystem(profile, targets) },
         ...history,
       ],
     }),

@@ -1,12 +1,11 @@
 import React, { useRef, useState } from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { NavigationContainer } from "@react-navigation/native";
 import {
   Ionicons,
   MaterialCommunityIcons,
   AntDesign,
 } from "@expo/vector-icons";
-import { StyleSheet, View } from "react-native";
+import { View } from "react-native";
 import Home from "../screens/Home";
 import Nutrition from "../screens/Nutrition";
 import PostureAI from "../screens/PostureAI";
@@ -20,7 +19,7 @@ import { useAuth } from "../context/AuthContext";
 const Tab = createBottomTabNavigator();
 
 export default function NavBar() {
-  const { shouldShowTour, user } = useAuth();
+  const { shouldShowTour } = useAuth();
   const navRef = useRef(null);
   const [activeTab, setActiveTab] = useState("Home");
 
@@ -121,7 +120,7 @@ export default function NavBar() {
         showOnMount={shouldShowTour}
       />
 
-      <YaraAssistant userProfile={user?.user_metadata} />
+      <YaraAssistant />
       
     </View>
   );

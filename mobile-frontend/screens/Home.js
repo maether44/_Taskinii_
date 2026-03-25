@@ -1,291 +1,253 @@
-// screens/Home.js
-import { useEffect, useRef, useState } from 'react';
-import {
-    Animated,
-    StyleSheet, Text, TouchableOpacity,
-    View
-} from 'react-native';
-import CalorieRingHero from '../components/home/CalorieRingHero';
-import WaterTracker from '../components/home/WaterTracker';
-import MacroBar from '../components/shared/MacroBar';
-import RingProgress from '../components/shared/RingProgress';
-import { registerTourRef } from '../components/tour/tourRefs';
-import { useNutrition } from '../hooks/useNutrition';
-import { useProfile } from '../hooks/useProfile';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Dimensions, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
+import { Ionicons } from '@expo/vector-icons';
 
-const C = {
-    bg: '#0F0B1E', card: '#161230', border: '#1E1A35',
-    purple: '#7C5CFC', lime: '#C8F135', accent: '#9D85F5',
-    text: '#FFFFFF', sub: '#6B5F8A', green: '#34C759',
-    orange: '#FF9500', red: '#FF3B30',
-};
+import { useDashboard } from '../hooks/useDashboard';
+import { useShakySteps } from '../hooks/useShakySteps';
+import WaterTracker from '../components/home/WaterTracker'; // Your interactive cup component
+import { COLORS } from '../constants/colors';
 
-const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const todayIdx = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1;
+const { width } = Dimensions.get('window');
 
-function greeting() {
-    const h = new Date().getHours();
-    return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
-}
+// ─── Level 5 Bento Components ───────────────────────────────────────────────
+
+const BentoCard = ({ children, style, delay = 0 }) => (
+  <Animated.View 
+    entering={FadeInDown.delay(delay).springify().damping(15)}
+    style={[styles.cardBase, style]}
+  >
+    {children}
+  </Animated.View>
+);
 
 export default function Home({ navigation }) {
-    const navigate = navigation.navigate.bind(navigation);
-    const { eaten: calEatenHook, protein, carbs, fat, goals, waterMl, logWater, loading } = useNutrition();
-    const { name, loading: profileLoading, proteinTarget, carbsTarget, fatTarget } = useProfile();
-    const [workoutDone, setWorkoutDone] = useState(false);
-    const fadeIn = useRef(new Animated.Value(0)).current;
+  const { isLoading, error, user, stats, logWater, logSleep, refresh } = useDashboard();
+  const { steps: liveSteps } = useShakySteps(user?.id);
+  const totalSteps = (stats?.steps || 0) + liveSteps;
+  const [displayCal, setDisplayCal] = useState(0);
 
-    useEffect(() => {
-        Animated.timing(fadeIn, { toValue: 1, duration: 500, useNativeDriver: true }).start();
-    }, []);
+  // Count-up effect for calories — only runs once data is ready
+  useEffect(() => {
+    if (isLoading || error || !stats) return;
+    let start = 0;
+    const end = stats.calories.remaining;
+    const increment = end / (1000 / 16);
+    const timer = setInterval(() => {
+      start += increment;
+      if (start >= end) { setDisplayCal(Math.floor(end)); clearInterval(timer); }
+      else { setDisplayCal(Math.floor(start)); }
+    }, 16);
+    return () => clearInterval(timer);
+  }, [isLoading, error, stats?.calories?.remaining]);
 
-    const calorieTarget = goals?.daily_calories ?? 2000;
-    const waterTarget   = goals?.water_ml       ?? 2500;
-    const calEaten      = calEatenHook ?? 0;
-    const calBurned     = workoutDone ? 320 : 0;
-    const calRemaining  = Math.max(calorieTarget - calEaten + calBurned, 0);
-    const calPct        = Math.min(calEaten / calorieTarget, 1);
-
-    const RECOVERY = { score: 72, hrv: 58, restingHR: 62, readiness: 'Good' };
-    const WEEK     = { workouts: [true, true, false, true, false, false, false] };
-    const userName  = name || 'You';
-
-    const recoveryColor =
-        RECOVERY.score >= 67 ? C.green :
-        RECOVERY.score >= 34 ? C.orange : C.red;
-
+  if (error) {
     return (
-        <View style={s.root}>
-            <Animated.ScrollView
-                contentContainerStyle={s.scroll}
-                showsVerticalScrollIndicator={false}
-                style={{ opacity: fadeIn }}
-            >
-                {/* DATE + AVATAR ROW */}
-                <View style={s.header}>
-                    <Text style={s.date}>
-                        {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-                    </Text>
-                    <TouchableOpacity
-                        style={s.avatar}
-                        onPress={() => navigate('Profile')}
-                    >
-                        <Text style={s.avatarText}>{userName.charAt(0).toUpperCase()}</Text>
-                    </TouchableOpacity>
-                </View>
-
-                {/* HERO — greeting + animated calorie ring + macro pills */}
-                <View ref={r => registerTourRef('home_calories', r)} collapsable={false} style={s.card}>
-                    <CalorieRingHero
-                        calorieGoal={calorieTarget}
-                        caloriesEaten={calEaten}
-                        protein={{ eaten: protein ?? 0, goal: proteinTarget ?? goals?.protein_target ?? 150 }}
-                        carbs={{ eaten: carbs ?? 0,   goal: carbsTarget   ?? goals?.carbs_target   ?? 250 }}
-                        fat={{ eaten: fat ?? 0,       goal: fatTarget     ?? goals?.fat_target     ?? 65  }}
-                        name={userName}
-                        loading={loading || profileLoading}
-                    />
-                    <TouchableOpacity
-                        style={s.logMealBtn}
-                        onPress={() => navigate && navigate('FoodScanner', {
-                            currentCalories: calEaten,
-                            currentProtein:  protein ?? 0,
-                            currentCarbs:    carbs ?? 0,
-                            currentFat:      fat ?? 0,
-                            goalCalories:    calorieTarget,
-                            goalProtein:     proteinTarget ?? goals?.protein_target ?? 150,
-                            goalCarbs:       carbsTarget   ?? goals?.carbs_target   ?? 250,
-                            goalFat:         fatTarget     ?? goals?.fat_target     ?? 65,
-                        })}
-                    >
-                        <Text style={s.logMealTxt}>+ Log a Meal</Text>
-                    </TouchableOpacity>
-                </View>
-
-                {/* TODAY'S WORKOUT */}
-                <View ref={r => registerTourRef('home_workout', r)} collapsable={false} style={s.card}>
-                    <Text style={s.cardLabel}>TODAY'S WORKOUT</Text>
-                    <View style={s.workoutRow}>
-                        <View style={{ flex: 1 }}>
-                            <Text style={s.workoutName}>Upper Body Strength</Text>
-                            <Text style={s.workoutMeta}>45 min · 5 exercises · ~380 kcal</Text>
-                            {workoutDone && (
-                                <View style={s.workoutDonePill}>
-                                    <Text style={s.workoutDoneTxt}>✓ Completed</Text>
-                                </View>
-                            )}
-                        </View>
-                        <TouchableOpacity
-                            style={[s.startBtn, workoutDone && s.startBtnDone]}
-                            onPress={() => {
-                                if (!workoutDone) navigate && navigate('WorkoutActive', {
-                                    workout: {
-                                        name: 'Upper Body Strength',
-                                        estimatedCalories: 380,
-                                        exercises: [
-                                            { id: 'bench_press', sets: 3, reps: 10, restSec: 90 },
-                                            { id: 'row',         sets: 3, reps: 12, restSec: 60 },
-                                            { id: 'ohp',         sets: 3, reps: 10, restSec: 60 },
-                                            { id: 'bicep_curl',  sets: 3, reps: 15, restSec: 45 },
-                                            { id: 'tricep_push', sets: 3, reps: 15, restSec: 45 },
-                                        ],
-                                    }
-                                });
-                            }}
-                            activeOpacity={0.85}
-                        >
-                            <Text style={s.startBtnTxt}>{workoutDone ? '✓' : '▶'}</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-
-                {/* WATER TRACKER */}
-                <View ref={r => registerTourRef('home_water', r)} collapsable={false}>
-                    <WaterTracker
-                        waterMl={waterMl ?? 0}
-                        waterGoalMl={waterTarget}
-                        logWater={logWater}
-                    />
-                </View>
-
-                {/* STEPS + SLEEP */}
-                <View style={s.threeRow}>
-                    <View style={[s.smallCard, { flex: 1 }]}>
-                        <Text style={s.smallCardLabel}>👟 Steps</Text>
-                        <Text style={s.smallCardNum}>0k</Text>
-                        <View style={s.smallBarBg}>
-                            <View style={[s.smallBarFill, { width: '0%', backgroundColor: C.accent }]} />
-                        </View>
-                        <Text style={s.smallCardSub}>goal 10k</Text>
-                    </View>
-
-                    <View style={[s.smallCard, { flex: 1 }]}>
-                        <Text style={s.smallCardLabel}>🌙 Sleep</Text>
-                        <Text style={s.smallCardNum}>0</Text>
-                        <Text style={s.smallCardUnit}>hrs</Text>
-                        <View style={s.smallBarBg}>
-                            <View style={[s.smallBarFill, { width: '0%', backgroundColor: C.purple }]} />
-                        </View>
-                        <TouchableOpacity style={s.addWaterBtn} onPress={() => navigate('SleepLog')}>
-                            <Text style={s.addWaterTxt}>Edit</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-
-                {/* RECOVERY */}
-                <View ref={r => registerTourRef('home_recovery', r)} collapsable={false} style={s.card}>
-                    <Text style={s.cardLabel}>RECOVERY</Text>
-                    <View style={s.recoveryRow}>
-                        <RingProgress size={80} stroke={7} progress={RECOVERY.score / 100} color={recoveryColor}>
-                            <Text style={[s.recoveryScore, { color: recoveryColor }]}>{RECOVERY.score}</Text>
-                        </RingProgress>
-                        <View style={s.recoveryStats}>
-                            {[
-                                { l: 'HRV',        v: `${RECOVERY.hrv} ms` },
-                                { l: 'Resting HR', v: `${RECOVERY.restingHR} bpm` },
-                                { l: 'Readiness',  v: RECOVERY.readiness },
-                            ].map((r, i) => (
-                                <View key={i} style={s.recoveryStatRow}>
-                                    <Text style={s.recoveryStatL}>{r.l}</Text>
-                                    <Text style={s.recoveryStatV}>{r.v}</Text>
-                                </View>
-                            ))}
-                        </View>
-                    </View>
-                    <View style={[s.recoveryBadge, { backgroundColor: recoveryColor + '18', borderColor: recoveryColor + '40' }]}>
-                        <Text style={[s.recoveryBadgeTxt, { color: recoveryColor }]}>
-                            {RECOVERY.score >= 67
-                                ? '✅ Well recovered — push hard today'
-                                : RECOVERY.score >= 34
-                                    ? '⚠️ Moderate — keep intensity medium'
-                                    : '🛑 Low recovery — consider rest today'}
-                        </Text>
-                    </View>
-                </View>
-
-                {/* THIS WEEK */}
-                <View ref={r => registerTourRef('home_week', r)} collapsable={false} style={s.card}>
-                    <View style={s.cardTitleRow}>
-                        <Text style={s.cardLabel}>THIS WEEK</Text>
-                        <Text style={s.cardSub}>{WEEK.workouts.filter(Boolean).length}/7 workouts</Text>
-                    </View>
-                    <View style={s.weekRow}>
-                        {DAYS.map((d, i) => {
-                            const done  = WEEK.workouts[i];
-                            const today = i === todayIdx;
-                            const future = i > todayIdx;
-                            return (
-                                <View key={i} style={s.weekCol}>
-                                    <Text style={[s.weekDayLbl, today && { color: C.lime }]}>{d}</Text>
-                                    <View style={[s.weekDot, done && s.weekDotDone, today && s.weekDotToday, future && { opacity: 0.3 }]}>
-                                        {done  && <Text style={s.weekCheck}>✓</Text>}
-                                        {today && !done && <Text style={{ color: C.lime, fontSize: 18 }}>•</Text>}
-                                    </View>
-                                </View>
-                            );
-                        })}
-                    </View>
-                </View>
-
-                <View style={{ height: 28 }} />
-            </Animated.ScrollView>
-        </View>
+      <View style={styles.loadingRoot}>
+        <Text style={{ color: COLORS.error, marginBottom: 12 }}>Error: {error}</Text>
+        <Pressable style={styles.retryBtn} onPress={refresh}>
+          <Text style={styles.retryBtnTxt}>Retry</Text>
+        </Pressable>
+      </View>
     );
+  }
+
+  if (isLoading || !stats) {
+    return (
+      <View style={styles.loadingRoot}>
+        <ActivityIndicator color={COLORS.lime} size="large" />
+        <Text style={{ color: COLORS.sub, marginTop: 10 }}>Loading BodyQ...</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.root}>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        
+        {/* 1. TOP HEADER SECTION */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.greeting}>Hey {user.name} 👋</Text>
+            <Text style={styles.subGreeting}>Let's hit your {user.goal?.replace('_', ' ')} goal.</Text>
+          </View>
+          <Pressable style={styles.avatar} onPress={() => navigation.navigate('Profile')}>
+            <Text style={styles.avatarTxt}>{user.name?.charAt(0)}</Text>
+          </Pressable>
+        </View>
+        
+
+        {/* 2. YARA AI INSIGHT (Glow Card) */}
+        <BentoCard delay={100}>
+          <LinearGradient
+            colors={['#7C5CFC', '#4A2FC8']}
+            start={{x: 0, y: 0}} end={{x: 1, y: 1}}
+            style={styles.aiCard}
+          >
+            <View style={styles.aiHeader}>
+              <Text style={styles.aiTitle}>YARA COACH</Text>
+              <View style={styles.liveDot} />
+            </View>
+            <Text style={styles.aiText}>
+              "You're doing great! You need 40g more protein to optimize muscle recovery today. Consider a shake."
+            </Text>
+          </LinearGradient>
+        </BentoCard>
+
+        {/* 3. NUTRITION BENTO GRID */}
+        <View style={styles.bentoGrid}>
+          {/* Main Calorie Block */}
+          <BentoCard style={styles.mainCalorieCard} delay={200}>
+            <Text style={styles.cardLabel}>CALORIES LEFT</Text>
+            <Text style={styles.bigCal}>{displayCal}</Text>
+            <View style={styles.calRow}>
+               <Text style={styles.calSub}>Eaten: {stats.calories.eaten}</Text>
+               <View style={styles.dividerV} />
+               <Text style={styles.calSub}>Goal: {stats.calories.target}</Text>
+            </View>
+            <Pressable 
+              style={styles.logBtn} 
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                navigation.navigate('FoodScanner');
+              }}
+            >
+              <Text style={styles.logBtnTxt}>+ Log Meal</Text>
+            </Pressable>
+          </BentoCard>
+
+          {/* Macro Block (Right side) */}
+          <View style={styles.macroColumn}>
+            <BentoCard style={styles.macroSmallCard} delay={300}>
+              <Text style={[styles.macroLabel, {color: COLORS.lime}]}>PROTEIN</Text>
+              <Text style={styles.macroVal}>{stats.macros.protein.current} / {stats.macros.protein.target}g</Text>
+              <View style={styles.barContainer}><View style={[styles.barFill, {width: `${(stats.macros.protein.current / stats.macros.protein.target) * 100}%`, backgroundColor: COLORS.lime}]} /></View>
+            </BentoCard>
+            
+            <BentoCard style={styles.macroSmallCard} delay={400}>
+              <Text style={[styles.macroLabel, {color: '#378ADD'}]}>CARBS</Text>
+              <Text style={styles.macroVal}>{stats.macros.carbs.current}g</Text>
+              <View style={styles.barContainer}><View style={[styles.barFill, {width: `${(stats.macros.carbs.current / stats.macros.carbs.target) * 100}%`, backgroundColor: '#378ADD'}]} /></View>
+            </BentoCard>
+          </View>
+        </View>
+
+        {/* 4. ACTIVITY ROW (Steps & Sleep) */}
+        <View style={styles.twoColumn}>
+          <BentoCard style={styles.halfCard} delay={500}>
+            <Text style={styles.cardLabel}>👟 STEPS</Text>
+            <Text style={styles.statNum}>{totalSteps.toLocaleString()}</Text>
+            <View style={styles.miniBarBg}>
+              <View style={[styles.miniBarFill, { width: `${Math.min((totalSteps / 10000) * 100, 100)}%`, backgroundColor: COLORS.lime }]} />
+            </View>
+            <Text style={styles.smallSub}>goal 10,000</Text>
+          </BentoCard>
+
+          <BentoCard style={styles.halfCard} delay={600}>
+            <Text style={styles.cardLabel}>🌙 SLEEP</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+              <Text style={styles.statNum}>{stats.sleep || 0}</Text>
+              <Text style={styles.statUnit}> hrs</Text>
+            </View>
+            <Pressable
+              style={styles.miniAdd}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                logSleep((stats.sleep || 0) + 0.5);
+              }}
+            >
+              <Text style={styles.miniAddTxt}>+ 30m</Text>
+            </Pressable>
+          </BentoCard>
+        </View>
+
+        {/* 5. WORKOUT (Wide Card) */}
+        <BentoCard delay={700} style={styles.workoutCard}>
+          <View style={styles.workoutContent}>
+             <View>
+                <Text style={styles.cardLabel}>TODAY'S PLAN</Text>
+                <Text style={styles.workoutTitle}>Upper Body Power</Text>
+                <Text style={styles.workoutSub}>45 min · Strength</Text>
+             </View>
+             <Pressable 
+                style={styles.playBtn}
+                onPress={() => navigation.navigate('Training')}
+             >
+                <Ionicons name="play" size={24} color="#000" />
+             </Pressable>
+          </View>
+        </BentoCard>
+
+        {/* Full Water Tracking Cups (The part you specifically wanted) */}
+        <View style={{marginTop: 20}}>
+            <WaterTracker 
+                waterMl={stats.water.current} 
+                waterGoalMl={stats.water.target} 
+                logWater={logWater} 
+            />
+        </View>
+
+        <View style={{height: 100}} />
+      </ScrollView>
+    </View>
+  );
 }
 
-const s = StyleSheet.create({
-    root: { flex: 1, backgroundColor: C.bg },
-    scroll: { paddingHorizontal: 16, paddingTop: 52, paddingBottom: 20 },
-    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
-    avatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: C.purple, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: C.accent },
-    avatarText: { color: '#fff', fontSize: 16, fontWeight: '800' },
-    date: { color: C.sub, fontSize: 13, fontWeight: '500' },
-    card: { backgroundColor: C.card, borderRadius: 20, padding: 18, marginBottom: 14, borderWidth: 1, borderColor: C.border },
-    cardLabel: { color: C.sub, fontSize: 10, fontWeight: '800', letterSpacing: 1.2, marginBottom: 14 },
-    cardTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
-    cardSub: { color: C.sub, fontSize: 12 },
-    calorieRow: { flexDirection: 'row', alignItems: 'center', gap: 20, marginBottom: 18 },
-    ringNum: { color: C.text, fontSize: 24, fontWeight: '900', letterSpacing: -1 },
-    ringLbl: { color: C.sub, fontSize: 11, marginTop: 1 },
-    calSide: { flex: 1, gap: 10 },
-    calStat: {},
-    calStatNum: { color: C.text, fontSize: 18, fontWeight: '800' },
-    calStatLbl: { color: C.sub, fontSize: 11 },
-    calDivider: { height: 1, backgroundColor: C.border },
-    macros: { borderTopWidth: 1, borderTopColor: C.border, paddingTop: 16 },
-    logMealBtn: { backgroundColor: C.purple, borderRadius: 12, paddingVertical: 13, alignItems: 'center', marginTop: 14 },
-    logMealTxt: { color: '#fff', fontSize: 14, fontWeight: '700' },
-    workoutRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-    workoutName: { color: C.text, fontSize: 16, fontWeight: '700' },
-    workoutMeta: { color: C.sub, fontSize: 12, marginTop: 4 },
-    workoutDonePill: { alignSelf: 'flex-start', backgroundColor: '#34C75920', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, marginTop: 8, borderWidth: 1, borderColor: '#34C75940' },
-    workoutDoneTxt: { color: '#34C759', fontSize: 12, fontWeight: '700' },
-    startBtn: { width: 52, height: 52, borderRadius: 26, backgroundColor: C.purple, alignItems: 'center', justifyContent: 'center', shadowColor: C.purple, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 6 },
-    startBtnDone: { backgroundColor: '#34C759' },
-    startBtnTxt: { color: '#fff', fontSize: 18, fontWeight: '800' },
-    threeRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
-    smallCard: { backgroundColor: C.card, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: C.border, alignItems: 'center', gap: 3 },
-    smallCardLabel: { color: C.sub, fontSize: 10, fontWeight: '700', letterSpacing: 0.5, marginBottom: 4 },
-    smallCardNum: { color: C.text, fontSize: 22, fontWeight: '900' },
-    smallCardUnit: { color: C.sub, fontSize: 11 },
-    smallCardSub: { color: C.sub, fontSize: 10 },
-    smallBarBg: { width: '100%', height: 4, backgroundColor: C.border, borderRadius: 2, overflow: 'hidden', marginVertical: 4 },
-    smallBarFill: { height: 4, borderRadius: 2 },
-    addWaterBtn: { backgroundColor: C.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, marginTop: 4 },
-    addWaterTxt: { color: C.accent, fontSize: 11, fontWeight: '700' },
-    recoveryRow: { flexDirection: 'row', alignItems: 'center', gap: 20, marginBottom: 14 },
-    recoveryScore: { fontSize: 20, fontWeight: '900' },
-    recoveryStats: { flex: 1, gap: 8 },
-    recoveryStatRow: { flexDirection: 'row', justifyContent: 'space-between' },
-    recoveryStatL: { color: C.sub, fontSize: 12 },
-    recoveryStatV: { color: C.text, fontSize: 13, fontWeight: '600' },
-    recoveryBadge: { borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14, borderWidth: 1 },
-    recoveryBadgeTxt: { fontSize: 12, fontWeight: '600', lineHeight: 18 },
-    weekRow: { flexDirection: 'row', justifyContent: 'space-between' },
-    weekCol: { alignItems: 'center', gap: 5 },
-    weekDayLbl: { color: C.sub, fontSize: 10, fontWeight: '600' },
-    weekDot: { width: 32, height: 32, borderRadius: 9, backgroundColor: C.border, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'transparent' },
-    weekDotDone: { backgroundColor: C.purple },
-    weekDotToday: { borderColor: C.lime },
-    weekCheck: { color: '#fff', fontSize: 13, fontWeight: '800' },
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#0F0B1E' },
+  scroll: { paddingHorizontal: 16, paddingTop: 60 },
+  loadingRoot: { flex: 1, backgroundColor: '#0F0B1E', justifyContent: 'center', alignItems: 'center' },
+  retryBtn:    { backgroundColor: '#7C5CFC', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 24, marginTop: 8 },
+  retryBtnTxt: { color: '#FFF', fontSize: 14, fontWeight: '700' },
+  
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
+  greeting: { color: '#FFF', fontSize: 24, fontWeight: '900' },
+  subGreeting: { color: '#6B5F8A', fontSize: 14, marginTop: 4 },
+  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#7C5CFC', alignItems: 'center', justifyContent: 'center', borderWeight: 2, borderColor: '#C8F135' },
+  avatarTxt: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
+
+  cardBase: { backgroundColor: '#161230', borderRadius: 24, padding: 20, borderWidth: 1, borderColor: '#1E1A35', marginBottom: 12 },
+  
+  aiCard: { borderRadius: 24, padding: 20 },
+  aiHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  aiTitle: { color: 'rgba(255,255,255,0.6)', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
+  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#C8F135', shadowColor: '#C8F135', shadowRadius: 10, shadowOpacity: 1 },
+  aiText: { color: '#FFF', fontSize: 15, lineHeight: 22, fontWeight: '500' },
+
+  bentoGrid: { flexDirection: 'row', gap: 12, marginBottom: 12 },
+  mainCalorieCard: { flex: 1.2, marginBottom: 0, justifyContent: 'center' },
+  macroColumn: { flex: 1, gap: 12 },
+  macroSmallCard: { marginBottom: 0, padding: 15 },
+  
+  cardLabel: { color: '#6B5F8A', fontSize: 10, fontWeight: '900', letterSpacing: 1, marginBottom: 8 },
+  bigCal: { color: '#C8F135', fontSize: 42, fontWeight: '900', marginVertical: 4 },
+  calRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  calSub: { color: '#6B5F8A', fontSize: 11 },
+  dividerV: { width: 1, height: 10, backgroundColor: '#1E1A35' },
+  
+  logBtn: { backgroundColor: '#7C5CFC', borderRadius: 12, paddingVertical: 10, alignItems: 'center', marginTop: 15 },
+  logBtnTxt: { color: '#FFF', fontSize: 13, fontWeight: '700' },
+
+  macroLabel: { fontSize: 9, fontWeight: '900', marginBottom: 4 },
+  macroVal: { color: '#FFF', fontSize: 15, fontWeight: '700' },
+  barContainer: { height: 4, backgroundColor: '#0F0B1E', borderRadius: 2, marginTop: 8, overflow: 'hidden' },
+  barFill: { height: '100%', borderRadius: 2 },
+
+  twoColumn: { flexDirection: 'row', gap: 12 },
+  halfCard: { flex: 1, alignItems: 'center' },
+  statNum: { color: '#FFF', fontSize: 24, fontWeight: '900' },
+  statUnit: { color: '#6B5F8A', fontSize: 12, fontWeight: '500' },
+  miniAdd:    { backgroundColor: '#1E1A35', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6, marginTop: 10 },
+  miniAddTxt: { color: '#C8F135', fontSize: 11, fontWeight: '700' },
+  miniBarBg:  { width: '100%', height: 4, backgroundColor: '#1E1A35', borderRadius: 2, overflow: 'hidden', marginTop: 8 },
+  miniBarFill:{ height: 4, borderRadius: 2 },
+  smallSub:   { color: '#6B5F8A', fontSize: 10, marginTop: 5 },
+
+  workoutCard: { padding: 15 },
+  workoutContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  workoutTitle: { color: '#FFF', fontSize: 18, fontWeight: '800' },
+  workoutSub: { color: '#6B5F8A', fontSize: 13, marginTop: 4 },
+  playBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#C8F135', alignItems: 'center', justifyContent: 'center' }
 });
