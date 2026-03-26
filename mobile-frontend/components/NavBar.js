@@ -15,6 +15,7 @@ import ExerciseList from "../screens/ExerciseList";
 import ExerciseInfo from "../screens/ExerciseInfo";
 import WorkoutActive from "../screens/workout/WorkoutActive";
 import WorkoutSummary from "../screens/workout/WorkoutSummary";
+import PostureAI from "../screens/PostureAI";
 import YaraAssistant from "./YaraAssistant";
 
 const Tab = createBottomTabNavigator();
@@ -26,6 +27,7 @@ function TrainingStack() {
       <Stack.Screen name="TrainingHub" component={Training} />
       <Stack.Screen name="ExerciseList" component={ExerciseList} />
       <Stack.Screen name="ExerciseInfo" component={ExerciseInfo} />
+      <Stack.Screen name="PostureAI" component={PostureAI} />
       <Stack.Screen
         name="WorkoutActive"
         component={WorkoutActive}

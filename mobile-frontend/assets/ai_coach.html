@@ -870,9 +870,9 @@ window.applyExerciseChange = applyExerciseChange;
 window.getSessionState = function() {
   if (window.ReactNativeWebView) {
     window.ReactNativeWebView.postMessage(JSON.stringify({
-      type: 'sessionEnd',
-      repCount: repCount,
-      formScore: formScore,
+      type: 'SAVE_WORKOUT',
+      reps: repCount,
+      accuracy: formScore,
       exercise: currentExercise,
     }));
   }
@@ -1005,7 +1005,7 @@ function onResults(results) {
     // Bridge → React Native
     if (window.ReactNativeWebView) {
       window.ReactNativeWebView.postMessage(JSON.stringify({
-        type: 'cue', text: activeCue || '✓ Great form!'
+        type: 'cue', text: activeCue || '✓ Great form!', formScore: formScore
       }));
     }
   }
