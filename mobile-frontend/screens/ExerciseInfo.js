@@ -9,6 +9,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { BASE_IMG } from "../services/exerciseService";
 
+
 const C = {
   bg: "#0F0B1E",
   card: "#161230",
@@ -125,8 +126,18 @@ export default function ExerciseInfo({ route, navigation }) {
           </View>
         )}
 
-        <View style={{ height: 40 }} />
+        <View style={{ height: 100 }} />
       </ScrollView>
+
+      {/* Sticky Footer Action */}
+      <View style={s.footer}>
+        <TouchableOpacity
+          style={s.mainActionBtn}
+          onPress={() => navigation.navigate('WorkoutActive', { exerciseKey: exercise.name.toLowerCase() })}
+        >
+          <Text style={s.mainActionTxt}>START AI POSTURE COACH</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -238,4 +249,20 @@ const s = StyleSheet.create({
     textTransform: "capitalize",
     flex: 1,
   },
+  footer: {
+    padding: 20,
+    backgroundColor: C.bg,
+    borderTopWidth: 1,
+    borderTopColor: C.border,
+  },
+  mainActionBtn: {
+    backgroundColor: '#C8F135',
+    paddingVertical: 18,
+    borderRadius: 16,
+    alignItems: 'center',
+    shadowColor: '#C8F135',
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+  },
+  mainActionTxt: { color: '#000', fontWeight: '900', fontSize: 16, letterSpacing: 1 },
 });

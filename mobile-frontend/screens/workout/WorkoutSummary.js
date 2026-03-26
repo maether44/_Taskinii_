@@ -1,11 +1,31 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
-    Animated,
-    ScrollView,
-    StyleSheet,
-    Text, TouchableOpacity,
-    View,
+  Animated, ScrollView, StyleSheet,
+  Text, TouchableOpacity, View, ActivityIndicator,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { CommonActions } from '@react-navigation/native';
+import { supabase } from '../../lib/supabase';
+
+const C = {
+  bg:     '#0F0B1E',
+  card:   '#13102A',
+  border: '#1E1A38',
+  purple: '#7C5CFC',
+  lime:   '#C8F135',
+  amber:  '#FF9500',
+  red:    '#FF3B30',
+  sub:    '#6B5F8A',
+  text:   '#FFFFFF',
+};
+
+const SHADOW = {
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 6 },
+  shadowOpacity: 0.4,
+  shadowRadius: 14,
+  elevation: 10,
+};
 
 function fmtTime(sec) {
   const m = Math.floor(sec / 60);
@@ -13,209 +33,251 @@ function fmtTime(sec) {
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
-function StatBox({ label, value, unit, color = '#9D85F5' }) {
-  return (
-    <View style={styles.statBox}>
-      <Text style={[styles.statValue, { color }]}>{value}</Text>
-      <Text style={styles.statUnit}>{unit}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </View>
-  );
+function scoreColor(pct) {
+  if (pct >= 80) return C.lime;
+  if (pct >= 55) return C.amber;
+  return C.red;
 }
 
-export default function WorkoutSummary({ result, workoutName, onHome, onGoAgain }) {
-  // Default mock result if none passed
-  const R = result || {
-    elapsed: 2820,       // 47 min
-    completedSets: 15,
-    totalSets: 15,
-    caloriesBurned: 390,
-    newPRs: [{ exercise: 'Bench Press', value: '90 kg' }],
-    xpEarned: 80,
+function yaraMessage(score) {
+  if (score >= 90) return { tag: 'ELITE FORM', msg: `Elite Form! You're operating at peak efficiency. Time to level up the weight.` };
+  if (score >= 80) return { tag: 'GREAT FORM', msg: `Your form was ${score}% stable. You are ready for higher weight!` };
+  if (score >= 65) return { tag: 'SOLID',      msg: `Solid session at ${score}%. Focus on full range of motion and you'll break through fast.` };
+  if (score >= 50) return { tag: 'KEEP GOING', msg: `Good effort — ${score}% accuracy. Slow down slightly and you'll see big improvements next session.` };
+  if (score >  0)  return { tag: 'NEEDS WORK', msg: `Form needs refinement at ${score}%. Let's master the technique before adding more load.` };
+  return              { tag: 'WELL DONE',   msg: `Consistency beats perfection. Showing up is what counts most — see you next session.` };
+}
+
+export default function WorkoutSummary({ route, navigation }) {
+  const params    = route?.params || {};
+  const sessionId = params.sessionId ?? null;
+
+  // Optimistic values from navigation params (shown instantly, overwritten by DB)
+  const [reps,      setReps]      = useState(params.repCount  ?? 0);
+  const [score,     setScore]     = useState(params.formScore ?? 0);
+  const [elapsed]                  = useState(params.elapsed   ?? 0);
+  const [exName,    setExName]    = useState(params.exerciseName ?? 'Workout');
+  const [dbLoading, setDbLoading] = useState(!!sessionId);
+
+  const fadeAnim  = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const scaleAnim = useRef(new Animated.Value(0.88)).current;
+
+  // ── Fetch real data from Supabase ────────────────────────────
+  useEffect(() => {
+    if (!sessionId) { runEntrance(); return; }
+
+    (async () => {
+      const { data, error } = await supabase
+        .from('workout_sessions')
+        .select('reps, posture_score, calories_burned, exercise_name, created_at')
+        .eq('id', sessionId)
+        .single();
+
+      if (!error && data) {
+        if (data.reps           != null) setReps(data.reps);
+        if (data.posture_score  != null) setScore(data.posture_score);
+        if (data.exercise_name)          setExName(data.exercise_name);
+      } else {
+        console.warn('[BodyQ] Session fetch error:', error?.message);
+      }
+      setDbLoading(false);
+      runEntrance();
+    })();
+  }, [sessionId]);
+
+  function runEntrance() {
+    Animated.parallel([
+      Animated.spring(scaleAnim, { toValue: 1, tension: 55, friction: 9, useNativeDriver: true }),
+      Animated.timing(fadeAnim,  { toValue: 1, duration: 500,             useNativeDriver: true }),
+      Animated.spring(slideAnim, { toValue: 0, tension: 55, friction: 9, useNativeDriver: true }),
+    ]).start();
+  }
+
+  const calories = Math.max(1, Math.round(elapsed / 60 * 8));
+  const xp       = Math.min(200, reps * 5 + Math.round(score / 2));
+  const ringColor = scoreColor(score);
+  const yara      = yaraMessage(score);
+
+  const goHome = () => {
+    navigation.dispatch(
+      CommonActions.reset({ index: 0, routes: [{ name: 'MainApp' }] })
+    );
   };
 
-  const scaleAnim = useRef(new Animated.Value(0)).current;
-  const fadeAnim  = useRef(new Animated.Value(0)).current;
+  const goAgain = () => navigation.goBack();
 
-  useEffect(() => {
-    Animated.parallel([
-      Animated.spring(scaleAnim, { toValue: 1, tension: 60, friction: 8, useNativeDriver: true }),
-      Animated.timing(fadeAnim,  { toValue: 1, duration: 600, delay: 200, useNativeDriver: true }),
-    ]).start();
-  }, []);
-
-  const completionPct = Math.round((R.completedSets / R.totalSets) * 100);
-  const mins = Math.floor(R.elapsed / 60);
+  if (dbLoading) {
+    return (
+      <View style={s.loadingScreen}>
+        <ActivityIndicator size="large" color={C.lime} />
+        <Text style={s.loadingTxt}>Saving session...</Text>
+      </View>
+    );
+  }
 
   return (
-    <View style={styles.root}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+    <View style={s.root}>
+      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
-        {/* Trophy animation */}
-        <Animated.View style={[styles.trophyWrap, { transform: [{ scale: scaleAnim }] }]}>
-          <Text style={styles.trophy}>🏆</Text>
+        {/* ── HEADER ── */}
+        <Animated.View style={[s.header, { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
+          <View style={s.stampCircle}>
+            <Ionicons name="checkmark" size={36} color="#000" />
+          </View>
+          <Text style={s.doneLabel}>SESSION COMPLETE</Text>
+          <Text style={s.workoutName}>{exName}</Text>
+          <Text style={s.timestamp}>
+            {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+          </Text>
         </Animated.View>
 
-        <Animated.View style={{ opacity: fadeAnim }}>
-          <Text style={styles.title}>Workout Complete!</Text>
-          <Text style={styles.workoutName}>{workoutName || 'Upper Body Strength'}</Text>
+        {/* ── PERFORATED DIVIDER ── */}
+        <View style={s.perfRow}>
+          <View style={s.perfDot} />
+          <View style={s.perfLine} />
+          <View style={s.perfDot} />
+        </View>
 
-          {/* Main stats */}
-          <View style={styles.statsRow}>
-            <StatBox label="Duration"   value={mins}  unit="min"  color="#C8F135" />
-            <StatBox label="Calories"   value={R.caloriesBurned} unit="kcal" color="#FF9500" />
-            <StatBox label="Sets Done"  value={`${R.completedSets}/${R.totalSets}`} unit="sets" color="#7C5CFC" />
+        {/* ── HERO REPS ── */}
+        <Animated.View
+          style={[s.heroRepsCard, SHADOW, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
+        >
+          <Text style={s.heroRepsLabel}>TOTAL REPS</Text>
+          <Text style={s.heroRepsNum}>{reps}</Text>
+          <Text style={s.heroRepsSub}>completed this session</Text>
+        </Animated.View>
+
+        {/* ── RECEIPT BODY ── */}
+        <Animated.View
+          style={[s.receiptBody, SHADOW, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
+        >
+          <View style={s.statRow}>
+            <View style={s.statLeft}>
+              <Ionicons name="flame" size={16} color={C.amber} />
+              <Text style={s.statLabel}>Calories Burned</Text>
+            </View>
+            <Text style={[s.statVal, { color: C.amber }]}>{calories} kcal</Text>
+          </View>
+          <View style={s.divider} />
+
+          <View style={s.statRow}>
+            <View style={s.statLeft}>
+              <Ionicons name="time-outline" size={16} color={C.purple} />
+              <Text style={s.statLabel}>Duration</Text>
+            </View>
+            <Text style={[s.statVal, { color: C.purple }]}>{fmtTime(elapsed)}</Text>
+          </View>
+          <View style={s.divider} />
+
+          {/* Form accuracy */}
+          <View style={s.formSection}>
+            <View style={s.formTopRow}>
+              <Text style={s.statLabel}>Form Accuracy</Text>
+              <Text style={[s.formPct, { color: ringColor }]}>{score}%</Text>
+            </View>
+            <View style={s.formBarBg}>
+              <View style={[s.formBarFill, { width: `${score}%`, backgroundColor: ringColor }]} />
+            </View>
           </View>
 
-          {/* Completion ring */}
-          <View style={styles.completionCard}>
-            <View style={styles.completionLeft}>
-              <Text style={styles.completionPct}>{completionPct}%</Text>
-              <Text style={styles.completionLabel}>Completed</Text>
+          {/* XP */}
+          <View style={s.xpRow}>
+            <Ionicons name="star" size={14} color={C.lime} />
+            <Text style={s.xpTxt}>+{xp} XP earned this session</Text>
+          </View>
+        </Animated.View>
+
+        {/* ── YARA AI CARD ── */}
+        <Animated.View
+          style={[s.yaraCard, SHADOW, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
+        >
+          <View style={s.yaraHeader}>
+            <View style={s.yaraAvatar}>
+              <Text style={s.yaraEmoji}>🤖</Text>
             </View>
-            <View style={styles.completionRight}>
-              <View style={styles.completionBarBg}>
-                <View style={[styles.completionBarFill, { width: `${completionPct}%` }]} />
+            <View style={{ flex: 1 }}>
+              <Text style={s.yaraName}>Yara AI</Text>
+              <View style={[s.yaraTag, { borderColor: ringColor }]}>
+                <Text style={[s.yaraTagTxt, { color: ringColor }]}>{yara.tag}</Text>
               </View>
-              <Text style={styles.completionNote}>
-                {completionPct === 100
-                  ? 'Perfect session — every set done! 💪'
-                  : `${R.totalSets - R.completedSets} sets skipped — still a great effort`}
-              </Text>
             </View>
           </View>
+          <Text style={s.yaraMsg}>"{yara.msg}"</Text>
+        </Animated.View>
 
-          {/* XP earned */}
-          <View style={styles.xpCard}>
-            <Text style={styles.xpIcon}>⭐</Text>
-            <View>
-              <Text style={styles.xpLabel}>XP Earned</Text>
-              <Text style={styles.xpValue}>+{R.xpEarned} XP</Text>
-            </View>
-            <Text style={styles.xpNote}>Level 12 · 420/500 XP</Text>
-          </View>
-
-          {/* New PRs */}
-          {R.newPRs && R.newPRs.length > 0 && (
-            <View style={styles.prsCard}>
-              <Text style={styles.prsTitle}>🎉 New Personal Records</Text>
-              {R.newPRs.map((pr, i) => (
-                <View key={i} style={styles.prRow}>
-                  <Text style={styles.prExercise}>{pr.exercise}</Text>
-                  <Text style={styles.prValue}>{pr.value}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-
-          {/* Yara message */}
-          <View style={styles.yaraCard}>
-            <View style={styles.yaraAvatar}>
-              <Text>🤖</Text>
-            </View>
-            <Text style={styles.yaraMsg}>
-              {completionPct === 100
-                ? "You crushed it! Full completion is rare — you're in the top tier today. Rest up and come back strong."
-                : "Great work getting it done. Consistency beats perfection — showing up is what counts most."}
-            </Text>
-          </View>
-
-          {/* Actions */}
-          <TouchableOpacity style={styles.homeBtn} onPress={onHome}>
-            <Text style={styles.homeBtnTxt}>Back to Home</Text>
+        {/* ── ACTIONS ── */}
+        <Animated.View style={[s.actionsWrap, { opacity: fadeAnim }]}>
+          <TouchableOpacity style={[s.homeBtn, SHADOW]} onPress={goHome}>
+            <Text style={s.homeBtnTxt}>Back to Home</Text>
           </TouchableOpacity>
-
-          <TouchableOpacity style={styles.againBtn} onPress={onGoAgain}>
-            <Text style={styles.againBtnTxt}>Repeat Workout</Text>
+          <TouchableOpacity style={s.againBtn} onPress={goAgain}>
+            <Ionicons name="refresh" size={15} color={C.sub} style={{ marginRight: 6 }} />
+            <Text style={s.againBtnTxt}>Repeat Workout</Text>
           </TouchableOpacity>
         </Animated.View>
 
-        <View style={{ height: 32 }} />
+        <View style={{ height: 40 }} />
       </ScrollView>
     </View>
   );
 }
 
-const C = { bg: '#0F0B1E', card: '#181430', border: '#251E42', purple: '#7C5CFC', lime: '#C8F135', sub: '#6B5F8A', text: '#fff' };
+const s = StyleSheet.create({
+  root:          { flex: 1, backgroundColor: C.bg },
+  scroll:        { paddingHorizontal: 24, paddingTop: 64, paddingBottom: 24, alignItems: 'center' },
+  loadingScreen: { flex: 1, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center' },
+  loadingTxt:    { color: C.sub, marginTop: 14, fontSize: 14, fontWeight: '600' },
 
-const styles = StyleSheet.create({
-  root:   { flex: 1, backgroundColor: C.bg },
-  scroll: { paddingHorizontal: 20, paddingTop: 60, paddingBottom: 24, alignItems: 'center' },
+  // Header
+  header:      { alignItems: 'center', width: '100%' },
+  stampCircle: { width: 72, height: 72, borderRadius: 36, backgroundColor: C.lime, alignItems: 'center', justifyContent: 'center', marginBottom: 18, shadowColor: C.lime, shadowOpacity: 0.5, shadowRadius: 16, elevation: 10 },
+  doneLabel:   { color: C.sub, fontSize: 11, fontWeight: '800', letterSpacing: 2.5, marginBottom: 8 },
+  workoutName: { color: C.text, fontSize: 24, fontWeight: '900', letterSpacing: -0.5, textAlign: 'center' },
+  timestamp:   { color: C.sub, fontSize: 12, marginTop: 6 },
 
-  trophyWrap: { alignItems: 'center', marginBottom: 20 },
-  trophy:     { fontSize: 72 },
+  // Perforated divider
+  perfRow: { flexDirection: 'row', alignItems: 'center', width: '100%', marginVertical: 20 },
+  perfDot: { width: 16, height: 16, borderRadius: 8, backgroundColor: C.bg, borderWidth: 1, borderColor: C.border },
+  perfLine:{ flex: 1, borderTopWidth: 1, borderColor: C.border, borderStyle: 'dashed', marginHorizontal: -1 },
 
-  title:       { color: C.text, fontSize: 28, fontWeight: '900', textAlign: 'center', letterSpacing: -0.5 },
-  workoutName: { color: C.sub, fontSize: 15, textAlign: 'center', marginTop: 6, marginBottom: 28 },
+  // Hero reps
+  heroRepsCard: { backgroundColor: C.card, borderRadius: 24, width: '100%', alignItems: 'center', paddingVertical: 28, paddingHorizontal: 20, borderWidth: 1, borderColor: C.border, marginBottom: 12 },
+  heroRepsLabel:{ color: C.sub, fontSize: 11, fontWeight: '800', letterSpacing: 2, marginBottom: 6 },
+  heroRepsNum:  { color: C.lime, fontSize: 96, fontWeight: '900', lineHeight: 100, letterSpacing: -4 },
+  heroRepsSub:  { color: C.sub, fontSize: 12, marginTop: 4 },
 
-  statsRow: {
-    flexDirection: 'row', gap: 10, width: '100%', marginBottom: 16,
-  },
-  statBox: {
-    flex: 1, backgroundColor: C.card,
-    borderRadius: 18, padding: 16, alignItems: 'center',
-    borderWidth: 1, borderColor: C.border,
-  },
-  statValue: { fontSize: 26, fontWeight: '900', letterSpacing: -1 },
-  statUnit:  { color: C.sub, fontSize: 11, marginTop: 1 },
-  statLabel: { color: C.sub, fontSize: 11, marginTop: 6 },
+  // Receipt body
+  receiptBody: { backgroundColor: C.card, borderRadius: 22, width: '100%', padding: 22, borderWidth: 1, borderColor: C.border, marginBottom: 12 },
+  statRow:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 13 },
+  statLeft:    { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  statLabel:   { color: '#B0A8CC', fontSize: 14, fontWeight: '600' },
+  statVal:     { fontSize: 17, fontWeight: '900', letterSpacing: -0.5 },
+  divider:     { height: 1, backgroundColor: C.border },
 
-  completionCard: {
-    backgroundColor: C.card, borderRadius: 18,
-    padding: 18, flexDirection: 'row',
-    alignItems: 'center', gap: 16,
-    borderWidth: 1, borderColor: C.border,
-    width: '100%', marginBottom: 12,
-  },
-  completionLeft:    { alignItems: 'center' },
-  completionPct:     { color: C.lime, fontSize: 30, fontWeight: '900' },
-  completionLabel:   { color: C.sub, fontSize: 11 },
-  completionRight:   { flex: 1 },
-  completionBarBg:   { height: 8, backgroundColor: C.border, borderRadius: 4, overflow: 'hidden', marginBottom: 8 },
-  completionBarFill: { height: 8, backgroundColor: C.lime, borderRadius: 4 },
-  completionNote:    { color: C.sub, fontSize: 12, lineHeight: 17 },
+  formSection: { paddingVertical: 14 },
+  formTopRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  formPct:     { fontSize: 22, fontWeight: '900', letterSpacing: -1 },
+  formBarBg:   { height: 8, backgroundColor: C.border, borderRadius: 4, overflow: 'hidden' },
+  formBarFill: { height: 8, borderRadius: 4 },
 
-  xpCard: {
-    backgroundColor: '#7C5CFC18', borderRadius: 18,
-    padding: 18, flexDirection: 'row', alignItems: 'center', gap: 14,
-    borderWidth: 1, borderColor: '#7C5CFC40',
-    width: '100%', marginBottom: 12,
-  },
-  xpIcon:  { fontSize: 28 },
-  xpLabel: { color: C.sub, fontSize: 11 },
-  xpValue: { color: C.lime, fontSize: 22, fontWeight: '900' },
-  xpNote:  { color: C.sub, fontSize: 12, marginLeft: 'auto' },
+  xpRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 14, borderTopWidth: 1, borderTopColor: C.border },
+  xpTxt: { color: C.lime, fontSize: 13, fontWeight: '700' },
 
-  prsCard: {
-    backgroundColor: '#C8F13518', borderRadius: 18,
-    padding: 18, borderWidth: 1, borderColor: '#C8F13540',
-    width: '100%', marginBottom: 12,
-  },
-  prsTitle:    { color: C.text, fontSize: 14, fontWeight: '700', marginBottom: 12 },
-  prRow:       { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
-  prExercise:  { color: C.sub, fontSize: 14 },
-  prValue:     { color: C.lime, fontSize: 14, fontWeight: '800' },
+  // Yara card
+  yaraCard:    { backgroundColor: C.card, borderRadius: 22, padding: 20, width: '100%', borderWidth: 1, borderColor: C.border, marginBottom: 20 },
+  yaraHeader:  { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
+  yaraAvatar:  { width: 42, height: 42, borderRadius: 21, backgroundColor: C.purple, alignItems: 'center', justifyContent: 'center' },
+  yaraEmoji:   { fontSize: 20 },
+  yaraName:    { color: C.text, fontSize: 13, fontWeight: '800', marginBottom: 4 },
+  yaraTag:     { alignSelf: 'flex-start', borderWidth: 1, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
+  yaraTagTxt:  { fontSize: 9, fontWeight: '900', letterSpacing: 1 },
+  yaraMsg:     { color: '#C9C2DF', fontSize: 14, lineHeight: 22, fontStyle: 'italic' },
 
-  yaraCard: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 12,
-    backgroundColor: C.card, borderRadius: 18, padding: 16,
-    borderWidth: 1, borderColor: C.border, width: '100%', marginBottom: 24,
-  },
-  yaraAvatar: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: C.purple, alignItems: 'center', justifyContent: 'center',
-  },
-  yaraMsg: { flex: 1, color: '#B0A8CC', fontSize: 13, lineHeight: 20 },
-
-  homeBtn: {
-    backgroundColor: C.purple, borderRadius: 16,
-    paddingVertical: 17, width: '100%', alignItems: 'center', marginBottom: 10,
-  },
+  // Actions
+  actionsWrap: { width: '100%', gap: 10 },
+  homeBtn:     { backgroundColor: C.purple, borderRadius: 16, paddingVertical: 17, alignItems: 'center' },
   homeBtnTxt:  { color: '#fff', fontSize: 15, fontWeight: '800' },
-  againBtn: {
-    backgroundColor: C.card, borderRadius: 16,
-    paddingVertical: 17, width: '100%', alignItems: 'center',
-    borderWidth: 1, borderColor: C.border,
-  },
-  againBtnTxt: { color: C.sub, fontSize: 15, fontWeight: '700' },
+  againBtn:    { backgroundColor: C.card, borderRadius: 16, paddingVertical: 15, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', borderWidth: 1, borderColor: C.border },
+  againBtnTxt: { color: C.sub, fontSize: 14, fontWeight: '700' },
 });

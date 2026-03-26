@@ -28,7 +28,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow BodyQ to access your camera to scan food barcodes and analyse meals."
+          "cameraPermission": "Allow BodyQ to use the camera for AI posture correction."
         }
       ],
       [

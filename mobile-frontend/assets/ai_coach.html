@@ -1,0 +1,1373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval'; script-src * 'unsafe-inline' 'unsafe-eval'; connect-src * 'unsafe-inline'; img-src * data: blob: 'unsafe-inline'; frame-src *; style-src * 'unsafe-inline';">
+<title>AI Posture Coach — Real-Time Form Detection</title>
+
+<!-- MediaPipe Pose via CDN (pinned versions) -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils@0.6/control_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3/drawing_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.js" crossorigin="anonymous"></script>
+
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+
+<style>
+  /* ─── RESET & ROOT ─────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #080c10;
+    --bg2:       #0d1117;
+    --bg3:       #131a23;
+    --panel:     #0f1720;
+    --border:    #1e2d3d;
+    --green:     #00ff88;
+    --green-dim: #00cc6a;
+    --red:       #ff3355;
+    --red-dim:   #cc2244;
+    --amber:     #ffaa00;
+    --cyan:      #00c8ff;
+    --text:      #c8d8e8;
+    --text-dim:  #5a7a9a;
+    --font-head: 'Orbitron', monospace;
+    --font-body: 'Rajdhani', sans-serif;
+    --font-mono: 'Share Tech Mono', monospace;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    overflow-x: hidden;
+  }
+
+  /* ─── LAYOUT ──────────────────────────────────────────────── */
+  #app {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    grid-template-columns: 1fr 320px;
+    grid-template-areas:
+      "header header"
+      "feed   panel"
+      "feed   panel";
+    min-height: 100vh;
+    gap: 0;
+  }
+
+  /* ─── HEADER ──────────────────────────────────────────────── */
+  header {
+    grid-area: header;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 24px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .logo-icon {
+    width: 36px; height: 36px;
+    background: var(--green);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    box-shadow: 0 0 16px rgba(0,255,136,.4);
+  }
+  .logo-text {
+    font-family: var(--font-head);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--green);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    line-height: 1.2;
+  }
+  .logo-sub {
+    font-size: 9px;
+    color: var(--text-dim);
+    letter-spacing: 3px;
+    display: block;
+  }
+
+  .header-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  /* ─── EXERCISE SELECTOR ─────────────────────────────────────*/
+  .ex-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  #exerciseSelect {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    outline: none;
+    transition: border-color .2s;
+    min-width: 160px;
+  }
+  #exerciseSelect:focus { border-color: var(--green); }
+  #exerciseSelect option { background: var(--bg2); }
+
+  /* ─── BUTTONS ────────────────────────────────────────────── */
+  .btn {
+    font-family: var(--font-head);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 9px 20px;
+    border-radius: 6px;
+    border: 1px solid;
+    cursor: pointer;
+    transition: all .2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-primary {
+    background: var(--green);
+    border-color: var(--green);
+    color: #000;
+    box-shadow: 0 0 20px rgba(0,255,136,.3);
+  }
+  .btn-primary:hover { box-shadow: 0 0 30px rgba(0,255,136,.6); transform: translateY(-1px); }
+  .btn-danger {
+    background: transparent;
+    border-color: var(--red);
+    color: var(--red);
+  }
+  .btn-danger:hover { background: rgba(255,51,85,.1); box-shadow: 0 0 20px rgba(255,51,85,.3); }
+  .btn-secondary {
+    background: transparent;
+    border-color: var(--border);
+    color: var(--text-dim);
+  }
+  .btn-secondary:hover { border-color: var(--cyan); color: var(--cyan); }
+
+  /* ─── HIDE WEB CONTROLS — controlled by React Native HUD ── */
+  #startBtn,
+  #stopBtn,
+  #resetBtn,
+  #exerciseSelect,
+  .ex-label,
+  .status-dot,
+  .header-controls { display: none !important; }
+
+  /* ─── CAMERA STATUS DOT ──────────────────────────────────── */
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    transition: background .3s, box-shadow .3s;
+  }
+  .status-dot.active {
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+    animation: pulse-dot 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: .5; }
+  }
+
+  /* ─── FEED AREA ──────────────────────────────────────────── */
+  #feedArea {
+    grid-area: feed;
+    position: relative;
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    min-height: 400px;
+  }
+
+  #inputVideo {
+    position: absolute;
+    width: 100%; height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);    /* mirror for selfie feel */
+  }
+
+  #outputCanvas {
+    position: absolute;
+    width: 100%; height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+  }
+
+  /* placeholder when camera off */
+  #cameraPlaceholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    z-index: 2;
+  }
+  .placeholder-icon { font-size: 56px; opacity: .3; }
+  .placeholder-text {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text-dim);
+    text-align: center;
+    line-height: 1.8;
+  }
+
+  /* ─── REP FLASH ANIMATION ────────────────────────────────── */
+  #repFlash {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    font-family: var(--font-head);
+    font-size: 72px;
+    font-weight: 900;
+    color: var(--green);
+    text-shadow: 0 0 40px var(--green), 0 0 80px rgba(0,255,136,.5);
+    pointer-events: none;
+    opacity: 0;
+    z-index: 10;
+    letter-spacing: 4px;
+  }
+  #repFlash.flash {
+    animation: rep-pop .6s cubic-bezier(.17,.67,.32,1.3) forwards;
+  }
+  @keyframes rep-pop {
+    0%   { transform: translate(-50%,-50%) scale(0); opacity: 1; }
+    50%  { transform: translate(-50%,-50%) scale(1.1); opacity: 1; }
+    100% { transform: translate(-50%,-50%) scale(1.4); opacity: 0; }
+  }
+
+  /* ─── FORM SCORE OVERLAY ─────────────────────────────────── */
+  #scoreOverlay {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    background: rgba(8,12,16,.75);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    z-index: 5;
+    backdrop-filter: blur(4px);
+    min-width: 120px;
+  }
+  .score-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .score-value {
+    font-family: var(--font-head);
+    font-size: 32px;
+    font-weight: 900;
+    line-height: 1;
+    transition: color .3s;
+  }
+  .score-bar {
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    margin-top: 6px;
+    overflow: hidden;
+  }
+  .score-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width .4s, background .3s;
+  }
+
+  /* ─── SIDE PANEL ─────────────────────────────────────────── */
+  #sidePanel {
+    grid-area: panel;
+    background: var(--panel);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    overflow-y: auto;
+  }
+
+  .panel-section {
+    padding: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .panel-section:last-child { border-bottom: none; }
+
+  .section-title {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-dim);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-title::before {
+    content: '';
+    display: block;
+    width: 16px; height: 2px;
+    background: var(--green);
+  }
+
+  /* Stats grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .stat-card {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    transition: border-color .3s;
+  }
+  .stat-card.highlight { border-color: var(--green); }
+  .stat-card-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .stat-card-value {
+    font-family: var(--font-head);
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--green);
+  }
+  .stat-card-value.red { color: var(--red); }
+  .stat-card-value.amber { color: var(--amber); }
+  .stat-card-value.small { font-size: 18px; }
+
+  /* Coaching cue */
+  #cueBox {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--amber);
+    border-radius: 6px;
+    padding: 12px 14px;
+    font-family: var(--font-body);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--amber);
+    line-height: 1.4;
+    min-height: 52px;
+    transition: color .3s, border-color .3s;
+  }
+  #cueBox.good {
+    border-left-color: var(--green);
+    color: var(--green);
+  }
+
+  /* Joint status list */
+  #jointList { display: flex; flex-direction: column; gap: 8px; }
+  .joint-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--bg3);
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    transition: border-color .3s;
+  }
+  .joint-item.ok  { border-color: rgba(0,255,136,.3); }
+  .joint-item.bad { border-color: rgba(255,51,85,.3); }
+  .joint-name  { color: var(--text); }
+  .joint-angle { color: var(--text-dim); }
+  .joint-badge {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-weight: 600;
+  }
+  .joint-badge.ok  { background: rgba(0,255,136,.15); color: var(--green); }
+  .joint-badge.bad { background: rgba(255,51,85,.15); color: var(--red); }
+
+  /* Plank timer */
+  #plankTimerWrap {
+    text-align: center;
+    display: none;
+  }
+  .plank-timer {
+    font-family: var(--font-head);
+    font-size: 56px;
+    font-weight: 900;
+    color: var(--cyan);
+    text-shadow: 0 0 20px rgba(0,200,255,.4);
+    line-height: 1;
+  }
+  .plank-timer-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+
+  /* Exercise info */
+  .ex-info-name {
+    font-family: var(--font-head);
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+  .ex-info-desc {
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+
+  /* FPS indicator */
+  #fpsDisplay {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    background: rgba(8,12,16,.6);
+    padding: 4px 8px;
+    border-radius: 4px;
+    z-index: 5;
+  }
+
+  /* ─── SCROLLBAR ──────────────────────────────────────────── */
+  #sidePanel::-webkit-scrollbar { width: 4px; }
+  #sidePanel::-webkit-scrollbar-track { background: var(--bg2); }
+  #sidePanel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* ─── MOBILE ─────────────────────────────────────────────── */
+  @media (max-width: 800px) {
+    #app {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto auto 1fr;
+      grid-template-areas:
+        "header"
+        "panel"
+        "feed";
+    }
+    #feedArea  { min-height: 50vh; }
+    #sidePanel { max-height: 50vh; overflow-y: auto; border-left: none; border-top: 1px solid var(--border); }
+    .stats-grid { grid-template-columns: repeat(4, 1fr); }
+  }
+  @media (max-width: 480px) {
+    .stats-grid { grid-template-columns: 1fr 1fr; }
+    header { padding: 10px 14px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ═══════════════════════════ HEADER ═══════════════════════════ -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">🏋️</div>
+      <div>
+        <div class="logo-text">AI Posture Coach
+          <span class="logo-sub">Real-Time Form Detection</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="header-controls">
+      <span class="ex-label">Exercise:</span>
+      <select id="exerciseSelect">
+        <option value="squat">Squat</option>
+        <option value="pushup">Push-Up</option>
+        <option value="bicepCurl">Bicep Curl</option>
+        <option value="shoulderPress">Shoulder Press</option>
+        <option value="deadlift">Deadlift</option>
+        <option value="lunge">Lunge</option>
+        <option value="plank">Plank</option>
+      </select>
+
+      <div class="status-dot" id="statusDot"></div>
+
+      <button class="btn btn-primary" id="startBtn">▶ Start Camera</button>
+      <button class="btn btn-danger" id="stopBtn" style="display:none">■ Stop</button>
+      <button class="btn btn-secondary" id="resetBtn">↺ Reset</button>
+    </div>
+  </header>
+
+  <!-- ═══════════════════════════ FEED ═════════════════════════════ -->
+  <div id="feedArea">
+    <video id="inputVideo" autoplay muted playsinline></video>
+    <canvas id="outputCanvas"></canvas>
+
+    <!-- placeholder -->
+    <div id="cameraPlaceholder">
+      <div class="placeholder-icon">📷</div>
+      <div class="placeholder-text">
+        Click <strong style="color:var(--green)">Start Camera</strong> to begin<br/>
+        Allow camera permissions when prompted<br/>
+        <span style="color:var(--text-dim);font-size:11px;">Powered by MediaPipe Pose</span>
+      </div>
+    </div>
+
+    <!-- score overlay -->
+    <div id="scoreOverlay">
+      <div class="score-label">Form Score</div>
+      <div class="score-value" id="scoreValue" style="color:var(--green)">—</div>
+      <div class="score-bar"><div class="score-fill" id="scoreFill" style="width:0%;background:var(--green)"></div></div>
+    </div>
+
+    <!-- rep flash -->
+    <div id="repFlash">REP!</div>
+
+    <!-- fps -->
+    <div id="fpsDisplay">0 fps</div>
+  </div>
+
+  <!-- ═══════════════════════════ PANEL ════════════════════════════ -->
+  <div id="sidePanel">
+
+    <!-- Exercise Info -->
+    <div class="panel-section">
+      <div class="section-title">Exercise</div>
+      <div class="ex-info-name" id="exInfoName">Squat</div>
+      <div class="ex-info-desc" id="exInfoDesc">Stand with feet shoulder-width apart. Lower until thighs are parallel to floor, then drive back up.</div>
+    </div>
+
+    <!-- Stats -->
+    <div class="panel-section">
+      <div class="section-title">Stats</div>
+      <div class="stats-grid">
+        <div class="stat-card highlight" id="repCard">
+          <div class="stat-card-label">Reps</div>
+          <div class="stat-card-value" id="repCount">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-label">Form %</div>
+          <div class="stat-card-value" id="formPct" style="color:var(--text-dim)">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-label">Phase</div>
+          <div class="stat-card-value small" id="phaseLabel" style="color:var(--cyan)">IDLE</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-label">State</div>
+          <div class="stat-card-value small" id="stateLabel" style="color:var(--text-dim)">—</div>
+        </div>
+      </div>
+
+      <!-- Plank timer (shown only for plank) -->
+      <div id="plankTimerWrap" style="margin-top:16px">
+        <div class="plank-timer" id="plankTimer">0:00</div>
+        <div class="plank-timer-label">Hold Time</div>
+      </div>
+    </div>
+
+    <!-- Coaching Cue -->
+    <div class="panel-section">
+      <div class="section-title">Coaching Cue</div>
+      <div id="cueBox">Start camera and begin your exercise…</div>
+    </div>
+
+    <!-- Joint Status -->
+    <div class="panel-section">
+      <div class="section-title">Joint Analysis</div>
+      <div id="jointList">
+        <div class="joint-item" style="color:var(--text-dim);font-size:11px;justify-content:center;">
+          No pose detected yet
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /sidePanel -->
+
+</div><!-- /app -->
+
+<!-- ═══════════════════════════ SCRIPT ═══════════════════════════════ -->
+<script>
+/* ───────────────────────────────────────────────────────────────────
+   UTILITY: Vector angle calculation
+   angle = arccos( (AB · CB) / (|AB| * |CB|) )   (degrees)
+─────────────────────────────────────────────────────────────────── */
+function angleBetween(A, B, C) {
+  const ABx = A.x - B.x, ABy = A.y - B.y;
+  const CBx = C.x - B.x, CBy = C.y - B.y;
+  const dot  = ABx * CBx + ABy * CBy;
+  const magAB = Math.hypot(ABx, ABy);
+  const magCB = Math.hypot(CBx, CBy);
+  if (magAB === 0 || magCB === 0) return 0;
+  return Math.acos(Math.max(-1, Math.min(1, dot / (magAB * magCB)))) * (180 / Math.PI);
+}
+
+/* ───────────────────────────────────────────────────────────────────
+   EXERCISE CONFIGS
+   Each entry defines:
+     name, description, joints[], formRules[], repConfig
+─────────────────────────────────────────────────────────────────── */
+const EXERCISES = {
+
+  squat: {
+    name: "Squat",
+    description: "Stand with feet shoulder-width apart. Lower until thighs are parallel to floor, then drive back up.",
+    // [A, B (vertex), C] index triplets into MediaPipe landmark array
+    angleGroups: [
+      { id: "leftKnee",  label: "Left Knee",  pts: [23,25,27] },
+      { id: "rightKnee", label: "Right Knee", pts: [24,26,28] },
+      { id: "leftHip",   label: "Left Hip",   pts: [11,23,25] },
+      { id: "rightHip",  label: "Right Hip",  pts: [12,24,26] },
+    ],
+    formRules: [
+      { id: "leftKnee",  min: 60,  max: 175, cue: "Bend left knee deeper" },
+      { id: "rightKnee", min: 60,  max: 175, cue: "Bend right knee deeper" },
+      { id: "leftHip",   min: 60,  max: 130, cue: "Keep torso upright — don't lean too far forward" },
+      { id: "rightHip",  min: 60,  max: 130, cue: "Keep torso upright — don't lean too far forward" },
+    ],
+    repConfig: {
+      joint:         "leftKnee",
+      upThreshold:   165,   // must be nearly fully upright
+      downThreshold:  85,   // must reach below parallel
+    },
+    isPlank: false,
+  },
+
+  pushup: {
+    name: "Push-Up",
+    description: "Start in high plank. Lower chest toward floor keeping body straight, then press back up.",
+    angleGroups: [
+      { id: "leftElbow",  label: "Left Elbow",  pts: [11,13,15] },
+      { id: "rightElbow", label: "Right Elbow", pts: [12,14,16] },
+      { id: "hipLeft",    label: "Hip Align (L)", pts: [11,23,25] },
+      { id: "hipRight",   label: "Hip Align (R)", pts: [12,24,26] },
+    ],
+    formRules: [
+      { id: "leftElbow",  min: 60,  max: 175, cue: "Keep elbows tucked — don't flare out" },
+      { id: "rightElbow", min: 60,  max: 175, cue: "Keep elbows tucked — don't flare out" },
+      { id: "hipLeft",    min: 155, max: 180, cue: "Don't let hips sag — keep body straight" },
+      { id: "hipRight",   min: 155, max: 180, cue: "Don't let hips sag — keep body straight" },
+    ],
+    repConfig: { joint: "leftElbow", upThreshold: 160, downThreshold: 70 },
+    isPlank: false,
+  },
+
+  bicepCurl: {
+    name: "Bicep Curl",
+    description: "Stand upright. Curl the weight from hip to shoulder without swinging your elbow.",
+    angleGroups: [
+      { id: "leftElbow",     label: "Left Elbow",    pts: [11,13,15] },
+      { id: "rightElbow",    label: "Right Elbow",   pts: [12,14,16] },
+      { id: "leftShoulder",  label: "Left Shoulder", pts: [13,11,23] },
+      { id: "rightShoulder", label: "Right Shoulder",pts: [14,12,24] },
+    ],
+    formRules: [
+      { id: "leftElbow",     min: 30,  max: 170, cue: "Curl through full range of motion" },
+      { id: "rightElbow",    min: 30,  max: 170, cue: "Curl through full range of motion" },
+      { id: "leftShoulder",  min: 0,   max: 40,  cue: "Don't swing your elbow — keep it tucked" },
+      { id: "rightShoulder", min: 0,   max: 40,  cue: "Don't swing your elbow — keep it tucked" },
+    ],
+    repConfig: { joint: "leftElbow", upThreshold: 45, downThreshold: 155 },
+    isPlank: false,
+  },
+
+  shoulderPress: {
+    name: "Shoulder Press",
+    description: "Press dumbbells from shoulder height overhead to full arm extension, then lower with control.",
+    angleGroups: [
+      { id: "leftElbow",  label: "Left Elbow",  pts: [11,13,15] },
+      { id: "rightElbow", label: "Right Elbow", pts: [12,14,16] },
+      { id: "leftHip",    label: "Back Arch (L)", pts: [11,23,25] },
+      { id: "rightHip",   label: "Back Arch (R)", pts: [12,24,26] },
+    ],
+    formRules: [
+      { id: "leftElbow",  min: 60,  max: 175, cue: "Press to full extension overhead" },
+      { id: "rightElbow", min: 60,  max: 175, cue: "Press to full extension overhead" },
+      { id: "leftHip",    min: 150, max: 180, cue: "Don't arch your back — brace your core" },
+      { id: "rightHip",   min: 150, max: 180, cue: "Don't arch your back — brace your core" },
+    ],
+    repConfig: { joint: "leftElbow", upThreshold: 160, downThreshold: 90 },
+    isPlank: false,
+  },
+
+  deadlift: {
+    name: "Deadlift",
+    description: "Hinge at hips to lower and lift weight, keeping back flat and bar close to your body.",
+    angleGroups: [
+      { id: "leftKnee",  label: "Left Knee",  pts: [23,25,27] },
+      { id: "rightKnee", label: "Right Knee", pts: [24,26,28] },
+      { id: "backLeft",  label: "Back Angle (L)", pts: [11,23,25] },
+      { id: "backRight", label: "Back Angle (R)", pts: [12,24,26] },
+    ],
+    formRules: [
+      { id: "leftKnee",  min: 70,  max: 175, cue: "Drive through your heels — keep knees aligned" },
+      { id: "rightKnee", min: 70,  max: 175, cue: "Drive through your heels — keep knees aligned" },
+      { id: "backLeft",  min: 60,  max: 110, cue: "Keep back flat — don't round your spine" },
+      { id: "backRight", min: 60,  max: 110, cue: "Keep back flat — don't round your spine" },
+    ],
+    repConfig: { joint: "backLeft", upThreshold: 160, downThreshold: 60 },
+    isPlank: false,
+  },
+
+  lunge: {
+    name: "Lunge",
+    description: "Step forward and lower your back knee toward the floor. Keep front knee tracking over ankle.",
+    angleGroups: [
+      { id: "leftKnee",  label: "Front Knee",  pts: [23,25,27] },
+      { id: "rightKnee", label: "Back Knee",   pts: [24,26,28] },
+      { id: "torso",     label: "Torso Angle", pts: [11,23,25] },
+    ],
+    formRules: [
+      { id: "leftKnee",  min: 80,  max: 100, cue: "Keep front knee at 90° — don't push past toes" },
+      { id: "rightKnee", min: 80,  max: 110, cue: "Lower back knee toward floor" },
+      { id: "torso",     min: 80,  max: 180, cue: "Keep torso upright — don't lean forward" },
+    ],
+    repConfig: { joint: "leftKnee", upThreshold: 165, downThreshold: 90 },
+    isPlank: false,
+  },
+
+  plank: {
+    name: "Plank",
+    description: "Hold a straight body position on forearms and toes. Keep hips level — not raised or sagging.",
+    angleGroups: [
+      { id: "hipLeft",   label: "Hip Level (L)", pts: [11,23,25] },
+      { id: "hipRight",  label: "Hip Level (R)", pts: [12,24,26] },
+      { id: "shoulderL", label: "Shoulder (L)",  pts: [13,11,23] },
+      { id: "shoulderR", label: "Shoulder (R)",  pts: [14,12,24] },
+    ],
+    formRules: [
+      { id: "hipLeft",   min: 155, max: 180, cue: "Raise/lower hips — keep body in a straight line" },
+      { id: "hipRight",  min: 155, max: 180, cue: "Raise/lower hips — keep body in a straight line" },
+      { id: "shoulderL", min: 50,  max: 100, cue: "Stack shoulders over elbows/wrists" },
+      { id: "shoulderR", min: 50,  max: 100, cue: "Stack shoulders over elbows/wrists" },
+    ],
+    repConfig: null,   // plank uses timer
+    isPlank: true,
+  },
+
+};
+
+/* ───────────────────────────────────────────────────────────────────
+   MEDIAPIPE SKELETON CONNECTIONS (simplified important ones)
+─────────────────────────────────────────────────────────────────── */
+const SKELETON_CONNECTIONS = [
+  // torso
+  [11,12],[11,23],[12,24],[23,24],
+  // left arm
+  [11,13],[13,15],[15,17],[15,19],[15,21],[17,19],
+  // right arm
+  [12,14],[14,16],[16,18],[16,20],[16,22],[18,20],
+  // left leg
+  [23,25],[25,27],[27,29],[27,31],[29,31],
+  // right leg
+  [24,26],[26,28],[28,30],[28,32],[30,32],
+  // face
+  [0,1],[1,2],[2,3],[3,7],[0,4],[4,5],[5,6],[6,8],[9,10],
+];
+
+/* ───────────────────────────────────────────────────────────────────
+   APP STATE
+─────────────────────────────────────────────────────────────────── */
+let currentExercise = 'squat';
+let repCount  = 0;
+let repState  = 'idle';     // idle | up | down | down_completed
+let plankStart = null;
+
+// ── Stability calibration ─────────────────────────────────────
+const STABILITY_MS = 2000;   // 2 seconds of stable pose required
+let stableStart    = null;
+let isCalibrated   = false;
+let plankSeconds = 0;
+let formScore = 0;
+let cameraRunning = false;
+let lastFrameTime = performance.now();
+let fps = 0;
+let badJoints = new Set();
+let currentAngles = {};
+let lastCue = "";
+let highlightJoint = null;
+
+// debounce rep flash
+let repFlashTimeout = null;
+
+/* ───────────────────────────────────────────────────────────────────
+   DOM REFS
+─────────────────────────────────────────────────────────────────── */
+const videoEl    = document.getElementById('inputVideo');
+const canvasEl   = document.getElementById('outputCanvas');
+const ctx        = canvasEl.getContext('2d');
+const startBtn   = document.getElementById('startBtn');
+const stopBtn    = document.getElementById('stopBtn');
+const resetBtn   = document.getElementById('resetBtn');
+const exSelect   = document.getElementById('exerciseSelect');
+const statusDot  = document.getElementById('statusDot');
+const placeholder= document.getElementById('cameraPlaceholder');
+const repFlashEl = document.getElementById('repFlash');
+const scoreVal   = document.getElementById('scoreValue');
+const scoreFill  = document.getElementById('scoreFill');
+const repCountEl = document.getElementById('repCount');
+const formPctEl  = document.getElementById('formPct');
+const phaseEl    = document.getElementById('phaseLabel');
+const stateEl    = document.getElementById('stateLabel');
+const cueBox     = document.getElementById('cueBox');
+const jointList  = document.getElementById('jointList');
+const fpsDisplay = document.getElementById('fpsDisplay');
+const plankWrap  = document.getElementById('plankTimerWrap');
+const plankTimerEl=document.getElementById('plankTimer');
+const exInfoName = document.getElementById('exInfoName');
+const exInfoDesc = document.getElementById('exInfoDesc');
+
+/* ───────────────────────────────────────────────────────────────────
+   UPDATE PANEL FOR SELECTED EXERCISE
+─────────────────────────────────────────────────────────────────── */
+function applyExerciseChange(key) {
+  if (!EXERCISES[key]) {
+    console.warn('[BodyQ] Unknown exercise key:', key);
+    return;
+  }
+  currentExercise = key;
+  const ex = EXERCISES[key];
+  exInfoName.textContent = ex.name;
+  exInfoDesc.textContent = ex.description;
+  plankWrap.style.display = ex.isPlank ? 'block' : 'none';
+  document.getElementById('repCard').style.display = ex.isPlank ? 'none' : '';
+  doReset();
+}
+
+// ── Global access for React Native WebView injection ─────────
+window.applyExerciseChange = applyExerciseChange;
+
+// Called by WorkoutActive "Finish" button to get final session data
+window.getSessionState = function() {
+  if (window.ReactNativeWebView) {
+    window.ReactNativeWebView.postMessage(JSON.stringify({
+      type: 'SAVE_WORKOUT',
+      reps: repCount,
+      accuracy: formScore,
+      exercise: currentExercise,
+    }));
+  }
+};
+
+/* ───────────────────────────────────────────────────────────────────
+   RESET STATE
+─────────────────────────────────────────────────────────────────── */
+function doReset() {
+  repCount     = 0;
+  repState     = 'idle';
+  plankStart   = null;
+  plankSeconds = 0;
+  formScore    = 0;
+  badJoints.clear();
+  currentAngles = {};
+  lastCue       = "";
+  stableStart   = null;
+  isCalibrated  = false;
+
+  repCountEl.textContent = '0';
+  formPctEl.textContent  = '—';
+  phaseEl.textContent    = 'IDLE';
+  stateEl.textContent    = '—';
+  scoreVal.textContent   = '—';
+  scoreFill.style.width  = '0%';
+  plankTimerEl.textContent = '0:00';
+  cueBox.textContent     = 'Start moving to receive coaching cues…';
+  cueBox.className       = '';
+  jointList.innerHTML    = '<div class="joint-item" style="color:var(--text-dim);font-size:11px;justify-content:center;">No pose detected yet</div>';
+}
+
+/* ───────────────────────────────────────────────────────────────────
+   REP FLASH ANIMATION
+─────────────────────────────────────────────────────────────────── */
+function flashRep() {
+  repFlashEl.classList.remove('flash');
+  void repFlashEl.offsetWidth; // reflow
+  repFlashEl.classList.add('flash');
+  clearTimeout(repFlashTimeout);
+  repFlashTimeout = setTimeout(() => repFlashEl.classList.remove('flash'), 700);
+}
+
+/* ───────────────────────────────────────────────────────────────────
+   SCORE COLOR HELPER
+─────────────────────────────────────────────────────────────────── */
+function scoreColor(pct) {
+  if (pct >= 80) return 'var(--green)';
+  if (pct >= 50) return 'var(--amber)';
+  return 'var(--red)';
+}
+
+/* ───────────────────────────────────────────────────────────────────
+   MAIN POSE RESULTS HANDLER  — called every frame by MediaPipe
+─────────────────────────────────────────────────────────────────── */
+function onResults(results) {
+  // ── FPS ──────────────────────────────────────────────────────
+  const now = performance.now();
+  fps = Math.round(1000 / (now - lastFrameTime));
+  lastFrameTime = now;
+  fpsDisplay.textContent = fps + ' fps';
+
+  // ── Resize canvas to match video ─────────────────────────────
+  canvasEl.width  = videoEl.videoWidth  || 640;
+  canvasEl.height = videoEl.videoHeight || 480;
+
+  ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+
+  if (!results.poseLandmarks) {
+    phaseEl.textContent = 'NO POSE';
+    return;
+  }
+
+  const lm = results.poseLandmarks;
+  const W  = canvasEl.width;
+  const H  = canvasEl.height;
+
+  // Convert normalised coords → pixel coords
+  const pts = lm.map(p => ({ x: p.x * W, y: p.y * H, z: p.z, v: p.visibility }));
+
+  const ex = EXERCISES[currentExercise];
+
+  // ── Calculate angles ─────────────────────────────────────────
+  currentAngles = {};
+  for (const ag of ex.angleGroups) {
+    const [ai, bi, ci] = ag.pts;
+    if (pts[ai] && pts[bi] && pts[ci]) {
+      currentAngles[ag.id] = angleBetween(pts[ai], pts[bi], pts[ci]);
+    }
+  }
+
+  // ── Form validation ──────────────────────────────────────────
+  let passed = 0;
+  badJoints.clear();
+  let activeCue   = "";
+  let activeJoint = null;
+
+  for (const rule of ex.formRules) {
+    const angle = currentAngles[rule.id];
+    if (angle === undefined) continue;
+    const ok = angle >= rule.min && angle <= rule.max;
+    if (ok) {
+      passed++;
+    } else {
+      badJoints.add(rule.id);
+      if (!activeCue) {
+        activeCue   = rule.cue;
+        activeJoint = rule.id;
+      }
+    }
+  }
+
+  const totalRules = ex.formRules.filter(r => currentAngles[r.id] !== undefined).length;
+  formScore = totalRules > 0 ? Math.round((passed / totalRules) * 100) : 100;
+
+  // ── Update score UI ──────────────────────────────────────────
+  const sc = scoreColor(formScore);
+  scoreVal.textContent   = formScore + '%';
+  scoreVal.style.color   = sc;
+  scoreFill.style.width  = formScore + '%';
+  scoreFill.style.background = sc;
+  formPctEl.textContent  = formScore + '%';
+  formPctEl.style.color  = sc;
+
+  // ── Coaching cue ─────────────────────────────────────────────
+  if (activeCue !== lastCue) {
+    lastCue = activeCue;
+    cueBox.textContent = activeCue || '✓ Great form! Keep it up!';
+    cueBox.className = activeCue ? '' : 'good';
+    // Bridge → React Native
+    if (window.ReactNativeWebView) {
+      window.ReactNativeWebView.postMessage(JSON.stringify({
+        type: 'cue', text: activeCue || '✓ Great form!', formScore: formScore
+      }));
+    }
+  }
+  highlightJoint = activeJoint;
+
+  // ── Rep counting / Plank timer ───────────────────────────────
+  if (ex.isPlank) {
+    const good = formScore >= 70;
+    if (good) {
+      if (!plankStart) plankStart = Date.now();
+      plankSeconds = Math.floor((Date.now() - plankStart) / 1000);
+    } else {
+      plankStart = null;
+    }
+    const m = Math.floor(plankSeconds / 60);
+    const s = plankSeconds % 60;
+    plankTimerEl.textContent = m + ':' + String(s).padStart(2,'0');
+    phaseEl.textContent = good ? 'HOLDING' : 'FIX FORM';
+    stateEl.textContent  = '—';
+
+  } else if (ex.repConfig) {
+    const { joint, upThreshold, downThreshold } = ex.repConfig;
+    const angle = currentAngles[joint];
+    if (angle !== undefined) {
+      const inverted = upThreshold < downThreshold; // e.g. bicep curl
+
+      // ── Stability calibration: must hold start position for 2s ──
+      if (!isCalibrated) {
+        const atStart = inverted
+          ? angle > downThreshold - 10   // arm extended for curl
+          : angle > upThreshold - 10;    // standing for squat/press/etc.
+
+        if (atStart) {
+          if (!stableStart) stableStart = Date.now();
+          const elapsed = Date.now() - stableStart;
+          const remaining = Math.ceil((STABILITY_MS - elapsed) / 1000);
+          phaseEl.textContent = remaining > 0 ? `HOLD ${remaining}s` : 'READY';
+          stateEl.textContent = Math.round(angle) + '°';
+          if (elapsed >= STABILITY_MS) {
+            isCalibrated = true;
+            repState = inverted ? 'idle' : 'up'; // start waiting for first DOWN
+            cueBox.textContent = '✓ Calibrated — begin your reps!';
+            cueBox.className = 'good';
+          }
+        } else {
+          stableStart = null;
+          phaseEl.textContent = 'STAND STILL';
+          stateEl.textContent = Math.round(angle) + '°';
+        }
+        return; // don't count reps until calibrated
+      }
+
+      // ── Rep state machine (hysteresis: must complete full range) ─
+      if (!inverted) {
+        // Normal (squat, pushup, press, deadlift, lunge):
+        // up (standing) → down (low angle) → up (count rep)
+        if (repState === 'up') {
+          if (angle < downThreshold) repState = 'down';
+        } else if (repState === 'down') {
+          if (angle > upThreshold) {
+            repState = 'up';
+            repCount++;
+            repCountEl.textContent = repCount;
+            flashRep();
+            if (window.ReactNativeWebView) {
+              window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'rep', count: repCount }));
+            }
+          }
+        }
+      } else {
+        // Inverted (bicep curl): arm extended (high angle) → contracted (low) → extended (count rep)
+        if (repState === 'idle' || repState === 'up') {
+          if (angle > downThreshold) repState = 'down'; // fully extended
+        } else if (repState === 'down') {
+          if (angle < upThreshold) {                    // fully contracted
+            repState = 'up';
+            repCount++;
+            repCountEl.textContent = repCount;
+            flashRep();
+            if (window.ReactNativeWebView) {
+              window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'rep', count: repCount }));
+            }
+          }
+        }
+      }
+
+      phaseEl.textContent = repState.toUpperCase();
+      stateEl.textContent = Math.round(angle) + '°';
+    }
+  }
+
+  // ── Joint list panel ─────────────────────────────────────────
+  let html = '';
+  for (const ag of ex.angleGroups) {
+    const angle = currentAngles[ag.id];
+    if (angle === undefined) continue;
+    const bad  = badJoints.has(ag.id);
+    const cls  = bad ? 'bad' : 'ok';
+    const badge= bad ? '<span class="joint-badge bad">FIX</span>' : '<span class="joint-badge ok">OK</span>';
+    html += `<div class="joint-item ${cls}">
+      <span class="joint-name">${ag.label}</span>
+      <span class="joint-angle">${Math.round(angle)}°</span>
+      ${badge}
+    </div>`;
+  }
+  jointList.innerHTML = html || '<div class="joint-item" style="color:var(--text-dim);font-size:11px;justify-content:center;">Calculating…</div>';
+
+  // ── Draw skeleton ─────────────────────────────────────────────
+  drawSkeleton(pts, ex);
+}
+
+/* ───────────────────────────────────────────────────────────────────
+   DRAW SKELETON ON CANVAS
+─────────────────────────────────────────────────────────────────── */
+function drawSkeleton(pts, ex) {
+  const W = canvasEl.width, H = canvasEl.height;
+
+  // Build a set of "bad" landmark indices based on bad joints
+  const badPtIdx = new Set();
+  for (const rule of ex.formRules) {
+    if (badJoints.has(rule.id)) {
+      // find angle group for this rule
+      const ag = ex.angleGroups.find(a => a.id === rule.id);
+      if (ag) ag.pts.forEach(i => badPtIdx.add(i));
+    }
+  }
+
+  // Also track which pts belong to highlighted (active bad) joint
+  const highlightPts = new Set();
+  if (highlightJoint) {
+    const ag = ex.angleGroups.find(a => a.id === highlightJoint);
+    if (ag) ag.pts.forEach(i => highlightPts.add(i));
+  }
+
+  // Draw connections
+  for (const [a, b] of SKELETON_CONNECTIONS) {
+    const pA = pts[a], pB = pts[b];
+    if (!pA || !pB) continue;
+    if (pA.v < 0.3 || pB.v < 0.3) continue; // skip low-visibility
+
+    const isBad = badPtIdx.has(a) || badPtIdx.has(b);
+    const isHighlight = highlightPts.has(a) || highlightPts.has(b);
+
+    ctx.beginPath();
+    ctx.moveTo(pA.x, pA.y);
+    ctx.lineTo(pB.x, pB.y);
+
+    if (isHighlight) {
+      ctx.strokeStyle = '#ff3355';
+      ctx.lineWidth   = 4;
+      ctx.shadowColor = '#ff3355';
+      ctx.shadowBlur  = 12;
+    } else if (isBad) {
+      ctx.strokeStyle = 'rgba(255,51,85,0.8)';
+      ctx.lineWidth   = 3;
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur  = 0;
+    } else {
+      ctx.strokeStyle = 'rgba(0,255,136,0.85)';
+      ctx.lineWidth   = 2.5;
+      ctx.shadowColor = 'rgba(0,255,136,0.5)';
+      ctx.shadowBlur  = 8;
+    }
+    ctx.stroke();
+  }
+
+  ctx.shadowBlur  = 0;
+  ctx.shadowColor = 'transparent';
+
+  // Draw landmark dots
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i];
+    if (!p || p.v < 0.3) continue;
+
+    const isHL  = highlightPts.has(i);
+    const isBad = badPtIdx.has(i) && !isHL;
+
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, isHL ? 7 : 5, 0, Math.PI * 2);
+
+    if (isHL) {
+      ctx.fillStyle   = '#ff3355';
+      ctx.shadowColor = '#ff3355';
+      ctx.shadowBlur  = 16;
+    } else if (isBad) {
+      ctx.fillStyle   = 'rgba(255,51,85,0.9)';
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur  = 0;
+    } else {
+      ctx.fillStyle   = 'rgba(0,255,136,0.9)';
+      ctx.shadowColor = 'rgba(0,255,136,0.6)';
+      ctx.shadowBlur  = 10;
+    }
+    ctx.fill();
+  }
+
+  ctx.shadowBlur = 0;
+
+  // Draw angle labels for monitored joints
+  for (const ag of ex.angleGroups) {
+    const angle = currentAngles[ag.id];
+    if (angle === undefined) continue;
+    const [, bi] = ag.pts;
+    const pB = pts[bi];
+    if (!pB || pB.v < 0.3) continue;
+
+    const bad = badJoints.has(ag.id);
+    const hl  = highlightJoint === ag.id;
+
+    ctx.font         = 'bold 12px Share Tech Mono, monospace';
+    ctx.fillStyle    = hl ? '#ff3355' : (bad ? 'rgba(255,80,80,.9)' : 'rgba(0,255,136,.9)');
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+
+    // background pill
+    const txt = Math.round(angle) + '°';
+    const tw  = ctx.measureText(txt).width + 10;
+    ctx.fillStyle = 'rgba(8,12,16,.75)';
+    ctx.beginPath();
+    ctx.roundRect(pB.x - tw/2, pB.y - 22, tw, 16, 4);
+    ctx.fill();
+    ctx.fillStyle = hl ? '#ff3355' : (bad ? '#ff8080' : '#00ff88');
+    ctx.fillText(txt, pB.x, pB.y - 14);
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────────
+   MEDIAPIPE POSE SETUP
+─────────────────────────────────────────────────────────────────── */
+let pose = null;
+let mpCamera = null;
+
+function initPose() {
+  pose = new Pose({
+    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+  });
+
+  pose.setOptions({
+    modelComplexity: 1,
+    smoothLandmarks: true,
+    enableSegmentation: false,
+    smoothSegmentation: false,
+    minDetectionConfidence: 0.5,
+    minTrackingConfidence: 0.5
+  });
+
+  pose.onResults(onResults);
+}
+
+/* ───────────────────────────────────────────────────────────────────
+   CAMERA CONTROL
+─────────────────────────────────────────────────────────────────── */
+async function startCamera() {
+  if (cameraRunning) return;
+
+  // ── Insecure context check (iOS requires https:// or localhost) ──
+  if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.protocol !== 'about:') {
+    const msg = 'Insecure Context — Camera Blocked by iOS';
+    console.error('[BodyQ]', msg, location.protocol);
+    showBlockedPopup(msg);
+    return;
+  }
+
+  // ── mediaDevices guard ──────────────────────────────────────
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    const msg = 'Insecure Context — Camera Blocked by iOS';
+    console.error('[BodyQ] navigator.mediaDevices unavailable');
+    showBlockedPopup(msg);
+    return;
+  }
+
+  try {
+    // Explicitly request getUserMedia so iOS prompts inside WebView
+    await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+
+    if (!pose) initPose();
+
+    placeholder.style.display = 'none';
+    videoEl.style.display = 'block';
+    canvasEl.style.display = 'block';
+
+    mpCamera = new Camera(videoEl, {
+      onFrame: async () => {
+        await pose.send({ image: videoEl });
+      },
+      width: 1280,
+      height: 720,
+    });
+
+    await mpCamera.start();
+    cameraRunning = true;
+
+    if (window.ReactNativeWebView) {
+      window.ReactNativeWebView.postMessage('AI_READY');
+    }
+
+    statusDot.classList.add('active');
+    startBtn.style.display = 'none';
+    stopBtn.style.display  = '';
+    phaseEl.textContent = 'DETECTING…';
+
+  } catch (err) {
+    console.error('[BodyQ] Camera error:', err);
+    cueBox.textContent = '⚠ Camera access denied. Please allow permissions and reload.';
+    cueBox.className   = '';
+  }
+}
+
+function showBlockedPopup(message) {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;font-family:monospace;padding:30px;text-align:center;';
+  overlay.innerHTML = `
+    <div style="color:#ff3355;font-size:22px;font-weight:900;margin-bottom:16px;">⚠ Camera Blocked</div>
+    <div style="color:#c8f135;font-size:15px;line-height:1.6;">${message}</div>
+    <div style="color:#6b7f8a;font-size:12px;margin-top:12px;">Enable camera in Settings → BodyQ → Camera</div>
+  `;
+  document.body.appendChild(overlay);
+}
+
+function stopCamera() {
+  if (!cameraRunning) return;
+
+  if (mpCamera) {
+    mpCamera.stop();
+    mpCamera = null;
+  }
+
+  cameraRunning = false;
+  statusDot.classList.remove('active');
+  startBtn.style.display = '';
+  stopBtn.style.display  = 'none';
+  placeholder.style.display = 'flex';
+  videoEl.style.display  = 'none';
+  canvasEl.style.display = 'none';
+  ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+  phaseEl.textContent = 'IDLE';
+}
+
+/* ───────────────────────────────────────────────────────────────────
+   EVENT LISTENERS
+─────────────────────────────────────────────────────────────────── */
+startBtn.addEventListener('click', startCamera);
+stopBtn.addEventListener('click', stopCamera);
+resetBtn.addEventListener('click', doReset);
+
+exSelect.addEventListener('change', () => {
+  applyExerciseChange(exSelect.value);
+});
+
+/* ───────────────────────────────────────────────────────────────────
+   INIT
+─────────────────────────────────────────────────────────────────── */
+applyExerciseChange('squat');
+
+// ── Auto-start camera as soon as the page is ready ───────────
+window.onload = () => {
+  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    startCamera();
+  } else {
+    console.warn('[BodyQ] Auto-start skipped: mediaDevices not available yet.');
+  }
+};
+</script>
+</body>
+</html>
