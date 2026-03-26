@@ -810,6 +810,7 @@ let badJoints = new Set();
 let currentAngles = {};
 let lastCue = "";
 let highlightJoint = null;
+let wasPostureCorrect = true;   // tracks frame-to-frame posture transition
 
 // debounce rep flash
 let repFlashTimeout = null;
@@ -887,6 +888,7 @@ function doReset() {
   lastCue       = "";
   stableStart   = null;
   isCalibrated  = false;
+  wasPostureCorrect = true;
 
   repCountEl.textContent = '0';
   formPctEl.textContent  = '—';
@@ -898,6 +900,26 @@ function doReset() {
   cueBox.textContent     = 'Start moving to receive coaching cues…';
   cueBox.className       = '';
   jointList.innerHTML    = '<div class="joint-item" style="color:var(--text-dim);font-size:11px;justify-content:center;">No pose detected yet</div>';
+}
+
+/* ───────────────────────────────────────────────────────────────────
+   ERROR SOUND — low sawtooth buzz on form break during rep
+─────────────────────────────────────────────────────────────────── */
+function playErrorSound() {
+  try {
+    const actx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc  = actx.createOscillator();
+    const gain = actx.createGain();
+    osc.connect(gain);
+    gain.connect(actx.destination);
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(130, actx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(55, actx.currentTime + 0.28);
+    gain.gain.setValueAtTime(0.28, actx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + 0.28);
+    osc.start(actx.currentTime);
+    osc.stop(actx.currentTime + 0.28);
+  } catch (_) {}
 }
 
 /* ───────────────────────────────────────────────────────────────────
@@ -983,6 +1005,9 @@ function onResults(results) {
   const totalRules = ex.formRules.filter(r => currentAngles[r.id] !== undefined).length;
   formScore = totalRules > 0 ? Math.round((passed / totalRules) * 100) : 100;
 
+  // true only when every monitored joint is within spec
+  const isPostureCorrect = badJoints.size === 0;
+
   // ── Update score UI ──────────────────────────────────────────
   const sc = scoreColor(formScore);
   scoreVal.textContent   = formScore + '%';
@@ -1053,14 +1078,19 @@ function onResults(results) {
         return; // don't count reps until calibrated
       }
 
-      // ── Rep state machine (hysteresis: must complete full range) ─
+      // ── Rep state machine (strict quality gate: 100% green required) ─
       if (!inverted) {
         // Normal (squat, pushup, press, deadlift, lunge):
         // up (standing) → down (low angle) → up (count rep)
         if (repState === 'up') {
           if (angle < downThreshold) repState = 'down';
         } else if (repState === 'down') {
-          if (angle > upThreshold) {
+          if (!isPostureCorrect && wasPostureCorrect) {
+            // Posture broke mid-rep — abort and demand a fresh rep
+            repState = 'up';
+            playErrorSound();
+          } else if (angle > upThreshold && isPostureCorrect) {
+            // Full clean rep completed
             repState = 'up';
             repCount++;
             repCountEl.textContent = repCount;
@@ -1075,7 +1105,12 @@ function onResults(results) {
         if (repState === 'idle' || repState === 'up') {
           if (angle > downThreshold) repState = 'down'; // fully extended
         } else if (repState === 'down') {
-          if (angle < upThreshold) {                    // fully contracted
+          if (!isPostureCorrect && wasPostureCorrect) {
+            // Posture broke mid-rep — abort
+            repState = 'idle';
+            playErrorSound();
+          } else if (angle < upThreshold && isPostureCorrect) {
+            // Full clean rep completed
             repState = 'up';
             repCount++;
             repCountEl.textContent = repCount;
@@ -1086,6 +1121,7 @@ function onResults(results) {
           }
         }
       }
+      wasPostureCorrect = isPostureCorrect;
 
       phaseEl.textContent = repState.toUpperCase();
       stateEl.textContent = Math.round(angle) + '°';
