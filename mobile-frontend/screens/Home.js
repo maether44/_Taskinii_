@@ -115,7 +115,7 @@ export default function Home({ navigation }) {
                <Text style={styles.calSub}>Goal: {stats.calories.target}</Text>
             </View>
             {stats.calories.burned > 0 && (
-              <Text style={styles.calBurned}>🔥 Burned Today: +{stats.calories.burned} kcal</Text>
+              <Text style={styles.calBurned}>🔥 Burned: {stats.calories.burned} kcal</Text>
             )}
             <Pressable 
               style={styles.logBtn} 

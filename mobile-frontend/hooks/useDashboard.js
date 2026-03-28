@@ -20,22 +20,17 @@ export function useDashboard() {
         return;
       }
 
-      // Build today's local midnight → tomorrow midnight range
-      const dayStart = new Date();
-      dayStart.setHours(0, 0, 0, 0);
-      const dayEnd = new Date(dayStart.getTime());
-      dayEnd.setDate(dayEnd.getDate() + 1);
+      const TODAY = new Date().toISOString().split('T')[0];
 
-      const [result, fatigue, sessionsToday] = await Promise.all([
+      const [result, fatigue, metricsRow] = await Promise.all([
         getHomeSnapshot(user.id),
         getMuscleFatigue(user.id),
-        // Sum calories from workout_sessions — works even without the SQL migration
         supabase
-          .from('workout_sessions')
+          .from('daily_metrics')
           .select('calories_burned')
           .eq('user_id', user.id)
-          .gte('created_at', dayStart.toISOString())
-          .lt('created_at', dayEnd.toISOString()),
+          .eq('date', TODAY)
+          .maybeSingle(),
       ]);
 
       if (!result) {
@@ -45,9 +40,7 @@ export function useDashboard() {
       }
 
       setMuscleFatigue(fatigue);
-      const burnedToday = (sessionsToday.data ?? [])
-        .reduce((sum, r) => sum + (r.calories_burned || 0), 0);
-      setWorkoutCals(burnedToday);
+      setWorkoutCals(metricsRow.data?.calories_burned ?? 0);
 
     } catch (err) {
       console.error('Critical error in useDashboard:', err);

@@ -266,8 +266,28 @@ export default function WorkoutActive({ route, navigation }) {
               caloriesBurned: calories,
             });
 
-            // calories_workout is read from workout_sessions directly in useDashboard
-            // — only persist activity_minutes here (no calories_workout column needed)
+            // 1. Additive upsert of calories_burned into daily_metrics
+            try {
+              const TODAY = new Date().toISOString().split('T')[0];
+              const { data: existing } = await supabase
+                .from('daily_metrics')
+                .select('calories_burned')
+                .eq('user_id', user.id)
+                .eq('date', TODAY)
+                .maybeSingle();
+
+              const newTotal = (existing?.calories_burned || 0) + calories;
+              await supabase
+                .from('daily_metrics')
+                .upsert(
+                  { user_id: user.id, date: TODAY, calories_burned: newTotal },
+                  { onConflict: 'user_id,date' }
+                );
+            } catch (e) {
+              console.warn('[BodyQ] daily_metrics upsert failed:', e.message);
+            }
+
+            // 2. Persist activity_minutes into daily_activity
             try {
               const TODAY = new Date().toISOString().split('T')[0];
               const { data: existing } = await supabase
