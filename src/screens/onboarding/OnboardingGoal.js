@@ -10,7 +10,7 @@ import {
     StyleSheet, Text, TextInput, TouchableOpacity, View
 } from 'react-native';
 
-const GROQ_API_KEY = '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';
+import { supabase } from '../../config/supabase';
 
 const { width: W } = Dimensions.get('window');
 
@@ -142,41 +142,13 @@ CRITICAL: Respond with ONLY a JSON object. No markdown. No code fences. No expla
 Use this exact structure:
 {"intro":"string","days":[{"name":"string","focus":"string","exercises":[{"name":"string","sets":3,"reps":"string","rest":"string"}],"coachTip":"string"}],"nutritionNote":"string","recoveryNote":"string","motivationNote":"string"}`;
 
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_API_KEY}` },
-        body: JSON.stringify({
-            model: 'llama-3.1-8b-instant',
-            max_tokens: 4096,
-            temperature: 0.4,
-            messages: [{ role: 'user', content: prompt }],
-        }),
+    // Call the Edge Function — the Groq key lives server-side as a Supabase secret.
+    const { data, error } = await supabase.functions.invoke('onboarding-plan', {
+        body: { answers },
     });
-
-    const data = await res.json();
-    if (!res.ok) throw new Error(JSON.stringify(data?.error));
-
-    const text = data.choices?.[0]?.message?.content ?? '';
-    // Extract JSON - find the outermost { } block
-    const jsonMatch = text.match(/{[\s\S]*}/);
-    if (!jsonMatch) throw new Error('No JSON found in response');
-    let clean = jsonMatch[0];
-    // Try direct parse first
-    try { return JSON.parse(clean); } catch (e) { }
-    // Fix common issues: trailing commas, unclosed strings
-    clean = clean
-        .replace(/,\s*}/g, '}')
-        .replace(/,\s*]/g, ']')
-        .replace(/[\x00-\x1F\x7F]/g, ' '); // remove control chars
-    // Close any unclosed brackets
-    const opens = (clean.match(/{/g) || []).length;
-    const closes = (clean.match(/}/g) || []).length;
-    for (let i = 0; i < opens - closes; i++) clean += '}';
-    const aOpens = (clean.match(/\[/g) || []).length;
-    const aCloses = (clean.match(/\]/g) || []).length;
-    for (let i = 0; i < aOpens - aCloses; i++) clean += ']';
-    try { return JSON.parse(clean); }
-    catch (e2) { throw new Error('Could not parse AI response. Please retry.'); }
+    if (error) throw new Error(error.message ?? 'Could not generate plan. Please retry.');
+    if (data?.error) throw new Error(data.error);
+    return data;
 }
 
 // ── UI COMPONENTS ─────────────────────────────────────────────────────────────

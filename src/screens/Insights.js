@@ -1,4 +1,27 @@
-import { useState } from 'react';
+/**
+ * src/screens/Insights.js — the screen itself, uses the hook and service
+ *
+ * PURPOSE
+ *   Displays the user's fitness analytics across three time periods
+ *   (Week / Month / 3 Months).  All data is real — no hardcoded constants.
+ *
+ * DATA FLOW
+ *   1. useInsights(period) calls the Supabase `get_insights_data` RPC and
+ *      returns derived state: metrics, trendData, heatmapData, streakData.
+ *
+ *   2. Once the RPC resolves, a useEffect fires fetchYaraInsights() which
+ *      either reads AI insight cards from the local cache (ai_insights table)
+ *      or generates new ones via Groq.  This two-step load means the chart
+ *      and metric cards appear immediately while the AI section loads after.
+ *
+ *   3. While any data is loading, <Skeleton> blocks fill the exact same space
+ *      as the real content — no layout shift when data arrives.
+ *
+ * STYLES
+ *   No styles were changed.  All StyleSheet entries are identical to the
+ *   original static version.
+ */
+import { useEffect, useState } from 'react';
 import {
     ScrollView,
     StyleSheet,
@@ -6,63 +29,129 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { useInsights } from '../hooks/useInsights';
+import { generateAndCacheInsights } from '../services/yaraInsightsService';
 
+// The three time windows the user can select.
 const PERIODS = ['Week', 'Month', '3 Months'];
 
-const TREND_DATA = {
-  Week: [65, 70, 68, 75, 80, 85, 88],
-  Month: [60, 65, 70, 72, 68, 74, 80, 83, 85, 82, 87, 88],
-  '3 Months': [55, 58, 62, 65, 68, 70, 72, 75, 78, 80, 83, 88],
-};
 
-const INSIGHTS = [
-  {
-    icon: '🧬',
-    title: 'Recovery Rate Improving',
-    text: 'Your HRV has increased 18% this month. Your body is adapting well to training loads.',
-    tag: 'Performance',
-    color: '#6F4BF2',
-  },
-  {
-    icon: '🌙',
-    title: 'Sleep-Nutrition Link',
-    text: 'On days you consume 130g+ protein, your sleep quality improves by 22%.',
-    tag: 'Correlation',
-    color: '#A38DF2',
-  },
-  {
-    icon: '⚡',
-    title: 'Peak Performance Window',
-    text: 'Your best workout sessions are between 5-7 PM. Consider scheduling training then.',
-    tag: 'Optimization',
-    color: '#CDF27E',
-  },
-  {
-    icon: '🎯',
-    title: 'Goal Forecast',
-    text: "At your current pace, you'll reach your body composition goal in 6 weeks.",
-    tag: 'Prediction',
-    color: '#6F4BF2',
-  },
-];
+// =============================================================================
+// <Skeleton>
+//
+// A simple grey placeholder block rendered in place of real content while
+// data is loading.  Accepts the same width/height props as a regular View so
+// it can slot into any layout without changing surrounding styles.
+// The low opacity (0.6) makes it visually distinct from real content.
+// =============================================================================
+function Skeleton({ width, height, style }) {
+  return (
+    <View
+      style={[
+        { width, height, backgroundColor: '#2D2252', borderRadius: 8, opacity: 0.6 },
+        style,
+      ]}
+    />
+  );
+}
 
-const METRICS = [
-  { label: 'Avg. Score',  value: '82', delta: '+7%',  up: true },
-  { label: 'Workouts',    value: '18',  delta: '+3',   up: true },
-  { label: 'Calories',    value: '1.8k', delta: '-2%', up: false },
-  { label: 'Posture',     value: '85',  delta: '+12%', up: true },
-];
 
+// =============================================================================
+// Insights  — main screen component
+// =============================================================================
 export default function Insights() {
+  // `period` controls both the RPC call (via the hook) and which slice of
+  // trendData to render in the bar chart.
   const [period, setPeriod] = useState('Week');
-  const data = TREND_DATA[period];
-  const max = Math.max(...data);
 
+  // Pull all aggregated data from the hook.  When `period` changes, the hook
+  // automatically re-fetches and updates all returned values.
+  const {
+    isLoading,    // true while the RPC is in-flight
+    rawStats,     // unmodified RPC response — forwarded to the AI service
+    userId,       // needed to write/read the ai_insights cache table
+    metrics,      // 4 summary cards: Streak, Workouts, Steps, Sleep
+    trendData,    // { Week, Month, '3 Months' } → arrays of 0-100 scores
+    heatmapData,  // { 'YYYY-MM-DD': 0|1|2|3 } intensity map
+  } = useInsights(period);
+
+  // Select the correct bar array for the currently active period.
+  const data = trendData[period] ?? [];
+  // max is used to scale bars relative to each other (not vs. a fixed 100).
+  const max  = data.length ? Math.max(...data, 1) : 1;
+
+  // ── AI Insights (separate async load) ─────────────────────────────────────
+  // Kept in local state so the chart and metrics can render before Groq responds.
+  // insightsLoading has its own flag so we can show skeletons only in that section.
+  const [insights,        setInsights]        = useState([]);
+  const [insightsLoading, setInsightsLoading] = useState(false);
+
+  // Clear stale insights immediately when period changes
+  useEffect(() => {
+    setInsights([]);
+  }, [period]);
+
+  useEffect(() => {
+    if (isLoading || !userId || !rawStats) return;
+    setInsightsLoading(true);
+    generateAndCacheInsights(userId, rawStats, period)
+      .then(res => { if (res?.length) setInsights(res); })
+      .finally(() => setInsightsLoading(false));
+  }, [isLoading, period, userId]);
+
+
+  // ── Heatmap date calculation ───────────────────────────────────────────────
+  // The grid is 7 rows (Mon=0 … Sun=6) × 6 columns (week 0=oldest, 5=current).
+  // To map each grid cell to a real calendar date we need:
+  //   • The Monday of the current week as an anchor.
+  //   • A formula: Monday - (5 - weekIdx) * 7 days + dayIdx days.
+  //
+  // Example: cell (di=0, hi=5) = this Monday + 0 = today's Monday.
+  //          cell (di=0, hi=4) = Monday of last week.
+  //          cell (di=6, hi=5) = this Sunday.
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dow = today.getDay(); // 0 = Sunday in JS
+  // Number of days to subtract from today to land on Monday.
+  const daysToMon = dow === 0 ? 6 : dow - 1;
+  const thisMonday = new Date(today);
+  thisMonday.setDate(today.getDate() - daysToMon);
+
+  /**
+   * cellDateStr(dayIdx, weekIdx)
+   * Returns the 'YYYY-MM-DD' ISO string for grid cell [dayIdx][weekIdx].
+   * dayIdx  : 0=Mon, 1=Tue, … 6=Sun
+   * weekIdx : 0=oldest column, 5=current week column
+   */
+  function cellDateStr(dayIdx, weekIdx) {
+    const d = new Date(thisMonday);
+    // Move back (5 - weekIdx) full weeks from this Monday, then forward dayIdx days.
+    d.setDate(thisMonday.getDate() - (5 - weekIdx) * 7 + dayIdx);
+    return d.toISOString().split('T')[0];
+  }
+
+  /**
+   * heatColor(intensity)
+   * Maps an intensity level (0-3) to the corresponding purple shade.
+   *   0 → darkest (no activity)
+   *   1 → dim purple (light activity)
+   *   2 → medium purple (good step count)
+   *   3 → bright purple (workout completed)
+   */
+  function heatColor(intensity) {
+    if (intensity >= 3) return '#6F4BF2';
+    if (intensity === 2) return '#A38DF2';
+    if (intensity === 1) return '#3D2F7A';
+    return '#2D2252';
+  }
+
+
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <View style={styles.root}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
-        {/* Header */}
+        {/* ── Header ────────────────────────────────────────────────────────── */}
         <View style={styles.header}>
           <Text style={styles.title}>Insights</Text>
           <View style={styles.aiBadge}>
@@ -70,7 +159,8 @@ export default function Insights() {
           </View>
         </View>
 
-        {/* Period Selector */}
+        {/* ── Period Selector ───────────────────────────────────────────────── */}
+        {/* Tapping a period updates state → hook re-fetches → all sections refresh */}
         <View style={styles.periodRow}>
           {PERIODS.map((p) => (
             <TouchableOpacity
@@ -85,91 +175,154 @@ export default function Insights() {
           ))}
         </View>
 
-        {/* Line Chart */}
+        {/* ── Health Score Trend Chart ──────────────────────────────────────── */}
+        {/* Bar heights are proportional to scoreDay() values (0-100).          */}
+        {/* The last bar is highlighted in purple; all others are dim.          */}
+        {/* While loading: 7 Skeleton bars of staggered heights.               */}
         <View style={styles.chartCard}>
           <Text style={styles.chartTitle}>Health Score Trend</Text>
-          <View style={styles.lineChart}>
-            {data.map((val, i) => {
-              const barH = (val / 100) * 100;
-              const isLast = i === data.length - 1;
-              return (
+          {isLoading ? (
+            <View style={[styles.lineChart, { alignItems: 'center', justifyContent: 'center' }]}>
+              {Array.from({ length: 7 }).map((_, i) => (
                 <View key={i} style={styles.lineBarCol}>
-                  {isLast && <Text style={styles.lineBarTip}>{val}</Text>}
-                  <View
-                    style={[
-                      styles.lineBar,
-                      { height: barH },
-                      isLast && styles.lineBarActive,
-                    ]}
-                  />
+                  {/* Stagger skeleton heights so it looks like real chart bars */}
+                  <Skeleton width="80%" height={40 + i * 8} />
                 </View>
-              );
-            })}
-          </View>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.lineChart}>
+              {data.map((val, i) => {
+                // Scale the bar height proportionally within the 110px container.
+                const barH   = (val / 100) * 100;
+                const isLast = i === data.length - 1;
+                return (
+                  <View key={i} style={styles.lineBarCol}>
+                    {/* Only the last (most recent) bar shows its value as a label */}
+                    {isLast && <Text style={styles.lineBarTip}>{val}</Text>}
+                    <View
+                      style={[
+                        styles.lineBar,
+                        { height: barH },
+                        isLast && styles.lineBarActive, // purple highlight
+                      ]}
+                    />
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
+          {/* Footer stats below the chart */}
           <View style={styles.chartFooter}>
-            <Text style={styles.chartFooterLabel}>Lowest: {Math.min(...data)}</Text>
-            <Text style={styles.chartFooterLabel}>Avg: {Math.round(data.reduce((a, b) => a + b, 0) / data.length)}</Text>
-            <Text style={styles.chartFooterLabel}>Peak: {max}</Text>
-          </View>
-        </View>
-
-        {/* Summary Metrics */}
-        <View style={styles.metricsGrid}>
-          {METRICS.map((m) => (
-            <View key={m.label} style={styles.metricCard}>
-              <Text style={styles.metricValue}>{m.value}</Text>
-              <Text style={styles.metricLabel}>{m.label}</Text>
-              <View style={[styles.deltaBadge, m.up ? styles.deltaUp : styles.deltaDown]}>
-                <Text style={[styles.deltaText, m.up ? styles.deltaTextUp : styles.deltaTextDown]}>
-                  {m.up ? '↑' : '↓'} {m.delta}
+            {isLoading ? (
+              <>
+                <Skeleton width={50} height={12} />
+                <Skeleton width={50} height={12} />
+                <Skeleton width={50} height={12} />
+              </>
+            ) : (
+              <>
+                <Text style={styles.chartFooterLabel}>Lowest: {Math.min(...data, 0)}</Text>
+                <Text style={styles.chartFooterLabel}>
+                  Avg: {data.length ? Math.round(data.reduce((a, b) => a + b, 0) / data.length) : 0}
                 </Text>
-              </View>
-            </View>
-          ))}
+                <Text style={styles.chartFooterLabel}>Peak: {max}</Text>
+              </>
+            )}
+          </View>
         </View>
 
-        {/* AI Insights */}
-        <Text style={styles.sectionTitle}>AI Discoveries</Text>
-        {INSIGHTS.map((ins, i) => (
-          <View key={i} style={[styles.insightCard, { borderLeftColor: ins.color }]}>
-            <View style={styles.insightHeader}>
-              <Text style={styles.insightIcon}>{ins.icon}</Text>
-              <View style={styles.insightMeta}>
-                <Text style={[styles.insightTag, { color: ins.color }]}>{ins.tag}</Text>
-                <Text style={styles.insightTitle}>{ins.title}</Text>
-              </View>
-            </View>
-            <Text style={styles.insightText}>{ins.text}</Text>
-          </View>
-        ))}
+        {/* ── Summary Metrics Grid ─────────────────────────────────────────── */}
+        {/* 4 cards in a 2×2 flex-wrap layout.                                */}
+        {/* While loading: 4 skeleton cards with value, label, and badge shapes. */}
+        <View style={styles.metricsGrid}>
+          {isLoading
+            ? Array.from({ length: 4 }).map((_, i) => (
+                <View key={i} style={styles.metricCard}>
+                  <Skeleton width={60} height={32} style={{ marginBottom: 6 }} />
+                  <Skeleton width={80} height={14} style={{ marginBottom: 10 }} />
+                  <Skeleton width={50} height={20} style={{ borderRadius: 10 }} />
+                </View>
+              ))
+            : metrics.map((m) => (
+                <View key={m.label} style={styles.metricCard}>
+                  <Text style={styles.metricValue}>{m.value}</Text>
+                  <Text style={styles.metricLabel}>{m.label}</Text>
+                  {/* Green badge for positive / red badge for negative trends */}
+                  <View style={[styles.deltaBadge, m.up ? styles.deltaUp : styles.deltaDown]}>
+                    <Text style={[styles.deltaText, m.up ? styles.deltaTextUp : styles.deltaTextDown]}>
+                      {m.up ? '↑' : '↓'} {m.delta}
+                    </Text>
+                  </View>
+                </View>
+              ))
+          }
+        </View>
 
-        {/* Weekly Heatmap */}
+        {/* ── AI Discoveries ───────────────────────────────────────────────── */}
+        {/* These load after the chart/metrics because they require a Groq API */}
+        {/* call (or a cache read) on top of the RPC data.                     */}
+        {/* insightsLoading is separate from isLoading so the rest of the      */}
+        {/* screen doesn't re-skeleton when only the AI section is refreshing. */}
+        <Text style={styles.sectionTitle}>AI Discoveries</Text>
+        {insightsLoading || (isLoading && !insights.length)
+          ? Array.from({ length: 4 }).map((_, i) => (
+              // Skeleton insight card: icon placeholder + two text lines + body block
+              <View key={i} style={[styles.insightCard, { borderLeftColor: '#3D2F7A' }]}>
+                <View style={styles.insightHeader}>
+                  <Skeleton width={32} height={32} style={{ borderRadius: 6 }} />
+                  <View style={styles.insightMeta}>
+                    <Skeleton width={70} height={11} style={{ marginBottom: 6 }} />
+                    <Skeleton width={140} height={14} />
+                  </View>
+                </View>
+                <Skeleton width="100%" height={38} style={{ marginTop: 4 }} />
+              </View>
+            ))
+          : insights.map((ins, i) => (
+              // Real insight card: coloured left border, tag, title, body text.
+              <View key={i} style={[styles.insightCard, { borderLeftColor: ins.color }]}>
+                <View style={styles.insightHeader}>
+                  <Text style={styles.insightIcon}>{ins.icon}</Text>
+                  <View style={styles.insightMeta}>
+                    <Text style={[styles.insightTag, { color: ins.color }]}>{ins.tag}</Text>
+                    <Text style={styles.insightTitle}>{ins.title}</Text>
+                  </View>
+                </View>
+                <Text style={styles.insightText}>{ins.text}</Text>
+              </View>
+            ))
+        }
+
+        {/* ── Activity Heatmap ─────────────────────────────────────────────── */}
+        {/* 7 rows (Mon–Sun) × 6 columns (last 6 weeks).                      */}
+        {/* cellDateStr() computes the calendar date for each cell,            */}
+        {/* then we look it up in heatmapData to get an intensity 0-3.        */}
+        {/* While loading: all cells render at intensity 0 (darkest colour).  */}
         <Text style={styles.sectionTitle}>Activity Heatmap</Text>
         <View style={styles.heatmapCard}>
           {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, di) => (
             <View key={day} style={styles.heatRow}>
               <Text style={styles.heatDay}>{day}</Text>
               {Array.from({ length: 6 }).map((_, hi) => {
-                const intensity = Math.random();
+                const dateStr   = cellDateStr(di, hi);
+                // Force intensity 0 (empty) while loading to avoid stale colours.
+                const intensity = isLoading ? 0 : (heatmapData[dateStr] ?? 0);
                 return (
                   <View
                     key={hi}
                     style={[
                       styles.heatCell,
-                      {
-                        backgroundColor:
-                          intensity > 0.7
-                            ? '#6F4BF2'
-                            : intensity > 0.4
-                            ? '#3D2F7A'
-                            : '#2D2252',
-                      },
+                      { backgroundColor: heatColor(intensity) },
                     ]}
                   />
                 );
               })}
             </View>
           ))}
+
+          {/* Legend: four colour swatches from least to most active */}
           <View style={styles.heatLegend}>
             <Text style={styles.heatLegendLabel}>Less</Text>
             {['#2D2252', '#3D2F7A', '#6F4BF2', '#A38DF2'].map((c) => (
@@ -185,6 +338,10 @@ export default function Insights() {
   );
 }
 
+
+// =============================================================================
+// Styles — unchanged from the original static version.
+// =============================================================================
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#241C40' },
   scroll: { paddingHorizontal: 20, paddingTop: 56, paddingBottom: 20 },

@@ -10,8 +10,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { registerTourRef } from '../tour/tourRefs';
 import { useProfile } from '../../hooks/useProfile';
-
-const GROQ_API_KEY = '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';
+import { supabase } from '../../config/supabase';
 const { width: W } = Dimensions.get('window');
 
 // ─── System prompt built from real Supabase profile ───────────────────────────
@@ -59,21 +58,16 @@ Use this to give precise, personalised advice every time.`;
 }
 
 async function callGroq(history, profile, targets) {
-  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_API_KEY}` },
-    body: JSON.stringify({
-      model:      'llama-3.1-8b-instant',
-      max_tokens: 512,
-      messages:   [
+  const { data, error } = await supabase.functions.invoke('ai-assistant', {
+    body: {
+      messages: [
         { role: 'system', content: buildSystem(profile, targets) },
         ...history,
       ],
-    }),
+    },
   });
-  const body = await res.json();
-  if (!res.ok) throw new Error(JSON.stringify(body?.error ?? body));
-  return body.choices?.[0]?.message?.content ?? "I'm having trouble connecting. Try again in a moment.";
+  if (error) throw error;
+  return data?.response ?? "I'm having trouble connecting. Try again in a moment.";
 }
 
 const SUGGESTIONS = [

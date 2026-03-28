@@ -56,6 +56,14 @@ export default function OnBoardingGoal({ onComplete }) {
             ]}
           />
         </View>
+        {ob.step < 6 && (
+          <TouchableOpacity
+            onPress={() => ob.skipStep(markOnboardingComplete)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={[s.skipTxt, { color: T.muted }]}>Skip</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
           style={[
             s.themeBtn,
@@ -1040,4 +1048,5 @@ const s = StyleSheet.create({
   },
   backBtn: { alignItems: "center", paddingVertical: 14 },
   backTxt: { fontSize: 14 },
+  skipTxt: { fontSize: 13, fontWeight: "500" },
 });

@@ -1,4 +1,18 @@
-import { useState } from 'react';
+/**
+ * mobile-frontend/screens/Insights.js
+ *
+ * Displays the user's fitness analytics across three time periods
+ * (Week / Month / 3 Months). All data is real — no hardcoded constants.
+ *
+ * DATA FLOW
+ *   1. useInsights(period) calls the Supabase `get_insights_data` RPC and
+ *      returns derived state: metrics, trendData, heatmapData, streakData.
+ *   2. Once the RPC resolves, a useEffect fires generateAndCacheInsights()
+ *      which either reads AI insight cards from the ai_insights cache table
+ *      or generates new ones via the yara-insights Edge Function (Groq).
+ *   3. While loading, <Skeleton> blocks fill the same space as real content.
+ */
+import { useEffect, useState } from 'react';
 import {
     ScrollView,
     StyleSheet,
@@ -6,58 +20,113 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { useInsights } from '../hooks/useInsights';
+import { generateAndCacheInsights } from '../services/yaraInsightsService';
 
 const PERIODS = ['Week', 'Month', '3 Months'];
 
-const TREND_DATA = {
-  Week: [65, 70, 68, 75, 80, 85, 88],
-  Month: [60, 65, 70, 72, 68, 74, 80, 83, 85, 82, 87, 88],
-  '3 Months': [55, 58, 62, 65, 68, 70, 72, 75, 78, 80, 83, 88],
-};
 
-const INSIGHTS = [
-  {
-    icon: '🧬',
-    title: 'Recovery Rate Improving',
-    text: 'Your HRV has increased 18% this month. Your body is adapting well to training loads.',
-    tag: 'Performance',
-    color: '#6F4BF2',
-  },
-  {
-    icon: '🌙',
-    title: 'Sleep-Nutrition Link',
-    text: 'On days you consume 130g+ protein, your sleep quality improves by 22%.',
-    tag: 'Correlation',
-    color: '#A38DF2',
-  },
-  {
-    icon: '⚡',
-    title: 'Peak Performance Window',
-    text: 'Your best workout sessions are between 5-7 PM. Consider scheduling training then.',
-    tag: 'Optimization',
-    color: '#CDF27E',
-  },
-  {
-    icon: '🎯',
-    title: 'Goal Forecast',
-    text: "At your current pace, you'll reach your body composition goal in 6 weeks.",
-    tag: 'Prediction',
-    color: '#6F4BF2',
-  },
-];
+// =============================================================================
+// <Skeleton> — grey placeholder shown while data is loading
+// =============================================================================
+function Skeleton({ width, height, style }) {
+  return (
+    <View
+      style={[
+        { width, height, backgroundColor: '#2D2252', borderRadius: 8, opacity: 0.6 },
+        style,
+      ]}
+    />
+  );
+}
 
-const METRICS = [
-  { label: 'Avg. Score',  value: '82', delta: '+7%',  up: true },
-  { label: 'Workouts',    value: '18',  delta: '+3',   up: true },
-  { label: 'Calories',    value: '1.8k', delta: '-2%', up: false },
-  { label: 'Posture',     value: '85',  delta: '+12%', up: true },
-];
 
+// =============================================================================
+// Insights — main screen component
+// =============================================================================
 export default function Insights() {
   const [period, setPeriod] = useState('Week');
-  const data = TREND_DATA[period];
-  const max = Math.max(...data);
 
+  const {
+    metrics,
+    trendData,
+    heatmapData,
+    rawStats,
+    userId,
+    isLoading,
+    error,
+  } = useInsights(period);
+
+  const [aiInsights,    setAiInsights]    = useState([]);
+  const [insightsLoading, setInsightsLoading] = useState(false);
+
+  // Scale chart bars against actual data max, not a fixed 100
+  const data = (trendData && trendData[period]?.length > 0) ? trendData[period] : [0];
+  const max  = Math.max(...data, 1);
+
+  // Clear stale insights immediately when period changes so old cards don't
+  // linger while the new period's insights are being fetched from Groq/cache.
+  useEffect(() => {
+    setAiInsights([]);
+  }, [period]);
+
+  // Fire AI insight generation once RPC data is ready (or when period changes)
+  useEffect(() => {
+    if (isLoading || !rawStats || !userId) return;
+    console.log('[Insights] Triggering Yara insight generation for period:', period);
+    setInsightsLoading(true);
+    generateAndCacheInsights(userId, rawStats, period)
+      .then(insights => {
+        console.log('[Insights] Received AI insights:', insights?.length ?? 0, 'cards');
+        setAiInsights(insights ?? []);
+      })
+      .catch(err => {
+        console.error('[Insights] Yara insights error:', err);
+      })
+      .finally(() => setInsightsLoading(false));
+  }, [isLoading, period, userId]);   // rawStats omitted intentionally — it changes with period
+
+  // ── Heatmap date math ─────────────────────────────────────────────────────
+  // Grid: 7 rows (Mon=0…Sun=6) × 6 columns (hi=0 oldest, hi=5 current week)
+  // Anchor: this week's Monday. Each cell = thisMonday − (5−hi)*7 + di days.
+  // Monday anchor prevents future-date cells that a Sunday anchor would cause
+  // on days Mon–Sat (the majority of the week).
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dow        = today.getDay();              // 0=Sun, 1=Mon … 6=Sat
+  const daysToMon  = dow === 0 ? 6 : dow - 1;    // days since this Monday
+  const thisMonday = new Date(today);
+  thisMonday.setDate(today.getDate() - daysToMon);
+
+  // Maps intensity 0-3 → purple shade
+  function heatColor(intensity) {
+    if (intensity >= 4) return '#9D85F5';
+    if (intensity === 3) return '#6F4BF2';
+    if (intensity === 2) return '#4A2F8A';
+    if (intensity === 1) return '#2D1F5E';
+    return '#1A1432';
+  }
+
+  // ── Loading guard ─────────────────────────────────────────────────────────
+  if (error) {
+    return (
+      <View style={[styles.root, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ color: '#FF6464', fontSize: 14, textAlign: 'center', padding: 20 }}>
+          Failed to load insights.{'\n'}Check your connection and try again.
+        </Text>
+      </View>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <View style={[styles.root, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ color: '#7A6AAA', fontSize: 14 }}>Loading your insights...</Text>
+      </View>
+    );
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <View style={styles.root}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -85,12 +154,12 @@ export default function Insights() {
           ))}
         </View>
 
-        {/* Line Chart */}
+        {/* Health Score Trend Chart */}
         <View style={styles.chartCard}>
           <Text style={styles.chartTitle}>Health Score Trend</Text>
           <View style={styles.lineChart}>
             {data.map((val, i) => {
-              const barH = (val / 100) * 100;
+              const barH   = max > 0 ? (val / max) * 100 : 0;
               const isLast = i === data.length - 1;
               return (
                 <View key={i} style={styles.lineBarCol}>
@@ -108,14 +177,16 @@ export default function Insights() {
           </View>
           <View style={styles.chartFooter}>
             <Text style={styles.chartFooterLabel}>Lowest: {Math.min(...data)}</Text>
-            <Text style={styles.chartFooterLabel}>Avg: {Math.round(data.reduce((a, b) => a + b, 0) / data.length)}</Text>
+            <Text style={styles.chartFooterLabel}>
+              Avg: {Math.round(data.reduce((a, b) => a + b, 0) / data.length)}
+            </Text>
             <Text style={styles.chartFooterLabel}>Peak: {max}</Text>
           </View>
         </View>
 
-        {/* Summary Metrics */}
+        {/* Summary Metrics Grid */}
         <View style={styles.metricsGrid}>
-          {METRICS.map((m) => (
+          {(metrics ?? []).map((m) => (
             <View key={m.label} style={styles.metricCard}>
               <Text style={styles.metricValue}>{m.value}</Text>
               <Text style={styles.metricLabel}>{m.label}</Text>
@@ -128,43 +199,51 @@ export default function Insights() {
           ))}
         </View>
 
-        {/* AI Insights */}
+        {/* AI Discoveries */}
         <Text style={styles.sectionTitle}>AI Discoveries</Text>
-        {INSIGHTS.map((ins, i) => (
-          <View key={i} style={[styles.insightCard, { borderLeftColor: ins.color }]}>
-            <View style={styles.insightHeader}>
-              <Text style={styles.insightIcon}>{ins.icon}</Text>
-              <View style={styles.insightMeta}>
-                <Text style={[styles.insightTag, { color: ins.color }]}>{ins.tag}</Text>
-                <Text style={styles.insightTitle}>{ins.title}</Text>
+        {insightsLoading
+          ? Array.from({ length: 4 }).map((_, i) => (
+              <View key={i} style={[styles.insightCard, { borderLeftColor: '#3D2F7A' }]}>
+                <View style={styles.insightHeader}>
+                  <Skeleton width={32} height={32} style={{ borderRadius: 6 }} />
+                  <View style={styles.insightMeta}>
+                    <Skeleton width={70}  height={11} style={{ marginBottom: 6 }} />
+                    <Skeleton width={140} height={14} />
+                  </View>
+                </View>
+                <Skeleton width="100%" height={38} style={{ marginTop: 4 }} />
               </View>
-            </View>
-            <Text style={styles.insightText}>{ins.text}</Text>
-          </View>
-        ))}
+            ))
+          : (aiInsights.length > 0 ? aiInsights : []).map((ins, i) => (
+              <View key={i} style={[styles.insightCard, { borderLeftColor: ins.color }]}>
+                <View style={styles.insightHeader}>
+                  <Text style={styles.insightIcon}>{ins.icon}</Text>
+                  <View style={styles.insightMeta}>
+                    <Text style={[styles.insightTag, { color: ins.color }]}>{ins.tag}</Text>
+                    <Text style={styles.insightTitle}>{ins.title}</Text>
+                  </View>
+                </View>
+                <Text style={styles.insightText}>{ins.text}</Text>
+              </View>
+            ))
+        }
 
-        {/* Weekly Heatmap */}
+        {/* Activity Heatmap — 7 rows × 6 columns, real calendar dates */}
         <Text style={styles.sectionTitle}>Activity Heatmap</Text>
         <View style={styles.heatmapCard}>
           {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, di) => (
             <View key={day} style={styles.heatRow}>
               <Text style={styles.heatDay}>{day}</Text>
               {Array.from({ length: 6 }).map((_, hi) => {
-                const intensity = Math.random();
+                // thisMonday − (5−hi)*7 weeks + di days = exact calendar date
+                const cellDate = new Date(thisMonday);
+                cellDate.setDate(thisMonday.getDate() - (5 - hi) * 7 + di);
+                const dateStr   = cellDate.toISOString().split('T')[0];
+                const intensity = heatmapData?.[dateStr] ?? 0;
                 return (
                   <View
                     key={hi}
-                    style={[
-                      styles.heatCell,
-                      {
-                        backgroundColor:
-                          intensity > 0.7
-                            ? '#6F4BF2'
-                            : intensity > 0.4
-                            ? '#3D2F7A'
-                            : '#2D2252',
-                      },
-                    ]}
+                    style={[styles.heatCell, { backgroundColor: heatColor(intensity) }]}
                   />
                 );
               })}
@@ -172,7 +251,7 @@ export default function Insights() {
           ))}
           <View style={styles.heatLegend}>
             <Text style={styles.heatLegendLabel}>Less</Text>
-            {['#2D2252', '#3D2F7A', '#6F4BF2', '#A38DF2'].map((c) => (
+            {['#1A1432', '#2D1F5E', '#4A2F8A', '#6F4BF2'].map((c) => (
               <View key={c} style={[styles.heatCell, { backgroundColor: c }]} />
             ))}
             <Text style={styles.heatLegendLabel}>More</Text>
@@ -185,8 +264,9 @@ export default function Insights() {
   );
 }
 
+
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#241C40' },
+  root:   { flex: 1, backgroundColor: '#241C40' },
   scroll: { paddingHorizontal: 20, paddingTop: 56, paddingBottom: 20 },
 
   header: {
@@ -195,114 +275,51 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 24,
   },
-  title: { color: '#fff', fontSize: 26, fontWeight: '800' },
-  aiBadge: {
-    backgroundColor: '#1A1432',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: '#6F4BF2',
-  },
+  title:       { color: '#fff', fontSize: 26, fontWeight: '800' },
+  aiBadge:     { backgroundColor: '#1A1432', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: '#6F4BF2' },
   aiBadgeText: { color: '#A38DF2', fontSize: 12, fontWeight: '700' },
 
-  periodRow: {
-    flexDirection: 'row',
-    backgroundColor: '#1A1432',
-    borderRadius: 12,
-    padding: 4,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#3D2F7A',
-  },
-  periodBtn: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 10 },
-  periodBtnActive: { backgroundColor: '#6F4BF2' },
-  periodLabel: { color: '#7A6AAA', fontSize: 13, fontWeight: '600' },
-  periodLabelActive: { color: '#fff' },
+  periodRow:        { flexDirection: 'row', backgroundColor: '#1A1432', borderRadius: 12, padding: 4, marginBottom: 20, borderWidth: 1, borderColor: '#3D2F7A' },
+  periodBtn:        { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 10 },
+  periodBtnActive:  { backgroundColor: '#6F4BF2' },
+  periodLabel:      { color: '#7A6AAA', fontSize: 13, fontWeight: '600' },
+  periodLabelActive:{ color: '#fff' },
 
-  chartCard: {
-    backgroundColor: '#1A1432',
-    borderRadius: 20,
-    padding: 18,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#3D2F7A',
-  },
-  chartTitle: { color: '#fff', fontSize: 14, fontWeight: '700', marginBottom: 16 },
-  lineChart: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    height: 110,
-    gap: 4,
-    marginBottom: 12,
-  },
-  lineBarCol: { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
-  lineBarTip: { color: '#CDF27E', fontSize: 10, fontWeight: '700', marginBottom: 3 },
-  lineBar: { width: '80%', backgroundColor: '#3D2F7A', borderRadius: 4 },
-  lineBarActive: { backgroundColor: '#6F4BF2' },
-  chartFooter: { flexDirection: 'row', justifyContent: 'space-between' },
+  chartCard:        { backgroundColor: '#1A1432', borderRadius: 20, padding: 18, marginBottom: 20, borderWidth: 1, borderColor: '#3D2F7A' },
+  chartTitle:       { color: '#fff', fontSize: 14, fontWeight: '700', marginBottom: 16 },
+  lineChart:        { flexDirection: 'row', alignItems: 'flex-end', height: 110, gap: 4, marginBottom: 12 },
+  lineBarCol:       { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
+  lineBarTip:       { color: '#CDF27E', fontSize: 10, fontWeight: '700', marginBottom: 3 },
+  lineBar:          { width: '80%', backgroundColor: '#3D2F7A', borderRadius: 4 },
+  lineBarActive:    { backgroundColor: '#6F4BF2' },
+  chartFooter:      { flexDirection: 'row', justifyContent: 'space-between' },
   chartFooterLabel: { color: '#7A6AAA', fontSize: 11 },
 
-  metricsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 24,
-  },
-  metricCard: {
-    backgroundColor: '#1A1432',
-    borderRadius: 16,
-    padding: 16,
-    width: '47%',
-    borderWidth: 1,
-    borderColor: '#3D2F7A',
-    alignItems: 'flex-start',
-  },
-  metricValue: { color: '#fff', fontSize: 28, fontWeight: '800' },
-  metricLabel: { color: '#7A6AAA', fontSize: 12, marginTop: 2, marginBottom: 8 },
-  deltaBadge: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
-  deltaUp: { backgroundColor: 'rgba(205,242,126,0.15)' },
-  deltaDown: { backgroundColor: 'rgba(255,100,100,0.15)' },
-  deltaText: { fontSize: 11, fontWeight: '700' },
-  deltaTextUp: { color: '#CDF27E' },
-  deltaTextDown: { color: '#FF6464' },
+  metricsGrid:    { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 24 },
+  metricCard:     { backgroundColor: '#1A1432', borderRadius: 16, padding: 16, width: '47%', borderWidth: 1, borderColor: '#3D2F7A', alignItems: 'flex-start' },
+  metricValue:    { color: '#fff', fontSize: 28, fontWeight: '800' },
+  metricLabel:    { color: '#7A6AAA', fontSize: 12, marginTop: 2, marginBottom: 8 },
+  deltaBadge:     { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
+  deltaUp:        { backgroundColor: 'rgba(205,242,126,0.15)' },
+  deltaDown:      { backgroundColor: 'rgba(255,100,100,0.15)' },
+  deltaText:      { fontSize: 11, fontWeight: '700' },
+  deltaTextUp:    { color: '#CDF27E' },
+  deltaTextDown:  { color: '#FF6464' },
 
   sectionTitle: { color: '#fff', fontSize: 16, fontWeight: '700', marginBottom: 12 },
 
-  insightCard: {
-    backgroundColor: '#1A1432',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#3D2F7A',
-    borderLeftWidth: 4,
-  },
+  insightCard:   { backgroundColor: '#1A1432', borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#3D2F7A', borderLeftWidth: 4 },
   insightHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },
-  insightIcon: { fontSize: 26 },
-  insightMeta: { flex: 1 },
-  insightTag: { fontSize: 10, fontWeight: '700', letterSpacing: 1, marginBottom: 2 },
-  insightTitle: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  insightText: { color: '#C8BFEE', fontSize: 13, lineHeight: 19 },
+  insightIcon:   { fontSize: 26 },
+  insightMeta:   { flex: 1 },
+  insightTag:    { fontSize: 10, fontWeight: '700', letterSpacing: 1, marginBottom: 2 },
+  insightTitle:  { color: '#fff', fontSize: 14, fontWeight: '700' },
+  insightText:   { color: '#C8BFEE', fontSize: 13, lineHeight: 19 },
 
-  heatmapCard: {
-    backgroundColor: '#1A1432',
-    borderRadius: 20,
-    padding: 18,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: '#3D2F7A',
-    gap: 6,
-  },
-  heatRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  heatDay: { color: '#7A6AAA', fontSize: 10, width: 28 },
-  heatCell: { width: 28, height: 28, borderRadius: 6 },
-  heatLegend: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 8,
-    justifyContent: 'flex-end',
-  },
+  heatmapCard: { backgroundColor: '#1A1432', borderRadius: 20, padding: 18, marginBottom: 24, borderWidth: 1, borderColor: '#3D2F7A', gap: 6 },
+  heatRow:     { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  heatDay:     { color: '#7A6AAA', fontSize: 10, width: 28 },
+  heatCell:    { width: 28, height: 28, borderRadius: 6 },
+  heatLegend:  { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, justifyContent: 'flex-end' },
   heatLegendLabel: { color: '#7A6AAA', fontSize: 10 },
 });

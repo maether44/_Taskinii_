@@ -1,5 +1,6 @@
 // screens/Profile.js — mock data replaced with static defaults
 import { useState } from 'react';
+import { useAuth } from '../context/AuthContext';
 import { ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 
 const C = {
@@ -42,6 +43,7 @@ function Row({ label, value, color }) {
 }
 
 export default function Profile({ navigate, replayTour }) {
+  const { signOut } = useAuth();
   const [notifWorkout, setNotifWorkout] = useState(true);
   const [notifWater,   setNotifWater  ] = useState(true);
   const [notifMeal,    setNotifMeal   ] = useState(false);
@@ -169,7 +171,7 @@ export default function Profile({ navigate, replayTour }) {
           <Text style={s.tourBtnTxt}>🗺️ Replay App Tour</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={s.signOutBtn}>
+        <TouchableOpacity style={s.signOutBtn} onPress={signOut}>
           <Text style={s.signOutTxt}>Sign Out</Text>
         </TouchableOpacity>
 
