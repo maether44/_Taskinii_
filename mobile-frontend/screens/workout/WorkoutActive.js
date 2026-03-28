@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View, StyleSheet, TouchableOpacity, Text,
-  StatusBar, ActivityIndicator, Alert, Animated, Platform,
+  StatusBar, Alert, Animated, Platform,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Camera } from 'expo-camera';
@@ -25,14 +25,12 @@ function resolveHtmlKey(name) {
   return null;
 }
 
-// Form score → ring color
 function scoreColor(pct) {
   if (pct >= 80) return '#C8F135';
   if (pct >= 55) return '#FF9500';
   return '#FF3B30';
 }
 
-// MM:SS timer format
 function formatTimer(secs) {
   const m = Math.floor(secs / 60);
   const s = secs % 60;
@@ -45,6 +43,7 @@ export default function WorkoutActive({ route, navigation }) {
   const htmlKey     = resolveHtmlKey(rawKey);
   const displayName = rawKey.replace(/_/g, ' ').toUpperCase();
 
+  // ── Refs ───────────────────────────────────────────────────
   const webViewRef       = useRef(null);
   const startTimeRef     = useRef(Date.now());
   const pulseAnim        = useRef(new Animated.Value(0)).current;
@@ -56,25 +55,29 @@ export default function WorkoutActive({ route, navigation }) {
   const glowOpacityAnim  = useRef(new Animated.Value(0)).current;
   const timerIntervalRef = useRef(null);
   const isMountedRef     = useRef(true);
+  const pulseLoopActive  = useRef(false);   // stops the pulse loop between steps
 
-  const [hasPermission, setHasPermission] = useState(null);
-  const [htmlContent,   setHtmlContent]   = useState(null);
-  const [cue,           setCue]           = useState('Initializing AI...');
-  const [repCount,      setRepCount]      = useState(0);
-  const [formScore,     setFormScore]     = useState(0);
-  const [countdown,     setCountdown]     = useState(null); // null | 3 | 2 | 1 | 'GO!' | 'done'
-  const [timerSecs,     setTimerSecs]     = useState(0);
-  const [timerRunning,  setTimerRunning]  = useState(false);
+  // ── State ──────────────────────────────────────────────────
+  const [hasPermission,  setHasPermission]  = useState(null);
+  const [htmlContent,    setHtmlContent]    = useState(null);
+  const [cue,            setCue]            = useState('Initializing AI...');
+  const [repCount,       setRepCount]       = useState(0);
+  const [formScore,      setFormScore]      = useState(0);
+  const [isCountingDown, setIsCountingDown] = useState(true);   // hides camera until GO!
+  const [countStep,      setCountStep]      = useState(null);   // current label: 3 | 2 | 1 | 'GO!'
+  const [timerSecs,      setTimerSecs]      = useState(0);
+  const [timerRunning,   setTimerRunning]   = useState(false);
 
   // ── Unmount cleanup ────────────────────────────────────────
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
+      pulseLoopActive.current = false;
       clearInterval(timerIntervalRef.current);
     };
   }, []);
 
-  // ── Hide tab bar ───────────────────────────────────────────
+  // ── Hide tab bar (100% — no tab bar or Yara during workout) ─
   useEffect(() => {
     navigation.getParent()?.setOptions({ tabBarStyle: { display: 'none' } });
     return () => navigation.getParent()?.setOptions({
@@ -82,7 +85,7 @@ export default function WorkoutActive({ route, navigation }) {
     });
   }, [navigation]);
 
-  // ── Camera permission + HTML load ─────────────────────────
+  // ── Camera permission + HTML pre-load ─────────────────────
   useEffect(() => {
     (async () => {
       const { status } = await Camera.requestCameraPermissionsAsync();
@@ -112,7 +115,7 @@ export default function WorkoutActive({ route, navigation }) {
     return () => clearInterval(timerIntervalRef.current);
   }, [timerRunning]);
 
-  // ── Electric Violet edge glow when strict (100%) form ─────
+  // ── Electric Violet edge glow: strict (100%) form ─────────
   useEffect(() => {
     Animated.timing(glowOpacityAnim, {
       toValue:  formScore === 100 ? 1 : 0,
@@ -121,7 +124,7 @@ export default function WorkoutActive({ route, navigation }) {
     }).start();
   }, [formScore, glowOpacityAnim]);
 
-  // ── Border pulse on correction cue ────────────────────────
+  // ── Border pulse on bad-form correction cue ───────────────
   const triggerPulse = useCallback(() => {
     if (pulseRunning.current) return;
     pulseRunning.current = true;
@@ -134,63 +137,94 @@ export default function WorkoutActive({ route, navigation }) {
     ]).start(() => { pulseRunning.current = false; });
   }, [pulseAnim]);
 
-  // ── 3-2-1 Countdown sequence ───────────────────────────────
+  // ── Cinematic 3-2-1 Countdown ─────────────────────────────
+  // Starts on mount. Camera is triggered after 'GO!' finishes.
   const startCountdown = useCallback(() => {
     const steps = [3, 2, 1, 'GO!'];
     let i = 0;
+
+    // Continuous Neon Lime pulse loop while a number is on screen
+    const runPulseLoop = () => {
+      if (!pulseLoopActive.current || !isMountedRef.current) return;
+      Animated.sequence([
+        Animated.timing(countScaleAnim, { toValue: 1.12, duration: 260, useNativeDriver: true }),
+        Animated.timing(countScaleAnim, { toValue: 1.00, duration: 260, useNativeDriver: true }),
+      ]).start(({ finished }) => {
+        if (finished) runPulseLoop();
+      });
+    };
 
     const showStep = () => {
       if (!isMountedRef.current) return;
 
       if (i >= steps.length) {
-        setCountdown('done');
-        // Unlock rep counting in the HTML
-        webViewRef.current?.injectJavaScript('window.startAI && window.startAI(); true;');
-        // Start the live elapsed timer
+        // GO! finished → reveal camera + start rep counting + start timer
+        setIsCountingDown(false);
+        setCountStep(null);
+        webViewRef.current?.injectJavaScript(
+          'window.startCamera && window.startCamera(); true;'
+        );
         startTimeRef.current = Date.now();
         setTimerRunning(true);
         return;
       }
 
       const val = steps[i];
-      setCountdown(val);
-      countScaleAnim.setValue(0.3);
+      setCountStep(val);
+
+      // Reset and spring in
+      pulseLoopActive.current = false;
+      countScaleAnim.setValue(0.25);
       countOpacityAnim.setValue(0);
 
       Animated.parallel([
         Animated.spring(countScaleAnim, {
-          toValue: 1, tension: 180, friction: 7, useNativeDriver: true,
+          toValue: 1, tension: 220, friction: 7, useNativeDriver: true,
         }),
         Animated.timing(countOpacityAnim, {
-          toValue: 1, duration: 120, useNativeDriver: true,
+          toValue: 1, duration: 100, useNativeDriver: true,
         }),
       ]).start(() => {
+        // Start the continuous pulse once fully visible
+        pulseLoopActive.current = true;
+        runPulseLoop();
+
+        // Hold for ~700ms (total step ≈ 1s: 100 enter + 700 hold + 200 exit)
+        const holdMs = val === 'GO!' ? 800 : 700;
         setTimeout(() => {
           if (!isMountedRef.current) return;
+          pulseLoopActive.current = false;   // stop pulse before fade
+
           Animated.timing(countOpacityAnim, {
-            toValue: 0, duration: 180, useNativeDriver: true,
+            toValue: 0, duration: 200, useNativeDriver: true,
           }).start(() => {
             i++;
             showStep();
           });
-        }, val === 'GO!' ? 700 : 750);
+        }, holdMs);
       });
     };
 
     showStep();
   }, [countScaleAnim, countOpacityAnim]);
 
+  // Start countdown on mount (WebView pre-loads silently in background)
+  useEffect(() => {
+    startCountdown();
+  }, [startCountdown]);
+
   // ── WebView message bridge ─────────────────────────────────
   const onMessage = useCallback((e) => {
     const data = e.nativeEvent.data;
 
+    // Camera is now ready — inject exercise key and unlock rep counting
     if (data === 'AI_READY') {
       if (htmlKey) {
         webViewRef.current?.injectJavaScript(
           `window.applyExerciseChange && window.applyExerciseChange('${htmlKey}'); true;`
         );
       }
-      startCountdown();
+      webViewRef.current?.injectJavaScript('window.startAI && window.startAI(); true;');
       return;
     }
 
@@ -232,7 +266,6 @@ export default function WorkoutActive({ route, navigation }) {
               caloriesBurned: calories,
             });
 
-            // Directly update daily_activity — don't rely on a trigger
             try {
               const TODAY = new Date().toISOString().split('T')[0];
               const { data: existing } = await supabase
@@ -275,9 +308,9 @@ export default function WorkoutActive({ route, navigation }) {
         })();
       }
     } catch (_) {}
-  }, [navigation, displayName, htmlKey, rawKey, triggerPulse, user, startCountdown]);
+  }, [navigation, displayName, htmlKey, rawKey, triggerPulse, user]);
 
-  // ── Finish ─────────────────────────────────────────────────
+  // ── Finish button ──────────────────────────────────────────
   const handleFinish = useCallback(() => {
     webViewRef.current?.injectJavaScript(
       `if (window.getSessionState) window.getSessionState(); true;`
@@ -313,7 +346,7 @@ export default function WorkoutActive({ route, navigation }) {
     );
   }
 
-  // Animated pulse border: transparent → Electric Violet on bad cue
+  // Bad-form pulse border interpolations
   const borderColor = pulseAnim.interpolate({
     inputRange:  [0, 1],
     outputRange: ['rgba(124,92,252,0)', 'rgba(124,92,252,0.9)'],
@@ -329,18 +362,13 @@ export default function WorkoutActive({ route, navigation }) {
     <View style={s.container}>
       <StatusBar hidden />
 
-      {/* ── FULLSCREEN CAMERA FEED ── */}
-      {!htmlContent ? (
-        <View style={[s.container, s.center]}>
-          <ActivityIndicator size="large" color="#C8F135" />
-          <Text style={s.loaderTxt}>LOADING AI ENGINE...</Text>
-        </View>
-      ) : (
+      {/* ── WEBVIEW (hidden during countdown via pointer-events + opacity) ── */}
+      {htmlContent && (
         <WebView
           ref={webViewRef}
           originWhitelist={['*']}
           source={{ html: htmlContent, baseUrl: 'https://localhost' }}
-          style={s.webview}
+          style={[s.webview, isCountingDown && { opacity: 0 }]}
           allowsInlineMediaPlayback={true}
           mediaPlaybackRequiresUserAction={false}
           startInLoadingState={false}
@@ -353,75 +381,93 @@ export default function WorkoutActive({ route, navigation }) {
         />
       )}
 
-      {/* ── ELECTRIC VIOLET EDGE GLOW — strict (100%) form ── */}
-      <Animated.View
-        pointerEvents="none"
-        style={[s.edgeGlow, { opacity: glowOpacityAnim }]}
-      />
+      {/* ── Post-countdown HUD elements ── */}
+      {!isCountingDown && (
+        <>
+          {/* Electric Violet edge glow: strict (100%) form */}
+          <Animated.View
+            pointerEvents="none"
+            style={[s.edgeGlow, { opacity: glowOpacityAnim }]}
+          />
 
-      {/* ── PULSING BORDER ALERT — bad form correction ── */}
-      <Animated.View
-        pointerEvents="none"
-        style={[s.pulseBorder, { borderColor, borderWidth }]}
-      />
+          {/* Pulsing border: bad-form correction */}
+          <Animated.View
+            pointerEvents="none"
+            style={[s.pulseBorder, { borderColor, borderWidth }]}
+          />
 
-      {/* ── ATMOSPHERIC REP COUNTER ── */}
-      <View style={s.atmosWrap} pointerEvents="none">
-        <Text style={s.atmosRep}>{repCount}</Text>
-      </View>
+          {/* Atmospheric rep counter */}
+          <View style={s.atmosWrap} pointerEvents="none">
+            <Text style={s.atmosRep}>{repCount}</Text>
+          </View>
 
-      {/* ── TOP-LEFT: Close + Exercise Badge ── */}
-      <BlurView intensity={40} tint="dark" style={s.topLeft}>
-        <TouchableOpacity style={s.closeBtn} onPress={() => navigation.goBack()}>
-          <Ionicons name="close" size={20} color="#000" />
-        </TouchableOpacity>
-        <Text style={s.exerciseTitle}>{displayName}</Text>
-      </BlurView>
-
-      {/* ── TOP-RIGHT: Form Ring ── */}
-      <BlurView intensity={40} tint="dark" style={s.ringWrap} pointerEvents="none">
-        <View style={[s.ringOuter, { borderColor: ring }]}>
-          <Text style={[s.ringPct, { color: ring }]}>{formScore}</Text>
-          <Text style={s.ringLabel}>FORM</Text>
-        </View>
-      </BlurView>
-
-      {/* ── TOP-CENTER: Live Timer (appears after GO!) ── */}
-      {countdown === 'done' && (
-        <View style={s.timerWrap} pointerEvents="none">
-          <BlurView intensity={30} tint="dark" style={s.timerBlur}>
-            <Text style={s.timerText}>{formatTimer(timerSecs)}</Text>
+          {/* Top-left: Close + Exercise name */}
+          <BlurView intensity={40} tint="dark" style={s.topLeft}>
+            <TouchableOpacity style={s.closeBtn} onPress={() => navigation.goBack()}>
+              <Ionicons name="close" size={20} color="#000" />
+            </TouchableOpacity>
+            <Text style={s.exerciseTitle}>{displayName}</Text>
           </BlurView>
-        </View>
+
+          {/* Top-right: Form ring */}
+          <BlurView intensity={40} tint="dark" style={s.ringWrap} pointerEvents="none">
+            <View style={[s.ringOuter, { borderColor: ring }]}>
+              <Text style={[s.ringPct, { color: ring }]}>{formScore}</Text>
+              <Text style={s.ringLabel}>FORM</Text>
+            </View>
+          </BlurView>
+
+          {/* Top-center: live timer */}
+          <View style={s.timerWrap} pointerEvents="none">
+            <BlurView intensity={30} tint="dark" style={s.timerBlur}>
+              <Text style={s.timerText}>{formatTimer(timerSecs)}</Text>
+            </BlurView>
+          </View>
+
+          {/* Bottom HUD: cue + finish */}
+          <BlurView intensity={50} tint="dark" style={s.bottomOverlay}>
+            <View style={s.cueRow}>
+              <Ionicons name="sparkles" size={13} color="#C8F135" style={{ marginRight: 7 }} />
+              <Text style={s.cueText} numberOfLines={2}>{cue}</Text>
+            </View>
+            <TouchableOpacity style={s.finishBtn} onPress={handleFinish}>
+              <Text style={s.finishBtnTxt}>Finish</Text>
+              <Ionicons name="checkmark" size={15} color="#000" />
+            </TouchableOpacity>
+          </BlurView>
+        </>
       )}
 
-      {/* ── BOTTOM HUD: Cue + Finish Button ── */}
-      <BlurView intensity={50} tint="dark" style={s.bottomOverlay}>
-        <View style={s.cueRow}>
-          <Ionicons name="sparkles" size={13} color="#C8F135" style={{ marginRight: 7 }} />
-          <Text style={s.cueText} numberOfLines={2}>{cue}</Text>
-        </View>
-        <TouchableOpacity style={s.finishBtn} onPress={handleFinish}>
-          <Text style={s.finishBtnTxt}>Finish</Text>
-          <Ionicons name="checkmark" size={15} color="#000" />
-        </TouchableOpacity>
-      </BlurView>
+      {/* ── CINEMATIC COUNTDOWN OVERLAY ── */}
+      {isCountingDown && (
+        <View style={s.countdownOverlay}>
+          {/* Exercise label */}
+          <Text style={s.countdownExercise}>{displayName}</Text>
 
-      {/* ── 3-2-1 COUNTDOWN OVERLAY (highest z-index) ── */}
-      {countdown !== null && countdown !== 'done' && (
-        <View style={s.countdownOverlay} pointerEvents="none">
-          <Animated.Text
-            style={[
-              s.countdownNum,
-              countdown === 'GO!' && s.countdownGoStyle,
-              { opacity: countOpacityAnim, transform: [{ scale: countScaleAnim }] },
-            ]}
-          >
-            {countdown}
-          </Animated.Text>
-          <Animated.Text style={[s.countdownSub, { opacity: countOpacityAnim }]}>
-            {countdown === 'GO!' ? 'Perfect form only counts' : 'Get ready...'}
-          </Animated.Text>
+          {/* Animated number */}
+          {countStep !== null && (
+            <Animated.Text
+              style={[
+                s.countdownNum,
+                countStep === 'GO!' && s.countdownGoStyle,
+                {
+                  opacity: countOpacityAnim,
+                  transform: [{ scale: countScaleAnim }],
+                },
+              ]}
+            >
+              {countStep}
+            </Animated.Text>
+          )}
+
+          {/* Hint */}
+          <Text style={s.countdownHint}>Step back for full-body tracking.</Text>
+
+          {/* Skip / back button */}
+          <TouchableOpacity style={s.skipBtn} onPress={() => navigation.goBack()}>
+            <Ionicons name="close" size={16} color="rgba(255,255,255,0.3)" />
+            <Text style={s.skipTxt}>Cancel</Text>
+          </TouchableOpacity>
         </View>
       )}
     </View>
@@ -432,25 +478,21 @@ const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
   center:    { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' },
 
-  // True full-bleed WebView
+  // WebView — true full-bleed
   webview: { ...StyleSheet.absoluteFillObject, backgroundColor: '#000' },
 
-  // Electric Violet edge glow — shown when strict (100%) form
+  // Electric Violet edge glow
   edgeGlow: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 25,
-    borderWidth: 3,
-    borderColor: '#7C5CFC',
-    shadowColor: '#7C5CFC',
-    shadowOpacity: 0.9,
-    shadowRadius: 24,
+    ...StyleSheet.absoluteFillObject, zIndex: 25,
+    borderWidth: 3, borderColor: '#7C5CFC',
+    shadowColor: '#7C5CFC', shadowOpacity: 0.9, shadowRadius: 24,
     shadowOffset: { width: 0, height: 0 },
   },
 
-  // Pulsing Electric Violet border — fires on bad cue
+  // Bad-form pulse border
   pulseBorder: { ...StyleSheet.absoluteFillObject, zIndex: 30 },
 
-  // Atmospheric huge rep counter
+  // Atmospheric rep counter
   atmosWrap: {
     position: 'absolute', top: '14%', left: 0, right: 0,
     alignItems: 'center', zIndex: 10,
@@ -461,7 +503,7 @@ const s = StyleSheet.create({
     letterSpacing: -8, lineHeight: 160,
   },
 
-  // Top-left pill (exit + exercise name)
+  // Top-left pill
   topLeft: {
     position: 'absolute', top: 52, left: 16, zIndex: 40,
     flexDirection: 'row', alignItems: 'center', gap: 10,
@@ -485,72 +527,86 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   ringOuter: {
-    width: 68, height: 68, borderRadius: 34,
-    borderWidth: 3,
+    width: 68, height: 68, borderRadius: 34, borderWidth: 3,
     alignItems: 'center', justifyContent: 'center',
   },
   ringPct:   { fontSize: 20, fontWeight: '900', lineHeight: 22 },
   ringLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 8, fontWeight: '800', letterSpacing: 1 },
 
-  // Top-center live timer
+  // Top-center timer
   timerWrap: {
     position: 'absolute', top: 130, left: 0, right: 0,
     alignItems: 'center', zIndex: 40,
   },
-  timerBlur: {
-    borderRadius: 12, overflow: 'hidden',
-    paddingHorizontal: 18, paddingVertical: 7,
-  },
+  timerBlur: { borderRadius: 12, overflow: 'hidden', paddingHorizontal: 18, paddingVertical: 7 },
   timerText: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: 16,
-    fontWeight: '900',
-    letterSpacing: 5,
+    color: 'rgba(255,255,255,0.85)', fontSize: 16,
+    fontWeight: '900', letterSpacing: 5,
     fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
   },
 
-  // Bottom HUD BlurView bar
+  // Bottom HUD
   bottomOverlay: {
     position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 40,
-    overflow: 'hidden',
-    flexDirection: 'row', alignItems: 'center',
+    overflow: 'hidden', flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 20, paddingVertical: 16, paddingBottom: 42,
   },
   cueRow:       { flex: 1, flexDirection: 'row', alignItems: 'center', paddingRight: 12 },
   cueText:      { color: '#FFFFFF', fontSize: 14, fontWeight: '700', lineHeight: 20, flex: 1 },
-  finishBtn:    { backgroundColor: '#C8F135', paddingHorizontal: 16, paddingVertical: 11, borderRadius: 13, flexDirection: 'row', alignItems: 'center', gap: 5 },
+  finishBtn:    {
+    backgroundColor: '#C8F135', paddingHorizontal: 16, paddingVertical: 11,
+    borderRadius: 13, flexDirection: 'row', alignItems: 'center', gap: 5,
+  },
   finishBtnTxt: { color: '#000', fontWeight: '900', fontSize: 13 },
 
-  // ── 3-2-1 Countdown overlay ──────────────────────────────
+  // ── Cinematic countdown overlay ──────────────────────────
   countdownOverlay: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 50,
-    backgroundColor: 'rgba(0,0,0,0.65)',
+    backgroundColor: '#000',     // solid black — no camera bleed-through
     alignItems: 'center',
     justifyContent: 'center',
   },
+  countdownExercise: {
+    color: 'rgba(255,255,255,0.25)',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 4,
+    textTransform: 'uppercase',
+    marginBottom: 32,
+  },
   countdownNum: {
-    fontSize: 140,
+    fontSize: 160,
     fontWeight: '900',
     color: '#C8F135',
-    lineHeight: 150,
-    textShadowColor: 'rgba(200,241,53,0.7)',
-    textShadowRadius: 50,
-    letterSpacing: -6,
+    lineHeight: 168,
+    letterSpacing: -8,
+    textShadowColor: 'rgba(200,241,53,0.5)',
+    textShadowRadius: 60,
+    textShadowOffset: { width: 0, height: 0 },
   },
   countdownGoStyle: {
-    fontSize: 82,
-    letterSpacing: 10,
-    lineHeight: 90,
+    fontSize: 80,
+    letterSpacing: 12,
+    lineHeight: 88,
   },
-  countdownSub: {
-    color: 'rgba(255,255,255,0.45)',
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 3,
-    textTransform: 'uppercase',
-    marginTop: 16,
+  countdownHint: {
+    color: 'rgba(255,255,255,0.35)',
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    marginTop: 40,
   },
+  skipBtn: {
+    position: 'absolute',
+    bottom: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  skipTxt: { color: 'rgba(255,255,255,0.3)', fontSize: 13, fontWeight: '600' },
 
   // Fallback screens
   loaderTxt:        { color: '#C8F135', marginTop: 15, fontWeight: '900', letterSpacing: 2 },

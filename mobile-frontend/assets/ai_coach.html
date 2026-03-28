@@ -863,7 +863,10 @@ function applyExerciseChange(key) {
 // ── Global access for React Native WebView injection ─────────
 window.applyExerciseChange = applyExerciseChange;
 
-// Called by RN after the 3-2-1 countdown finishes — enables rep counting
+// Called by RN after countdown — starts the camera feed
+window.startCamera = startCamera;
+
+// Called by RN after AI_READY is received — enables rep counting
 window.startAI = function() {
   repCountingEnabled = true;
 };
@@ -1398,14 +1401,8 @@ exSelect.addEventListener('change', () => {
 ─────────────────────────────────────────────────────────────────── */
 applyExerciseChange('squat');
 
-// ── Auto-start camera as soon as the page is ready ───────────
-window.onload = () => {
-  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-    startCamera();
-  } else {
-    console.warn('[BodyQ] Auto-start skipped: mediaDevices not available yet.');
-  }
-};
+// Camera is started by RN after the countdown via window.startCamera()
+// Do NOT auto-start here — the cinematic countdown must play first.
 </script>
 </body>
 </html>
