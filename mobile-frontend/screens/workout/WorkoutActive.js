@@ -269,22 +269,26 @@ export default function WorkoutActive({ route, navigation }) {
             // 1. Additive upsert of calories_burned into daily_metrics
             try {
               const TODAY = new Date().toISOString().split('T')[0];
-              const { data: existing } = await supabase
+              const { data: existing, error: readErr } = await supabase
                 .from('daily_metrics')
                 .select('calories_burned')
                 .eq('user_id', user.id)
                 .eq('date', TODAY)
                 .maybeSingle();
 
+              if (readErr) console.error('[BodyQ] daily_metrics read:', readErr.message);
+
               const newTotal = (existing?.calories_burned || 0) + calories;
-              await supabase
+              const { error: upsertErr } = await supabase
                 .from('daily_metrics')
                 .upsert(
                   { user_id: user.id, date: TODAY, calories_burned: newTotal },
                   { onConflict: 'user_id,date' }
                 );
+              if (upsertErr) console.error('[BodyQ] daily_metrics upsert:', upsertErr.message);
+              else console.log(`[BodyQ] daily_metrics saved: ${newTotal} kcal (user ${user.id})`);
             } catch (e) {
-              console.warn('[BodyQ] daily_metrics upsert failed:', e.message);
+              console.error('[BodyQ] daily_metrics exception:', e.message);
             }
 
             // 2. Persist activity_minutes into daily_activity

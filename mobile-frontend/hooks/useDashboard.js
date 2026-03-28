@@ -21,16 +21,26 @@ export function useDashboard() {
       }
 
       const TODAY = new Date().toISOString().split('T')[0];
+      const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+      const dayEnd   = new Date(dayStart); dayEnd.setDate(dayEnd.getDate() + 1);
 
-      const [result, fatigue, metricsRow] = await Promise.all([
+      const [result, fatigue, metricsRow, sessionsToday] = await Promise.all([
         getHomeSnapshot(user.id),
         getMuscleFatigue(user.id),
+        // Primary: daily_metrics (works once migration is run)
         supabase
           .from('daily_metrics')
           .select('calories_burned')
           .eq('user_id', user.id)
           .eq('date', TODAY)
           .maybeSingle(),
+        // Fallback: sum directly from workout_sessions (always works)
+        supabase
+          .from('workout_sessions')
+          .select('calories_burned')
+          .eq('user_id', user.id)
+          .gte('created_at', dayStart.toISOString())
+          .lt('created_at', dayEnd.toISOString()),
       ]);
 
       if (!result) {
@@ -40,7 +50,13 @@ export function useDashboard() {
       }
 
       setMuscleFatigue(fatigue);
-      setWorkoutCals(metricsRow.data?.calories_burned ?? 0);
+
+      // Use daily_metrics when it has a value; otherwise fall back to
+      // summing workout_sessions (works before the migration is run)
+      const fromMetrics  = metricsRow.data?.calories_burned ?? 0;
+      const fromSessions = (sessionsToday.data ?? [])
+        .reduce((sum, r) => sum + (r.calories_burned || 0), 0);
+      setWorkoutCals(fromMetrics > 0 ? fromMetrics : fromSessions);
 
     } catch (err) {
       console.error('Critical error in useDashboard:', err);
