@@ -29,7 +29,7 @@
     "expo-image-picker": "~17.0.10",
     "expo-linear-gradient": "^15.0.8",
     "expo-sensors": "~15.0.8",
-    "expo-speech": "^55.0.10-canary-20260328-bdc6273",
+    "expo-speech": "~14.0.8",
     "expo-splash-screen": "~31.0.13",
     "expo-status-bar": "~3.0.9",
     "lucide-react-native": "^0.563.0",
