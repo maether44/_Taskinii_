@@ -1,11 +1,15 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, Dimensions,
+  StyleSheet, Dimensions, Modal, Pressable,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Reanimated, {
+  FadeInDown,
+  useSharedValue, useAnimatedStyle, withSpring, interpolate,
+} from 'react-native-reanimated';
+import { BlurView } from 'expo-blur';
 import Svg, { Ellipse, Rect, Circle, Path } from 'react-native-svg';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
@@ -42,11 +46,167 @@ const QUICK_ACTIONS = [
   { icon: 'analytics-outline', label: 'Progress',  screen: 'Insights'     },
 ];
 
+// ── Machine Intelligence Hub Data ────────────────────────────
+const GYM_EQUIPMENT = [
+  {
+    id:           'smithMachine',
+    name:         'Smith Machine',
+    icon:         'barbell-outline',
+    primaryMuscle:'Quads · Glutes',
+    exerciseKey:  'squat',
+    setup: [
+      'Set the bar at mid-chest height when standing.',
+      'Step under the bar, feet shoulder-width, toes slightly out.',
+      'Unrack by rotating the bar forward.',
+      'Descend until thighs are parallel. Keep knees tracking over toes.',
+    ],
+    activation:
+      'At the bottom, feel your glutes fully loaded. Drive through your heels — consciously squeeze your glutes hard at the top lockout for a 1-second pause.',
+    alternatives: [
+      { name: 'Goblet Squat', icon: 'fitness-outline' },
+      { name: 'DB Split Squat', icon: 'body-outline' },
+    ],
+  },
+  {
+    id:           'legPress',
+    name:         'Leg Press',
+    icon:         'footsteps-outline',
+    primaryMuscle:'Quads · Hamstrings',
+    exerciseKey:  'squat',
+    setup: [
+      'Adjust seat so knees are at 90° with feet on platform.',
+      'Place feet hip-width apart, mid-platform.',
+      'Keep lower back flat against the pad throughout.',
+      'Do NOT lock out knees at the top — keep slight tension.',
+    ],
+    activation:
+      'Focus on the outer quad sweep. Push through the entire foot evenly. On the way back down, control the weight — that eccentric load is where the muscle grows.',
+    alternatives: [
+      { name: 'DB Bulgarian Split Squat', icon: 'body-outline' },
+      { name: 'DB Step-Up', icon: 'fitness-outline' },
+    ],
+  },
+  {
+    id:           'latPulldown',
+    name:         'Lat Pulldown',
+    icon:         'arrow-down-circle-outline',
+    primaryMuscle:'Lats · Biceps',
+    exerciseKey:  'bicepCurl',
+    setup: [
+      'Adjust thigh pad to lock hips firmly in place.',
+      'Grip bar slightly wider than shoulder-width, overhand.',
+      'Lean back 10–15° — this is your fixed position throughout.',
+      'Depress your shoulder blades before each pull.',
+    ],
+    activation:
+      'Initiate every rep by pulling your elbows DOWN and BACK — not your hands. Think "elbows to hip pockets." You should feel a deep stretch in your lats at full extension.',
+    alternatives: [
+      { name: 'DB Single-Arm Row', icon: 'barbell-outline' },
+      { name: 'DB Pullover', icon: 'fitness-outline' },
+    ],
+  },
+  {
+    id:           'chestPress',
+    name:         'Chest Press',
+    icon:         'expand-outline',
+    primaryMuscle:'Chest · Triceps',
+    exerciseKey:  'pushup',
+    setup: [
+      'Adjust seat so handles are at mid-chest height.',
+      'Sit tall — lower back lightly against the pad.',
+      'Grip handles with wrists straight, elbows at 75° (not flared to 90°).',
+      'Keep shoulder blades pinched together for the entire set.',
+    ],
+    activation:
+      'As you press, imagine trying to bring your elbows together. Squeeze your pecs hard at full extension — hold 1 second. Feel the inner chest fibers contract.',
+    alternatives: [
+      { name: 'DB Bench Press', icon: 'barbell-outline' },
+      { name: 'DB Chest Fly', icon: 'expand-outline' },
+    ],
+  },
+  {
+    id:           'cableRow',
+    name:         'Cable Row',
+    icon:         'swap-horizontal-outline',
+    primaryMuscle:'Back · Rear Delts',
+    exerciseKey:  'deadlift',
+    setup: [
+      'Set pulley to hip height. Use a close-grip V-bar attachment.',
+      'Sit upright, knees slightly bent, feet on platforms.',
+      'Start with arms extended — feel a full lat stretch.',
+      'Do NOT lean back more than 10° to initiate the pull.',
+    ],
+    activation:
+      'Drive elbows back past your torso. At the peak contraction, squeeze your shoulder blades hard together for 2 seconds. Your mid-back should feel on fire.',
+    alternatives: [
+      { name: 'DB Bent-Over Row', icon: 'barbell-outline' },
+      { name: 'DB Pendlay Row', icon: 'fitness-outline' },
+    ],
+  },
+  {
+    id:           'shoulderPress',
+    name:         'Shoulder Press',
+    icon:         'arrow-up-circle-outline',
+    primaryMuscle:'Shoulders · Triceps',
+    exerciseKey:  'shoulderPress',
+    setup: [
+      'Adjust seat so handles are at ear/jaw height.',
+      'Sit with lower back flush against the pad.',
+      'Grip handles with palms facing forward, wrists neutral.',
+      'Keep core tight — avoid arching your lower back at the top.',
+    ],
+    activation:
+      'Press through the heel of your palm. At the top, shrug slightly — feel the lateral head of the shoulder squeeze. Lower slowly over 3 counts to maximise deltoid activation.',
+    alternatives: [
+      { name: 'DB Arnold Press', icon: 'fitness-outline' },
+      { name: 'DB Lateral Raise', icon: 'body-outline' },
+    ],
+  },
+  {
+    id:           'legCurl',
+    name:         'Leg Curl',
+    icon:         'walk-outline',
+    primaryMuscle:'Hamstrings',
+    exerciseKey:  'lunge',
+    setup: [
+      'Adjust pad so it rests just above the heel, not on the ankle.',
+      'Lie face-down, hips pressed into the bench.',
+      'Hold handles to stabilise — do not lift your hips.',
+      'Keep toes pointed slightly inward to target bicep femoris.',
+    ],
+    activation:
+      'Curl through a full range — bring heels toward your glutes. At peak, squeeze hamstrings for a hard 1-second hold. Lower over 3 counts — the eccentric is where the strength gains live.',
+    alternatives: [
+      { name: 'DB Romanian Deadlift', icon: 'barbell-outline' },
+      { name: 'DB Nordic Curl (assisted)', icon: 'body-outline' },
+    ],
+  },
+  {
+    id:           'cableBicepCurl',
+    name:         'Cable Curl',
+    icon:         'hand-right-outline',
+    primaryMuscle:'Biceps · Forearms',
+    exerciseKey:  'bicepCurl',
+    setup: [
+      'Set pulley to lowest pin. Use a straight or EZ bar attachment.',
+      'Stand one step back from the machine, arms fully extended.',
+      'Pin your elbows to your sides — they must NOT move.',
+      'Supinate your wrists at the top (rotate pinky up).',
+    ],
+    activation:
+      'At full contraction, your wrists should be supinated with knuckles facing the ceiling. Squeeze the peak of your bicep hard for 1 second. The constant cable tension keeps the muscle under load even at the bottom.',
+    alternatives: [
+      { name: 'DB Alternating Curl', icon: 'fitness-outline' },
+      { name: 'DB Hammer Curl', icon: 'barbell-outline' },
+    ],
+  },
+];
+
 // ── Fatigue → color / label ──────────────────────────────────
 function fatigueColor(pct) {
-  if (pct >= 70) return '#7C5CFC'; // Electric Violet — Fatigued
-  if (pct >= 30) return '#FF9500'; // Amber — Sore
-  return '#C8F135';                // Neon Lime — Fresh
+  if (pct >= 70) return '#7C5CFC';
+  if (pct >= 30) return '#FF9500';
+  return '#C8F135';
 }
 function fatigueLabel(pct) {
   if (pct >= 70) return 'FATIGUED';
@@ -76,7 +236,7 @@ const BODY_SPOTS = [
   { id: 'Back',      cx: 60,  cy: 78,  rx: 20, ry: 20 },
 ];
 
-// ── Body Silhouette SVG Component ────────────────────────────
+// ── Body Silhouette SVG ──────────────────────────────────────
 function BodySilhouette({ fatigueMap }) {
   const colorOf = (muscleId) => {
     const entry = fatigueMap[muscleId];
@@ -86,30 +246,17 @@ function BodySilhouette({ fatigueMap }) {
 
   return (
     <Svg width={120} height={265} viewBox="0 0 120 265">
-      {/* Head */}
       <Circle cx={60} cy={18} r={14} fill="#1A1538" stroke="#2A2550" strokeWidth={1} />
-      {/* Neck */}
       <Rect x={55} y={31} width={10} height={11} rx={4} fill="#1A1538" />
-      {/* Torso */}
       <Rect x={28} y={40} width={64} height={98} rx={12} fill="#1A1538" stroke="#2A2550" strokeWidth={1} />
-      {/* Left upper arm */}
       <Rect x={10} y={46} width={18} height={60} rx={9} fill="#1A1538" stroke="#2A2550" strokeWidth={1} />
-      {/* Right upper arm */}
       <Rect x={92} y={46} width={18} height={60} rx={9} fill="#1A1538" stroke="#2A2550" strokeWidth={1} />
-      {/* Left forearm */}
       <Rect x={11} y={104} width={15} height={50} rx={7} fill="#1A1538" stroke="#2A2550" strokeWidth={1} />
-      {/* Right forearm */}
       <Rect x={94} y={104} width={15} height={50} rx={7} fill="#1A1538" stroke="#2A2550" strokeWidth={1} />
-      {/* Left thigh */}
       <Rect x={31} y={136} width={26} height={72} rx={13} fill="#1A1538" stroke="#2A2550" strokeWidth={1} />
-      {/* Right thigh */}
       <Rect x={63} y={136} width={26} height={72} rx={13} fill="#1A1538" stroke="#2A2550" strokeWidth={1} />
-      {/* Left calf */}
       <Rect x={33} y={205} width={22} height={55} rx={11} fill="#1A1538" stroke="#2A2550" strokeWidth={1} />
-      {/* Right calf */}
       <Rect x={65} y={205} width={22} height={55} rx={11} fill="#1A1538" stroke="#2A2550" strokeWidth={1} />
-
-      {/* Muscle colour overlays */}
       {BODY_SPOTS.map((s, i) => (
         <Ellipse
           key={i}
@@ -118,12 +265,187 @@ function BodySilhouette({ fatigueMap }) {
           opacity={colorOf(s.id) === UNTRAINED ? 0.6 : 0.75}
         />
       ))}
-
-      {/* Face details */}
       <Circle cx={55} cy={15} r={2} fill="rgba(255,255,255,0.15)" />
       <Circle cx={65} cy={15} r={2} fill="rgba(255,255,255,0.15)" />
       <Path d="M55 22 Q60 26 65 22" stroke="rgba(255,255,255,0.15)" strokeWidth={1} fill="none" />
     </Svg>
+  );
+}
+
+// ── Machine Card ─────────────────────────────────────────────
+function MachineCard({ machine, onPress }) {
+  return (
+    <TouchableOpacity
+      style={s.machineCard}
+      onPress={() => onPress(machine)}
+      activeOpacity={0.82}
+    >
+      {/* Lime glow behind icon */}
+      <View style={s.machineIconWrap}>
+        <Ionicons
+          name={machine.icon}
+          size={32}
+          color={C.lime}
+          style={{ shadowColor: C.lime, shadowOpacity: 0.9, shadowRadius: 14 }}
+        />
+      </View>
+      <Text style={s.machineName}>{machine.name}</Text>
+      <Text style={s.machineMuscle}>{machine.primaryMuscle}</Text>
+      <View style={s.machineAiBadge}>
+        <Ionicons name="sparkles" size={9} color={C.lime} />
+        <Text style={s.machineAiTxt}> AI READY</Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+// ── Machine Intelligence Modal ────────────────────────────────
+function MachineModal({ machine, visible, onClose, onAnalyze }) {
+  const prog = useSharedValue(0);
+  const [showAlts, setShowAlts] = useState(false);
+
+  const cardStyle = useAnimatedStyle(() => ({
+    opacity:   interpolate(prog.value, [0, 0.4, 1], [0, 1, 1]),
+    transform: [{ scale: interpolate(prog.value, [0, 1], [0.86, 1]) }],
+  }));
+
+  // Animate in/out when visible changes
+  React.useEffect(() => {
+    if (visible) {
+      setShowAlts(false);
+      prog.value = withSpring(1, { damping: 16, stiffness: 200, mass: 0.8 });
+    } else {
+      prog.value = withSpring(0, { damping: 20, stiffness: 260 });
+    }
+  }, [visible]);
+
+  if (!machine) return null;
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={onClose}
+    >
+      <Pressable style={s.modalBackdrop} onPress={onClose}>
+        <Pressable onPress={() => {}}>
+          <Reanimated.View style={[s.modalCard, cardStyle]}>
+            <BlurView intensity={92} tint="dark" style={StyleSheet.absoluteFillObject} />
+
+            {/* Lime top accent line */}
+            <View style={s.modalAccent} />
+
+            {/* Header */}
+            <View style={s.modalHeader}>
+              <View style={s.modalIconWrap}>
+                <Ionicons
+                  name={machine.icon}
+                  size={26}
+                  color={C.lime}
+                  style={{ shadowColor: C.lime, shadowOpacity: 1, shadowRadius: 12 }}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.modalTitle}>{machine.name}</Text>
+                <Text style={s.modalMuscle}>{machine.primaryMuscle}</Text>
+              </View>
+              <TouchableOpacity onPress={onClose} style={s.modalClose}>
+                <Ionicons name="close" size={18} color="rgba(255,255,255,0.6)" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 24 }}
+            >
+              {/* ── OPTIMAL SETUP ── */}
+              <View style={s.modalSection}>
+                <View style={s.modalSectionHeader}>
+                  <Ionicons name="settings-outline" size={13} color={C.lime} />
+                  <Text style={s.modalSectionTitle}>OPTIMAL SETUP</Text>
+                </View>
+                {machine.setup.map((step, i) => (
+                  <View key={i} style={s.setupRow}>
+                    <View style={s.setupNum}>
+                      <Text style={s.setupNumTxt}>{i + 1}</Text>
+                    </View>
+                    <Text style={s.setupTxt}>{step}</Text>
+                  </View>
+                ))}
+              </View>
+
+              {/* ── MUSCLE ACTIVATION ── */}
+              <View style={s.modalSection}>
+                <View style={s.modalSectionHeader}>
+                  <Ionicons name="flash-outline" size={13} color={C.purple} />
+                  <Text style={[s.modalSectionTitle, { color: C.accent }]}>MUSCLE ACTIVATION</Text>
+                </View>
+                <View style={s.activationBox}>
+                  <Text style={s.activationTxt}>"{machine.activation}"</Text>
+                </View>
+              </View>
+
+              {/* ── SMART PIVOT ── */}
+              <View style={s.modalSection}>
+                <TouchableOpacity
+                  style={[s.pivotBtn, showAlts && s.pivotBtnActive]}
+                  onPress={() => setShowAlts(v => !v)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons
+                    name="swap-horizontal-outline"
+                    size={15}
+                    color={showAlts ? C.bg : C.lime}
+                  />
+                  <Text style={[s.pivotBtnTxt, showAlts && { color: C.bg }]}>
+                    {showAlts ? 'Hide Alternatives' : 'Machine Busy?'}
+                  </Text>
+                </TouchableOpacity>
+
+                {showAlts && (
+                  <Reanimated.View entering={FadeInDown.duration(240).springify()}>
+                    <Text style={s.altHeading}>Dumbbell Alternatives</Text>
+                    {machine.alternatives.map((alt, i) => (
+                      <View key={i} style={s.altRow}>
+                        <View style={s.altIcon}>
+                          <Ionicons name={alt.icon} size={16} color={C.lime} />
+                        </View>
+                        <Text style={s.altName}>{alt.name}</Text>
+                        <View style={s.altBadge}>
+                          <Text style={s.altBadgeTxt}>DUMBBELL</Text>
+                        </View>
+                      </View>
+                    ))}
+                  </Reanimated.View>
+                )}
+              </View>
+
+              {/* ── ANALYZE FORM CTA ── */}
+              <TouchableOpacity
+                style={s.analyzeBtn}
+                onPress={() => onAnalyze(machine)}
+                activeOpacity={0.85}
+              >
+                <LinearGradient
+                  colors={[C.lime, '#A8D020']}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                  style={s.analyzeBtnGradient}
+                >
+                  <Ionicons name="scan-outline" size={18} color="#000" />
+                  <Text style={s.analyzeBtnTxt}>Analyze Form</Text>
+                  <Ionicons name="arrow-forward" size={16} color="#000" />
+                </LinearGradient>
+              </TouchableOpacity>
+            </ScrollView>
+
+            {/* Lime border overlay */}
+            <View style={s.modalBorder} pointerEvents="none" />
+          </Reanimated.View>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -141,13 +463,14 @@ export default function Training({ navigation }) {
   const [weekDays,       setWeekDays]       = useState(Array(7).fill(false));
   const [streakCount,    setStreakCount]     = useState(0);
   const [recoveryPct,    setRecoveryPct]    = useState(100);
+  const [selectedMachine, setSelectedMachine] = useState(null);
+  const [modalVisible,    setModalVisible]    = useState(false);
 
   const loadData = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // ── Muscle fatigue ──────────────────────────────────────
       const rows = await getMuscleFatigue(user.id);
       const map = {};
       rows.forEach(r => { map[r.muscle_name] = r; });
@@ -159,9 +482,8 @@ export default function Training({ navigation }) {
           : Math.round(rows.reduce((s, m) => s + (100 - m.fatigue_pct), 0) / rows.length)
       );
 
-      // ── 7-day consistency streak ────────────────────────────
       const today = new Date();
-      const dow = today.getDay(); // 0 = Sunday
+      const dow = today.getDay();
       const monday = new Date(today);
       monday.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1));
       monday.setHours(0, 0, 0, 0);
@@ -199,12 +521,28 @@ export default function Training({ navigation }) {
 
   const topFatigued = fatigueList.find(m => m.fatigue_pct >= 70);
 
+  const openMachineModal = useCallback((machine) => {
+    setSelectedMachine(machine);
+    setModalVisible(true);
+  }, []);
+
+  const closeMachineModal = useCallback(() => {
+    setModalVisible(false);
+  }, []);
+
+  const handleAnalyzeForm = useCallback((machine) => {
+    setModalVisible(false);
+    setTimeout(() => {
+      navigation.navigate('WorkoutActive', { exerciseName: machine.exerciseKey });
+    }, 300);
+  }, [navigation]);
+
   return (
     <View style={s.root}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
 
         {/* ── HEADER ── */}
-        <Animated.View entering={FadeInDown.delay(0).springify()} style={s.header}>
+        <Reanimated.View entering={FadeInDown.delay(0).springify()} style={s.header}>
           <View>
             <Text style={s.greeting}>{greeting},</Text>
             <Text style={s.subGreeting}>Your studio is ready.</Text>
@@ -213,10 +551,10 @@ export default function Training({ navigation }) {
             <Text style={s.recoveryNum}>{recoveryPct}%</Text>
             <Text style={s.recoveryLabel}>RECOVERY</Text>
           </View>
-        </Animated.View>
+        </Reanimated.View>
 
         {/* ── HERO CARD ── */}
-        <Animated.View entering={FadeInDown.delay(100).springify()}>
+        <Reanimated.View entering={FadeInDown.delay(100).springify()}>
           <TouchableOpacity
             activeOpacity={0.9}
             onPress={() => navigation.navigate('WorkoutActive', { exerciseName: 'squat' })}
@@ -253,22 +591,19 @@ export default function Training({ navigation }) {
               </View>
             </LinearGradient>
           </TouchableOpacity>
-        </Animated.View>
+        </Reanimated.View>
 
-        {/* ── RECOVERY STATUS (Muscle Heatmap) ── */}
-        <Animated.View entering={FadeInDown.delay(150).springify()}>
+        {/* ── RECOVERY STATUS ── */}
+        <Reanimated.View entering={FadeInDown.delay(150).springify()}>
           <View style={s.sectionRow}>
             <Text style={s.sectionTitle}>Recovery Status</Text>
             <Text style={s.sectionSub}>Last 48 hrs</Text>
           </View>
 
           <View style={[s.heatmapCard, SHADOW]}>
-            {/* Body silhouette */}
             <View style={s.heatmapBody}>
               <BodySilhouette fatigueMap={fatigueMap} />
             </View>
-
-            {/* Muscle list */}
             <View style={s.heatmapList}>
               {fatigueLoading ? (
                 <Text style={s.heatmapLoading}>Syncing...</Text>
@@ -306,8 +641,6 @@ export default function Training({ navigation }) {
                   );
                 })
               )}
-
-              {/* Legend */}
               <View style={s.legend}>
                 {[
                   { color: C.lime,    label: 'Fresh'    },
@@ -323,7 +656,6 @@ export default function Training({ navigation }) {
             </View>
           </View>
 
-          {/* Yara Insight card */}
           {fatigueList.length > 0 && (
             <LinearGradient
               colors={['#7C5CFC', '#4A2FC8']}
@@ -341,10 +673,10 @@ export default function Training({ navigation }) {
               </Text>
             </LinearGradient>
           )}
-        </Animated.View>
+        </Reanimated.View>
 
         {/* ── 7-DAY STREAK ── */}
-        <Animated.View entering={FadeInDown.delay(200).springify()} style={[s.streakCard, SHADOW]}>
+        <Reanimated.View entering={FadeInDown.delay(200).springify()} style={[s.streakCard, SHADOW]}>
           <View style={s.streakHeader}>
             <Ionicons name="flame" size={16} color={C.lime} />
             <Text style={s.streakTitle}>Consistency</Text>
@@ -363,10 +695,10 @@ export default function Training({ navigation }) {
               );
             })}
           </View>
-        </Animated.View>
+        </Reanimated.View>
 
         {/* ── QUICK ACTIONS ── */}
-        <Animated.View entering={FadeInDown.delay(250).springify()} style={s.actionRow}>
+        <Reanimated.View entering={FadeInDown.delay(250).springify()} style={s.actionRow}>
           {QUICK_ACTIONS.map((a, i) => (
             <TouchableOpacity
               key={i}
@@ -380,10 +712,39 @@ export default function Training({ navigation }) {
               <Text style={s.actionTxt}>{a.label}</Text>
             </TouchableOpacity>
           ))}
-        </Animated.View>
+        </Reanimated.View>
+
+        {/* ══ MACHINE INTELLIGENCE HUB ══════════════════════════ */}
+        <Reanimated.View entering={FadeInDown.delay(290).springify()}>
+          <View style={s.sectionRow}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+              <Text style={s.sectionTitle}>Machine Intelligence</Text>
+              <View style={s.hubBadge}>
+                <Text style={s.hubBadgeTxt}>HUB</Text>
+              </View>
+            </View>
+            <Text style={s.sectionSub}>Tap any machine</Text>
+          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={s.machineScroll}
+            decelerationRate="fast"
+            snapToInterval={148}
+          >
+            {GYM_EQUIPMENT.map((machine) => (
+              <MachineCard
+                key={machine.id}
+                machine={machine}
+                onPress={openMachineModal}
+              />
+            ))}
+          </ScrollView>
+        </Reanimated.View>
 
         {/* ── PERFORMANCE LIBRARY ── */}
-        <Animated.View entering={FadeInDown.delay(300).springify()} style={{ marginTop: 4 }}>
+        <Reanimated.View entering={FadeInDown.delay(300).springify()} style={{ marginTop: 4 }}>
           <View style={s.sectionRow}>
             <Text style={s.sectionTitle}>Performance Library</Text>
             <TouchableOpacity onPress={() => handleNav('ExerciseList')}>
@@ -406,10 +767,10 @@ export default function Training({ navigation }) {
               <Ionicons name="chevron-forward" size={20} color={C.lime} />
             </LinearGradient>
           </TouchableOpacity>
-        </Animated.View>
+        </Reanimated.View>
 
         {/* ── POSTURE AI CARD ── */}
-        <Animated.View entering={FadeInDown.delay(350).springify()} style={{ marginTop: 14 }}>
+        <Reanimated.View entering={FadeInDown.delay(350).springify()} style={{ marginTop: 14 }}>
           <TouchableOpacity activeOpacity={0.85} onPress={() => handleNav('PostureAI')}>
             <View style={[s.postureCard, SHADOW]}>
               <View style={s.postureLeft}>
@@ -426,10 +787,19 @@ export default function Training({ navigation }) {
               </View>
             </View>
           </TouchableOpacity>
-        </Animated.View>
+        </Reanimated.View>
 
         <View style={{ height: 100 }} />
       </ScrollView>
+
+      {/* ══ MACHINE INTELLIGENCE MODAL ══════════════════════════ */}
+      <MachineModal
+        machine={selectedMachine}
+        visible={modalVisible}
+        onClose={closeMachineModal}
+        onAnalyze={handleAnalyzeForm}
+      />
+
     </View>
   );
 }
@@ -466,29 +836,25 @@ const s = StyleSheet.create({
   sectionLink: { color: C.lime, fontSize: 12, fontWeight: '700' },
   sectionSub:  { color: C.sub, fontSize: 12 },
 
-  // Heatmap card
+  // Heatmap
   heatmapCard:    { backgroundColor: C.card, borderRadius: 22, borderWidth: 1, borderColor: C.border, flexDirection: 'row', padding: 16, marginBottom: 10 },
   heatmapBody:    { alignItems: 'center', justifyContent: 'center', marginRight: 14 },
   heatmapList:    { flex: 1, justifyContent: 'center', gap: 6 },
   heatmapLoading: { color: C.sub, fontSize: 12, fontStyle: 'italic' },
   heatmapEmpty:   { color: C.text, fontSize: 13, fontWeight: '700', lineHeight: 18 },
   heatmapEmptySub:{ color: C.lime, fontSize: 11, marginTop: 4, lineHeight: 16 },
-
-  // Per-muscle row
   muscleRow:     { flexDirection: 'row', alignItems: 'center', gap: 7 },
   muscleDot:     { width: 8, height: 8, borderRadius: 4 },
   muscleName:    { color: C.text, fontSize: 11, fontWeight: '700', marginBottom: 3 },
   muscleBarBg:   { height: 4, backgroundColor: C.border, borderRadius: 2, overflow: 'visible' },
   muscleBarFill: { height: 4, borderRadius: 2 },
   muscleTag:     { fontSize: 8, fontWeight: '900', letterSpacing: 0.5, minWidth: 52, textAlign: 'right' },
-
-  // Legend
   legend:      { flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' },
   legendItem:  { flexDirection: 'row', alignItems: 'center', gap: 4 },
   legendDot:   { width: 7, height: 7, borderRadius: 3.5 },
   legendTxt:   { color: C.sub, fontSize: 9, fontWeight: '700' },
 
-  // Yara Insight card
+  // Yara
   yaraCard:    { borderRadius: 18, padding: 16, marginBottom: 4 },
   yaraHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   yaraTitle:   { color: 'rgba(255,255,255,0.6)', fontSize: 9, fontWeight: '900', letterSpacing: 1.5 },
@@ -512,6 +878,147 @@ const s = StyleSheet.create({
   actionBtn:      { width: (width - 56) / 3, backgroundColor: C.card, paddingVertical: 16, borderRadius: 20, alignItems: 'center', borderWidth: 1, borderColor: C.border },
   actionIconWrap: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(200,241,53,0.08)', alignItems: 'center', justifyContent: 'center', marginBottom: 8, borderWidth: 1, borderColor: 'rgba(200,241,53,0.2)' },
   actionTxt:      { color: C.text, fontSize: 11, fontWeight: '700' },
+
+  // ── Machine Intelligence Hub ─────────────────────────────
+  hubBadge:     { backgroundColor: 'rgba(200,241,53,0.12)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: 'rgba(200,241,53,0.3)' },
+  hubBadgeTxt:  { color: C.lime, fontSize: 9, fontWeight: '900', letterSpacing: 1.2 },
+  machineScroll:{ paddingHorizontal: 0, paddingBottom: 8, paddingRight: 20, gap: 12, flexDirection: 'row', marginBottom: 28 },
+
+  machineCard: {
+    width: 136,
+    backgroundColor: C.bg,
+    borderRadius: 22,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: C.lime,
+    alignItems: 'center',
+    ...SHADOW,
+    shadowColor: C.lime,
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+  },
+  machineIconWrap: {
+    width: 60,
+    height: 60,
+    borderRadius: 18,
+    backgroundColor: 'rgba(200,241,53,0.07)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(200,241,53,0.22)',
+    shadowColor: C.lime,
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+  },
+  machineName:   { color: C.text, fontSize: 12, fontWeight: '800', textAlign: 'center', marginBottom: 4 },
+  machineMuscle: { color: C.sub, fontSize: 10, textAlign: 'center', marginBottom: 10 },
+  machineAiBadge:{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(200,241,53,0.08)', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
+  machineAiTxt:  { color: C.lime, fontSize: 8, fontWeight: '900', letterSpacing: 0.8 },
+
+  // ── Modal ────────────────────────────────────────────────
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.72)',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 16,
+    paddingBottom: 32,
+  },
+  modalCard: {
+    borderRadius: 28,
+    overflow: 'hidden',
+    maxHeight: '88%',
+    ...SHADOW,
+    shadowColor: C.lime,
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+  },
+  modalAccent: {
+    height: 3,
+    backgroundColor: C.lime,
+    marginHorizontal: 40,
+    borderBottomLeftRadius: 2,
+    borderBottomRightRadius: 2,
+    marginBottom: 0,
+  },
+  modalBorder: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 28,
+    borderWidth: 1.5,
+    borderColor: 'rgba(200,241,53,0.4)',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    padding: 20,
+    paddingBottom: 16,
+  },
+  modalIconWrap: {
+    width: 50,
+    height: 50,
+    borderRadius: 15,
+    backgroundColor: 'rgba(200,241,53,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(200,241,53,0.25)',
+  },
+  modalTitle:  { color: C.text, fontSize: 18, fontWeight: '900' },
+  modalMuscle: { color: C.lime, fontSize: 11, fontWeight: '700', marginTop: 2 },
+  modalClose:  { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.07)', alignItems: 'center', justifyContent: 'center' },
+
+  modalSection: { paddingHorizontal: 20, paddingBottom: 20 },
+  modalSectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
+  modalSectionTitle:  { color: C.lime, fontSize: 10, fontWeight: '900', letterSpacing: 1.4 },
+
+  // Setup steps
+  setupRow: { flexDirection: 'row', gap: 12, marginBottom: 10, alignItems: 'flex-start' },
+  setupNum: {
+    width: 22, height: 22, borderRadius: 11,
+    backgroundColor: 'rgba(200,241,53,0.12)',
+    borderWidth: 1, borderColor: 'rgba(200,241,53,0.35)',
+    alignItems: 'center', justifyContent: 'center',
+    marginTop: 1,
+  },
+  setupNumTxt: { color: C.lime, fontSize: 10, fontWeight: '900' },
+  setupTxt:    { color: 'rgba(255,255,255,0.82)', fontSize: 13, lineHeight: 19, flex: 1 },
+
+  // Activation box
+  activationBox: {
+    backgroundColor: 'rgba(124,92,252,0.1)',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(124,92,252,0.3)',
+  },
+  activationTxt: { color: C.accent, fontSize: 13, lineHeight: 20, fontStyle: 'italic' },
+
+  // Smart Pivot
+  pivotBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1.5,
+    borderColor: C.lime,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    alignSelf: 'flex-start',
+  },
+  pivotBtnActive:  { backgroundColor: C.lime },
+  pivotBtnTxt:     { color: C.lime, fontSize: 13, fontWeight: '800' },
+  altHeading:      { color: C.sub, fontSize: 10, fontWeight: '800', letterSpacing: 1, marginTop: 14, marginBottom: 8 },
+  altRow:          { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' },
+  altIcon:         { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(200,241,53,0.08)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(200,241,53,0.2)' },
+  altName:         { color: C.text, fontSize: 13, fontWeight: '700', flex: 1 },
+  altBadge:        { backgroundColor: 'rgba(255,255,255,0.07)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  altBadgeTxt:     { color: C.sub, fontSize: 8, fontWeight: '800', letterSpacing: 0.8 },
+
+  // Analyze CTA
+  analyzeBtn:          { marginHorizontal: 20, marginTop: 4, borderRadius: 18, overflow: 'hidden' },
+  analyzeBtnGradient:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 16 },
+  analyzeBtnTxt:       { color: '#000', fontSize: 16, fontWeight: '900', letterSpacing: 0.3 },
 
   // Library
   libCard:    { borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: C.border },

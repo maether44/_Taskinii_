@@ -5,7 +5,7 @@
  * Storage: AsyncStorage — conversations persist across sessions.
  */
 import {
-  ActivityIndicator, Animated, Dimensions, KeyboardAvoidingView, Platform,
+  ActivityIndicator, Animated, Dimensions, Easing, Image, KeyboardAvoidingView, Platform,
   ScrollView, StyleSheet, Text, TextInput,
   TouchableOpacity, View,
 } from 'react-native';
@@ -109,6 +109,7 @@ export default function YaraAssistant() {
   const sidebarFade = useRef(new Animated.Value(0)).current;
   const scrollRef   = useRef(null);
   const fabScale    = useRef(new Animated.Value(1)).current;
+  const bobAnim     = useRef(new Animated.Value(0)).current;
 
   // Persist to AsyncStorage — errors logged, never silently lost
   const persist = async (convs) => {
@@ -217,15 +218,24 @@ export default function YaraAssistant() {
       .catch(() => {});
   }, []);
 
-  // FAB pulse
+  // FAB breathe + bob
   useEffect(() => {
-    const anim = Animated.loop(Animated.sequence([
-      Animated.timing(fabScale, { toValue: 1.07, duration: 1500, useNativeDriver: true }),
-      Animated.timing(fabScale, { toValue: 1,    duration: 1500, useNativeDriver: true }),
+    const breathe = Animated.loop(Animated.sequence([
+      Animated.timing(fabScale, { toValue: 1.08, duration: 1800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(fabScale, { toValue: 1,    duration: 1800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
     ]));
-    anim.start();
-    return () => anim.stop();
+    const bob = Animated.loop(Animated.sequence([
+      Animated.timing(bobAnim, { toValue: -10, duration: 1500, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(bobAnim, { toValue: 0,   duration: 1500, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+    ]));
+    breathe.start();
+    bob.start();
+    return () => { breathe.stop(); bob.stop(); };
   }, []);
+
+  const glowOpacityOuter = fabScale.interpolate({ inputRange: [1, 1.08], outputRange: [0.18, 0.42] });
+  const glowOpacityMid   = fabScale.interpolate({ inputRange: [1, 1.08], outputRange: [0.28, 0.60] });
+  const glowScaleOuter   = fabScale.interpolate({ inputRange: [1, 1.08], outputRange: [1, 1.18] });
 
   const openChat = () => {
     setOpen(true);
@@ -553,16 +563,22 @@ export default function YaraAssistant() {
         <Animated.View
           ref={r => registerTourRef('yara_fab', r)}
           collapsable={false}
-          style={[s.fabWrap, { transform: [{ scale: fabScale }] }]}
+          style={[s.fabWrap, { transform: [{ translateY: bobAnim }, { scale: fabScale }] }]}
         >
-          <TouchableOpacity style={s.fab} onPress={openChat} activeOpacity={0.88}>
-            <View style={s.fabAvatar}><Text style={{ fontSize: 20 }}>👩‍⚕️</Text></View>
-            <View>
-              <Text style={s.fabName}>Yara</Text>
-              <View style={s.fabOnlineRow}>
-                <View style={s.onlineDot} />
-                <Text style={s.fabOnlineTxt}>Online</Text>
-              </View>
+          {/* Outer glow halo */}
+          <Animated.View style={[s.glowOuter, { opacity: glowOpacityOuter, transform: [{ scale: glowScaleOuter }] }]} />
+          {/* Mid glow halo */}
+          <Animated.View style={[s.glowMid, { opacity: glowOpacityMid }]} />
+          {/* Core glow */}
+          <View style={s.glowCore} />
+          {/* Mascot image */}
+          <TouchableOpacity style={s.mascotTouch} onPress={openChat} activeOpacity={0.88}>
+            <View style={s.mascotClip}>
+              <Image
+                source={require('../assets/yara_spirit.png')}
+                style={s.mascotImg}
+                resizeMode="cover"
+              />
             </View>
           </TouchableOpacity>
         </Animated.View>
@@ -609,13 +625,13 @@ export default function YaraAssistant() {
 }
 
 const s = StyleSheet.create({
-  fabWrap:      { position: 'absolute', bottom: 90, right: 16, zIndex: 90 },
-  fab:          { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#7B61FF', borderRadius: 30, paddingRight: 18, paddingLeft: 6, paddingVertical: 8, shadowColor: '#7B61FF', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.45, shadowRadius: 16, elevation: 12 },
-  fabAvatar:    { width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
-  fabName:      { color: '#fff', fontSize: 14, fontWeight: '800' },
-  fabOnlineRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
-  onlineDot:    { width: 6, height: 6, borderRadius: 3, backgroundColor: '#B8F566' },
-  fabOnlineTxt: { color: 'rgba(255,255,255,0.72)', fontSize: 10, fontWeight: '600' },
+  fabWrap:    { position: 'absolute', bottom: 90, right: 20, zIndex: 9999, width: 114, height: 114, alignItems: 'center', justifyContent: 'center' },
+  glowOuter:  { position: 'absolute', width: 114, height: 114, borderRadius: 57, backgroundColor: 'rgba(200,241,53,0.08)', shadowColor: '#C8F135', shadowOpacity: 1, shadowRadius: 28, shadowOffset: { width: 0, height: 0 } },
+  glowMid:    { position: 'absolute', width: 94,  height: 94,  borderRadius: 47, backgroundColor: 'rgba(200,241,53,0.14)', shadowColor: '#C8F135', shadowOpacity: 0.85, shadowRadius: 18, shadowOffset: { width: 0, height: 0 } },
+  glowCore:   { position: 'absolute', width: 82,  height: 82,  borderRadius: 41, backgroundColor: 'rgba(200,241,53,0.20)', shadowColor: '#C8F135', shadowOpacity: 0.7, shadowRadius: 10, shadowOffset: { width: 0, height: 0 } },
+  mascotTouch:{ width: 78, height: 78, alignItems: 'center', justifyContent: 'center' },
+  mascotClip: { width: 78, height: 78, borderRadius: 39, overflow: 'hidden' },
+  mascotImg:  { width: 78, height: 78 },
 
   backdrop:  { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.38)', zIndex: 95 },
   kavWrap:   { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 },

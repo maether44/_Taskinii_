@@ -1321,12 +1321,12 @@ function initPose() {
   });
 
   pose.setOptions({
-    modelComplexity: 1,
+    modelComplexity: 2,           // Full accuracy model (was 1)
     smoothLandmarks: true,
     enableSegmentation: false,
     smoothSegmentation: false,
-    minDetectionConfidence: 0.5,
-    minTrackingConfidence: 0.5
+    minDetectionConfidence: 0.65, // Stricter — only track when body is clearly visible
+    minTrackingConfidence: 0.6,   // Stricter — drop jittery/low-confidence tracks
   });
 
   pose.onResults(onResults);
@@ -1364,13 +1364,34 @@ async function startCamera() {
     videoEl.style.display = 'block';
     canvasEl.style.display = 'block';
 
+    let lastFrameReceived = Date.now();
     mpCamera = new Camera(videoEl, {
       onFrame: async () => {
-        await pose.send({ image: videoEl });
+        lastFrameReceived = Date.now();
+        try {
+          await pose.send({ image: videoEl });
+        } catch (e) {
+          console.warn('[BodyQ] pose.send error:', e);
+        }
       },
       width: 1280,
       height: 720,
     });
+
+    // Watchdog: if no frames arrive for 8 s, restart the pipeline automatically
+    const watchdogId = setInterval(async () => {
+      if (!cameraRunning) { clearInterval(watchdogId); return; }
+      if (Date.now() - lastFrameReceived > 8000) {
+        console.warn('[BodyQ] Frame watchdog — restarting pipeline');
+        try {
+          if (mpCamera) { mpCamera.stop(); mpCamera = null; }
+          pose = null;
+          cameraRunning = false;
+          clearInterval(watchdogId);
+          await startCamera();
+        } catch (_) {}
+      }
+    }, 4000);
 
     await mpCamera.start();
     cameraRunning = true;
@@ -1440,72 +1461,15 @@ applyExerciseChange('squat');
 // Camera is started by RN after the countdown via window.startCamera()
 // Do NOT auto-start here — the cinematic countdown must play first.
 
-/* ───────────────────────────────────────────────────────────────────
-   VOICE COMMAND RECOGNITION (Web Speech API — Android Chromium only)
-   Posts VOICE_COMMAND {command:'finish'} when "finish"/"stop"/"done"
-   is detected. Falls back silently on iOS WKWebView (no-op).
-─────────────────────────────────────────────────────────────────── */
-(function initVoiceRecognition() {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) return; // iOS WKWebView — not supported, silently skip
-
-  let recognition;
-  let active = false;
-
-  function start() {
-    if (active) return;
-    try {
-      recognition = new SR();
-      recognition.continuous    = true;
-      recognition.interimResults = false;
-      recognition.lang          = 'en-US';
-      recognition.maxAlternatives = 1;
-
-      recognition.onstart = () => { active = true; };
-
-      recognition.onresult = (event) => {
-        const t = event.results[event.results.length - 1][0].transcript.toLowerCase().trim();
-        let cmd = null;
-        if (t.includes('show me') || t.includes('tutorial') || t.includes('how to move') ||
-            t.includes('yara show') || t.includes('demonstrate') || t.includes('show how')) {
-          cmd = 'show_guide';
-        } else if (t.includes('yara close') || t.includes('close guide') || t.includes('hide guide') ||
-                   t.includes('close it') || t.includes('close yara')) {
-          cmd = 'hide_guide';
-        } else if (t.includes('finish') || t.includes('stop') || t.includes('done')) {
-          cmd = 'finish';
-        }
-        if (cmd && window.ReactNativeWebView) {
-          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'VOICE_COMMAND', command: cmd }));
-        }
-      };
-
-      recognition.onerror = (e) => {
-        active = false;
-        // Restart unless the error is fatal
-        if (e.error !== 'not-allowed' && e.error !== 'service-not-allowed') {
-          setTimeout(start, 1500);
-        }
-      };
-
-      recognition.onend = () => {
-        active = false;
-        setTimeout(start, 500); // auto-restart for continuous listening
-      };
-
-      recognition.start();
-    } catch (e) {
-      // Silently ignore if unavailable
-    }
+// ── App focus recovery ───────────────────────────────────────────
+// When the user switches back to the app (e.g. from notification centre),
+// iOS kills the camera track. Resume it automatically.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && !cameraRunning) {
+    setTimeout(startCamera, 500);
   }
+});
 
-  // Delay start until camera is actually running so mic/camera don't conflict
-  const _origStart = window.startCamera;
-  window.startCamera = async function() {
-    await _origStart();
-    setTimeout(start, 2000);
-  };
-})();
 </script>
 </body>
 </html>

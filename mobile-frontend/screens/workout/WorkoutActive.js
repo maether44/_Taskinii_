@@ -1,8 +1,11 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View, StyleSheet, TouchableOpacity, Text,
-  StatusBar, Animated, Platform,
+  StatusBar, Animated, Platform, Dimensions,
 } from 'react-native';
+import Reanimated, {
+  useSharedValue, useAnimatedStyle, withSpring, interpolate,
+} from 'react-native-reanimated';
 import { WebView } from 'react-native-webview';
 import * as Speech from 'expo-speech';
 import { Camera } from 'expo-camera';
@@ -12,6 +15,8 @@ import { BlurView } from 'expo-blur';
 import { useAuth } from '../../context/AuthContext';
 import { saveWorkoutSession } from '../../services/workoutService';
 import { supabase } from '../../lib/supabase';
+
+const { height: SH } = Dimensions.get('window');
 
 // ── Yara encouragement phrases ─────────────────────────────────
 const REP_PHRASES = [
@@ -144,11 +149,6 @@ function resolveHtmlKey(name) {
   return null;
 }
 
-function scoreColor(pct) {
-  if (pct >= 80) return '#C8F135';
-  if (pct >= 55) return '#FF9500';
-  return '#FF3B30';
-}
 
 function formatTimer(secs) {
   const m = Math.floor(secs / 60);
@@ -183,14 +183,25 @@ export default function WorkoutActive({ route, navigation }) {
   const countOpacityAnim = useRef(new Animated.Value(0)).current;
   const glowOpacityAnim  = useRef(new Animated.Value(0)).current;
   const syncScaleAnim    = useRef(new Animated.Value(0)).current;
-  // Floating Yara Guide: single value 0=hidden → 1=visible
-  const guideAnim        = useRef(new Animated.Value(0)).current;
   // Mic pulse indicator
-  const micPulseAnim     = useRef(new Animated.Value(1)).current;
+  const micPulseAnim = useRef(new Animated.Value(1)).current;
 
-  // Interpolated guide animations (native driver — opacity + scale only)
-  const guideScale   = guideAnim.interpolate({ inputRange: [0, 1], outputRange: [0.72, 1]   });
-  const guideOpacity = guideAnim.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, 1, 1] });
+  // ── Reanimated shared values ─────────────────────────────────
+  const guideProg   = useSharedValue(0);  // 0=hidden 1=shown
+  const cameraAlpha = useSharedValue(0);  // 0=invisible 1=visible
+
+  const guideCardStyle = useAnimatedStyle(() => ({
+    opacity:   interpolate(guideProg.value, [0, 0.35, 1], [0, 1, 1]),
+    transform: [{ scale: interpolate(guideProg.value, [0, 1], [0.82, 1]) }],
+  }));
+
+  const guideBackdropStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(guideProg.value, [0, 1], [0, 0.78]),
+  }));
+
+  const cameraStyle = useAnimatedStyle(() => ({
+    opacity: cameraAlpha.value,
+  }));
 
   // ── State ───────────────────────────────────────────────────
   const [hasPermission,   setHasPermission]  = useState(null);
@@ -306,7 +317,7 @@ export default function WorkoutActive({ route, navigation }) {
   const showGuide = useCallback(() => {
     setGuideEverShown(true);
     setGuideVisible(true);
-    Animated.spring(guideAnim, { toValue: 1, tension: 200, friction: 8, useNativeDriver: true }).start();
+    guideProg.value = withSpring(1, { damping: 18, stiffness: 220, mass: 0.9 });
     if (htmlKey) {
       setTimeout(() => {
         demoWebViewRef.current?.injectJavaScript(
@@ -314,12 +325,12 @@ export default function WorkoutActive({ route, navigation }) {
         );
       }, 350);
     }
-  }, [guideAnim, htmlKey]);
+  }, [guideProg, htmlKey]);
 
   const hideGuide = useCallback(() => {
-    Animated.spring(guideAnim, { toValue: 0, tension: 200, friction: 8, useNativeDriver: true })
-      .start(() => { setGuideVisible(false); });
-  }, [guideAnim]);
+    guideProg.value = withSpring(0, { damping: 20, stiffness: 260 });
+    setTimeout(() => setGuideVisible(false), 320);
+  }, [guideProg]);
 
   // ── Cinematic 3-2-1 countdown ─────────────────────────────
   const startCountdown = useCallback(() => {
@@ -342,6 +353,8 @@ export default function WorkoutActive({ route, navigation }) {
         webViewRef.current?.injectJavaScript('window.startCamera && window.startCamera(); true;');
         startTimeRef.current = Date.now();
         setTimerRunning(true);
+        // Smooth fade-in instead of abrupt opacity flip
+        cameraAlpha.value = withSpring(1, { damping: 22, stiffness: 120 });
         setTimeout(() => speakYara('Follow the hologram. Match the tempo.'), 600);
         return;
       }
@@ -427,23 +440,6 @@ export default function WorkoutActive({ route, navigation }) {
         }).start();
       }
 
-      // ── Voice commands from Web Speech API (ai_coach.html) ─
-      if (msg.type === 'VOICE_COMMAND') {
-        if (msg.command === 'show_guide') {
-          showGuide();
-          // Slight delay so guide is visible when Yara speaks
-          setTimeout(() => speakYara('Certainly. Watch the hologram for the correct form.'), 400);
-        } else if (msg.command === 'hide_guide') {
-          hideGuide();
-          speakYara('Guide closed.');
-        } else if (msg.command === 'finish') {
-          speakYara('Finishing session.');
-          setTimeout(() => {
-            webViewRef.current?.injectJavaScript('if (window.getSessionState) window.getSessionState(); true;');
-          }, 800);
-        }
-      }
-
       if (msg.type === 'SESSION_COMPLETE') {
         const elapsed      = Math.floor((Date.now() - startTimeRef.current) / 1000);
         const avgFormScore = formScoreCount.current > 0
@@ -525,7 +521,7 @@ export default function WorkoutActive({ route, navigation }) {
         })();
       }
     } catch (_) {}
-  }, [navigation, displayName, htmlKey, rawKey, user, speakYara, updateSync, syncScaleAnim, showGuide, hideGuide]);
+  }, [navigation, displayName, htmlKey, rawKey, user, speakYara, updateSync, syncScaleAnim]);
 
   const handleFinish = useCallback(() => {
     webViewRef.current?.injectJavaScript('if (window.getSessionState) window.getSessionState(); true;');
@@ -574,29 +570,29 @@ export default function WorkoutActive({ route, navigation }) {
     );
   }
 
-  const ring = scoreColor(formScore);
-
   return (
     <View style={s.container}>
       <StatusBar hidden />
 
       {/* ══ FULL-SCREEN AI CAMERA ══════════════════════════════ */}
       {htmlContent && (
-        <WebView
-          ref={webViewRef}
-          originWhitelist={['*']}
-          source={{ html: htmlContent, baseUrl: 'https://localhost' }}
-          style={[StyleSheet.absoluteFillObject, isCountingDown && { opacity: 0 }]}
-          allowsInlineMediaPlayback
-          mediaPlaybackRequiresUserAction={false}
-          startInLoadingState={false}
-          onPermissionRequest={e => e.grant(e.resources)}
-          javaScriptEnabled
-          domStorageEnabled
-          scrollEnabled={false}
-          bounces={false}
-          onMessage={onMessage}
-        />
+        <Reanimated.View style={[StyleSheet.absoluteFillObject, cameraStyle]}>
+          <WebView
+            ref={webViewRef}
+            originWhitelist={['*']}
+            source={{ html: htmlContent, baseUrl: 'https://localhost' }}
+            style={StyleSheet.absoluteFillObject}
+            allowsInlineMediaPlayback
+            mediaPlaybackRequiresUserAction={false}
+            startInLoadingState={false}
+            onPermissionRequest={e => e.grant(e.resources)}
+            javaScriptEnabled
+            domStorageEnabled
+            scrollEnabled={false}
+            bounces={false}
+            onMessage={onMessage}
+          />
+        </Reanimated.View>
       )}
 
       {/* ── Double-tap invisible overlay (large gesture finish) ─ */}
@@ -611,118 +607,143 @@ export default function WorkoutActive({ route, navigation }) {
       {/* ══ HUD LAYER (all glass, absolutePositioned) ══════════ */}
       {!isCountingDown && (
         <>
-          {/* Top-left: Live AI status + exercise name */}
+          {/* Top-left: Live AI tag + exercise name + timer */}
           <BlurView intensity={30} tint="dark" style={s.liveTag}>
             <View style={s.liveDot} />
             <Text style={s.liveLabel}>{displayName}</Text>
+            <Text style={s.liveTimer}>{formatTimer(timerSecs)}</Text>
           </BlurView>
 
-          {/* Top-right: Form score + Hologram toggle */}
-          <View style={s.topRightCol}>
-            <BlurView intensity={40} tint="dark" style={s.formPill}>
-              <Text style={[s.formScore, { color: ring }]}>{formScore}</Text>
-              <Text style={s.formLabel}>FORM</Text>
+          {/* Top-right: Neon Lime mic button → shows hologram guide */}
+          <TouchableOpacity
+            style={s.micGuideBtn}
+            onPress={() => {
+              showGuide();
+              speakYara('Watch the hologram for the correct form.');
+            }}
+            activeOpacity={0.8}
+          >
+            <Animated.View style={{ transform: [{ scale: micPulseAnim }] }}>
+              <Ionicons name="mic" size={18} color="#000" />
+            </Animated.View>
+          </TouchableOpacity>
+
+          {/* Center-top: Rep bubble (Lime) + Form bubble (Violet) */}
+          <View style={s.centerStats} pointerEvents="none">
+            {/* Rep counter — Neon Lime */}
+            <BlurView intensity={55} tint="dark" style={s.statBubble}>
+              <Text style={[s.statBigNum, { color: '#C8F135' }]}>{repCount}</Text>
+              <Text style={s.statLbl}>REPS</Text>
             </BlurView>
-            <TouchableOpacity
-              style={[s.guideToggleBtn, guideVisible && s.guideToggleBtnActive]}
-              onPress={guideVisible ? hideGuide : showGuide}
-            >
-              <Animated.View style={{ transform: [{ scale: micPulseAnim }] }}>
-                <Ionicons name="body-outline" size={15} color={guideVisible ? '#C8F135' : '#7C5CFC'} />
-              </Animated.View>
-            </TouchableOpacity>
+
+            <View style={s.statGap} />
+
+            {/* Form score — Electric Violet */}
+            <BlurView intensity={55} tint="dark" style={s.statBubble}>
+              <Text style={[s.statBigNum, { color: '#7C5CFC' }]}>{formScore}</Text>
+              <Text style={s.statLbl}>FORM %</Text>
+            </BlurView>
           </View>
 
-          {/* Mic voice listener indicator (bottom-left) */}
+          {/* Bottom-left: Yara coach indicator */}
           <BlurView intensity={20} tint="dark" style={s.micTag}>
-            <Ionicons name="mic-outline" size={10} color="rgba(124,92,252,0.8)" />
-            <Text style={s.micLabel}>YARA ACTIVE</Text>
+            <Ionicons name="volume-high-outline" size={10} color="rgba(200,241,53,0.8)" />
+            <Text style={s.micLabel}>YARA COACH</Text>
           </BlurView>
         </>
       )}
 
-      {/* ══ FLOATING YARA HOLOGRAM GUIDE (spring pop-up) ════════ */}
+      {/* ══ HOLOGRAM GUIDE MODAL ════════════════════════════════ */}
       {guideEverShown && (
-        <Animated.View
-          pointerEvents={guideVisible ? 'box-none' : 'none'}
-          style={[s.guideCard, { opacity: guideOpacity, transform: [{ scale: guideScale }] }]}
-        >
-          {/* Glassmorphism background */}
-          <BlurView intensity={70} tint="dark" style={StyleSheet.absoluteFillObject} />
-          <View style={s.guideCardInner}>
-            {/* Guide header */}
-            <View style={s.guideHeader}>
-              <View style={s.guidePulseDot} />
-              <Text style={s.guideTitle}>HOLOGRAM</Text>
-              <TouchableOpacity onPress={hideGuide} style={s.guideCloseBtn}>
-                <Ionicons name="close" size={12} color="rgba(255,255,255,0.45)" />
-              </TouchableOpacity>
+        <>
+          {/* Tap-outside backdrop */}
+          <Reanimated.View
+            pointerEvents={guideVisible ? 'auto' : 'none'}
+            style={[s.guideBackdrop, guideBackdropStyle]}
+          >
+            <TouchableOpacity style={StyleSheet.absoluteFillObject} onPress={hideGuide} activeOpacity={1} />
+          </Reanimated.View>
+
+          {/* Modal card */}
+          <Reanimated.View
+            pointerEvents={guideVisible ? 'box-none' : 'none'}
+            style={[s.guideCard, guideCardStyle]}
+          >
+            {/* Glassmorphism base — intensity 90 for rich frost effect */}
+            <BlurView intensity={90} tint="dark" style={StyleSheet.absoluteFillObject} />
+
+            {/* Top gradient accent bar */}
+            <View style={s.guideAccentBar} />
+
+            <View style={s.guideCardInner}>
+
+              {/* ── Header ─────────────────────────────────── */}
+              <View style={s.guideHeader}>
+                <View style={s.guideHeaderLeft}>
+                  <View style={s.guidePulseDot} />
+                  <View>
+                    <Text style={s.guideSuperLabel}>FORM GUIDE</Text>
+                    <Text style={s.guideExName} numberOfLines={1}>{displayName}</Text>
+                  </View>
+                </View>
+                <TouchableOpacity onPress={hideGuide} style={s.guideCloseBtn}>
+                  <Ionicons name="close" size={16} color="rgba(255,255,255,0.7)" />
+                </TouchableOpacity>
+              </View>
+
+              {/* ── Skeleton animation ─────────────────────── */}
+              <View style={s.guideWebViewWrap}>
+                {/* Corner glow accents */}
+                <View style={[s.cornerAccent, { top: 0, left: 0, borderTopWidth: 2, borderLeftWidth: 2 }]} />
+                <View style={[s.cornerAccent, { top: 0, right: 0, borderTopWidth: 2, borderRightWidth: 2 }]} />
+                <View style={[s.cornerAccent, { bottom: 0, left: 0, borderBottomWidth: 2, borderLeftWidth: 2 }]} />
+                <View style={[s.cornerAccent, { bottom: 0, right: 0, borderBottomWidth: 2, borderRightWidth: 2 }]} />
+
+                <WebView
+                  ref={demoWebViewRef}
+                  originWhitelist={['*']}
+                  source={{ html: SKELETON_DEMO_HTML }}
+                  style={StyleSheet.absoluteFillObject}
+                  scrollEnabled={false}
+                  bounces={false}
+                  javaScriptEnabled
+                  onLoad={() => {
+                    if (htmlKey) {
+                      demoWebViewRef.current?.injectJavaScript(
+                        `window.setExercise && window.setExercise('${htmlKey}'); true;`
+                      );
+                    }
+                  }}
+                />
+              </View>
+
+              {/* ── Footer tips ────────────────────────────── */}
+              <View style={s.guideFooter}>
+                <View style={s.guideTipRow}>
+                  <Ionicons name="sync-outline" size={12} color="#C8F135" />
+                  <Text style={s.guideTipText}>Match the skeleton's tempo and depth</Text>
+                </View>
+                <Text style={s.guideVoiceHint}>Say "close" or tap outside to dismiss</Text>
+              </View>
             </View>
 
-            {/* Skeleton demo WebView */}
-            <View style={s.guideWebViewWrap}>
-              <WebView
-                ref={demoWebViewRef}
-                originWhitelist={['*']}
-                source={{ html: SKELETON_DEMO_HTML }}
-                style={StyleSheet.absoluteFillObject}
-                scrollEnabled={false}
-                bounces={false}
-                javaScriptEnabled
-                onLoad={() => {
-                  if (htmlKey) {
-                    demoWebViewRef.current?.injectJavaScript(
-                      `window.setExercise && window.setExercise('${htmlKey}'); true;`
-                    );
-                  }
-                }}
-              />
-            </View>
-
-            {/* Exercise label */}
-            <Text style={s.guideName} numberOfLines={1}>{displayName}</Text>
-            <Text style={s.guideHint}>Say "Yara, close" to hide</Text>
-          </View>
-
-          {/* Electric Violet border glow */}
-          <View style={s.guideBorder} pointerEvents="none" />
-        </Animated.View>
+            {/* Electric Violet border glow */}
+            <View style={s.guideBorder} pointerEvents="none" />
+          </Reanimated.View>
+        </>
       )}
 
-      {/* ══ CUE TEXT PILL (above HUD bar) ══════════════════════ */}
+      {/* ══ BOTTOM ROW: Cue pill + Finish button ═══════════════ */}
       {!isCountingDown && (
-        <BlurView intensity={40} tint="dark" style={s.cuePill}>
-          <Ionicons name="sparkles" size={11} color="#C8F135" style={{ marginRight: 6 }} />
-          <Text style={s.cueText} numberOfLines={1}>{cue}</Text>
-        </BlurView>
-      )}
-
-      {/* ══ BOTTOM GLASS HUD BAR ════════════════════════════════ */}
-      {!isCountingDown && (
-        <BlurView intensity={65} tint="dark" style={s.hudBar}>
-          {/* Rep counter */}
-          <View style={s.hudRepWrap}>
-            <Text style={s.hudRepNum}>{repCount}</Text>
-            <Text style={s.hudRepLabel}>REPS</Text>
-          </View>
-
-          {/* IN SYNC badge */}
-          <Animated.View style={[s.syncBadge, { transform: [{ scale: syncScaleAnim }] }]}>
-            <Ionicons name="sync" size={9} color="#000" />
-            <Text style={s.syncTxt}> IN SYNC</Text>
-          </Animated.View>
-
-          {/* Timer + Finish */}
-          <View style={s.hudRight}>
-            <View style={s.hudTimerWrap}>
-              <Text style={s.hudTimerNum}>{formatTimer(timerSecs)}</Text>
-              <Text style={s.hudTimerLabel}>ELAPSED</Text>
-            </View>
-            <TouchableOpacity style={s.finishBtn} onPress={handleFinish}>
-              <Ionicons name="checkmark" size={17} color="#000" />
-            </TouchableOpacity>
-          </View>
-        </BlurView>
+        <View style={s.bottomRow}>
+          <BlurView intensity={40} tint="dark" style={s.cuePill}>
+            <Ionicons name="sparkles" size={11} color="#C8F135" style={{ marginRight: 6 }} />
+            <Text style={s.cueText} numberOfLines={1}>{cue}</Text>
+          </BlurView>
+          <TouchableOpacity style={s.finishBtn} onPress={handleFinish}>
+            <Ionicons name="checkmark" size={18} color="#000" />
+          </TouchableOpacity>
+        </View>
       )}
 
       {/* ══ PERFECT FORM — SCREEN EDGE GLOW ════════════════════ */}
@@ -767,11 +788,11 @@ const s = StyleSheet.create({
 
   // ── Double-tap zone ─────────────────────────────────────────
   doubleTapZone: {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: 90,
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 100,
     zIndex: 20,
   },
 
-  // ── Top-left: Live AI tag ────────────────────────────────────
+  // ── Top-left: Live AI tag + exercise name + timer ──────────
   liveTag: {
     position: 'absolute', top: 52, left: 16,
     flexDirection: 'row', alignItems: 'center',
@@ -781,34 +802,40 @@ const s = StyleSheet.create({
   },
   liveDot:   { width: 6, height: 6, borderRadius: 3, backgroundColor: '#C8F135', marginRight: 7, shadowColor: '#C8F135', shadowOpacity: 1, shadowRadius: 5 },
   liveLabel: { color: '#FFF', fontSize: 10, fontWeight: '900', letterSpacing: 0.8 },
+  liveTimer: { color: 'rgba(255,255,255,0.45)', fontSize: 10, fontWeight: '700', letterSpacing: 2, marginLeft: 10, fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace' },
 
-  // ── Top-right: Form + Guide toggle ──────────────────────────
-  topRightCol: {
-    position: 'absolute', top: 44, right: 16,
-    alignItems: 'center', gap: 10,
+  // ── Top-right: Neon Lime mic button ──────────────────────────
+  micGuideBtn: {
+    position: 'absolute', top: 48, right: 16,
+    width: 46, height: 46, borderRadius: 23,
+    backgroundColor: '#C8F135',
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#C8F135', shadowOpacity: 0.55, shadowRadius: 16,
+    shadowOffset: { width: 0, height: 0 },
     zIndex: 40,
   },
-  formPill: {
-    borderRadius: 28, overflow: 'hidden',
-    alignItems: 'center', justifyContent: 'center',
-    paddingHorizontal: 14, paddingVertical: 10,
-  },
-  formScore: { fontSize: 24, fontWeight: '900', lineHeight: 26 },
-  formLabel: { color: 'rgba(255,255,255,0.45)', fontSize: 8, fontWeight: '800', letterSpacing: 1 },
-  guideToggleBtn: {
-    width: 38, height: 38, borderRadius: 19,
-    backgroundColor: 'rgba(124,92,252,0.15)',
-    borderWidth: 1.5, borderColor: 'rgba(124,92,252,0.4)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  guideToggleBtnActive: {
-    backgroundColor: 'rgba(200,241,53,0.12)',
-    borderColor: '#C8F135',
-  },
 
-  // ── Mic voice indicator (bottom-left) ───────────────────────
+  // ── Center-top: Two separate glass bubbles ───────────────────
+  centerStats: {
+    position: 'absolute', top: 108, left: 0, right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center', alignItems: 'center',
+    opacity: 0.72,
+    zIndex: 40,
+  },
+  statBubble: {
+    alignItems: 'center',
+    borderRadius: 20, overflow: 'hidden',
+    paddingHorizontal: 22, paddingVertical: 11,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+  },
+  statGap:    { width: 12 },
+  statBigNum: { fontSize: 34, fontWeight: '900', lineHeight: 36 },
+  statLbl:    { color: 'rgba(255,255,255,0.4)', fontSize: 9, fontWeight: '900', letterSpacing: 1.5, marginTop: 2 },
+
+  // ── Mic voice indicator (bottom-left, above bottom row) ─────
   micTag: {
-    position: 'absolute', bottom: 100, left: 16,
+    position: 'absolute', bottom: 110, left: 16,
     flexDirection: 'row', alignItems: 'center',
     borderRadius: 12, overflow: 'hidden',
     paddingHorizontal: 8, paddingVertical: 5,
@@ -816,95 +843,109 @@ const s = StyleSheet.create({
   },
   micLabel: { color: 'rgba(124,92,252,0.7)', fontSize: 8, fontWeight: '800', letterSpacing: 1, marginLeft: 4 },
 
-  // ── Floating Yara Hologram Guide card ───────────────────────
+  // ── Hologram Guide: backdrop + modal card ───────────────────
+  guideBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#000',
+    zIndex: 55,
+  },
   guideCard: {
     position: 'absolute',
-    bottom: 100, right: 16,
-    width: 152, height: 215,
-    borderRadius: 22,
+    top: SH * 0.1,
+    left: 24, right: 24,
+    height: SH * 0.72,
+    borderRadius: 28,
     overflow: 'hidden',
     zIndex: 60,
   },
+  guideAccentBar: {
+    height: 3,
+    backgroundColor: '#7C5CFC',
+    shadowColor: '#7C5CFC', shadowOpacity: 1, shadowRadius: 12,
+    shadowOffset: { width: 0, height: 0 },
+  },
   guideCardInner: {
     flex: 1,
-    padding: 10,
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 16,
   },
   guideHeader: {
     flexDirection: 'row', alignItems: 'center',
-    marginBottom: 8,
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  guideHeaderLeft: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1,
   },
   guidePulseDot: {
-    width: 6, height: 6, borderRadius: 3,
+    width: 8, height: 8, borderRadius: 4,
     backgroundColor: '#7C5CFC',
-    marginRight: 6,
-    shadowColor: '#7C5CFC', shadowOpacity: 1, shadowRadius: 6,
+    shadowColor: '#7C5CFC', shadowOpacity: 1, shadowRadius: 8,
   },
-  guideTitle: {
-    color: 'rgba(255,255,255,0.55)', fontSize: 8,
-    fontWeight: '900', letterSpacing: 1.5, flex: 1,
+  guideSuperLabel: {
+    color: 'rgba(124,92,252,0.8)', fontSize: 9,
+    fontWeight: '900', letterSpacing: 2, textTransform: 'uppercase',
+  },
+  guideExName: {
+    color: '#FFF', fontSize: 18, fontWeight: '900',
+    letterSpacing: 0.5, marginTop: 2,
   },
   guideCloseBtn: {
-    width: 18, height: 18, borderRadius: 9,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center', justifyContent: 'center',
   },
   guideWebViewWrap: {
-    flex: 1, borderRadius: 14, overflow: 'hidden',
+    flex: 1, borderRadius: 18, overflow: 'hidden',
     backgroundColor: '#060412',
+    borderWidth: 1, borderColor: 'rgba(124,92,252,0.25)',
   },
-  guideName: {
-    color: '#FFF', fontSize: 9, fontWeight: '900',
-    letterSpacing: 0.5, marginTop: 7, textAlign: 'center',
+  cornerAccent: {
+    position: 'absolute', width: 16, height: 16,
+    borderColor: '#C8F135', zIndex: 2,
   },
-  guideHint: {
-    color: 'rgba(124,92,252,0.6)', fontSize: 7,
-    fontWeight: '700', textAlign: 'center', marginTop: 3,
+  guideFooter: {
+    marginTop: 14, gap: 6,
+  },
+  guideTipRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+  },
+  guideTipText: {
+    color: 'rgba(255,255,255,0.75)', fontSize: 12, fontWeight: '600',
+  },
+  guideVoiceHint: {
+    color: 'rgba(124,92,252,0.6)', fontSize: 10,
+    fontWeight: '700', letterSpacing: 0.3,
   },
   guideBorder: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: 22,
+    borderRadius: 28,
     borderWidth: 1.5,
-    borderColor: 'rgba(124,92,252,0.5)',
+    borderColor: 'rgba(200,241,53,0.55)',
   },
 
-  // ── Cue pill (above HUD bar) ─────────────────────────────────
-  cuePill: {
-    position: 'absolute', bottom: 96, left: 16, right: 16,
-    flexDirection: 'row', alignItems: 'center',
-    borderRadius: 14, overflow: 'hidden',
-    paddingHorizontal: 14, paddingVertical: 10,
-    zIndex: 40,
-  },
-  cueText: { color: '#FFF', fontSize: 12, fontWeight: '700', flex: 1 },
-
-  // ── Bottom glass HUD bar ─────────────────────────────────────
-  hudBar: {
+  // ── Bottom row: Cue pill + Finish button ─────────────────────
+  bottomRow: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingVertical: 14, paddingBottom: 28,
-    overflow: 'hidden',
-    zIndex: 40,
+    paddingHorizontal: 16, paddingBottom: 32, paddingTop: 8,
+    gap: 10, zIndex: 40,
   },
-  hudRepWrap:     { alignItems: 'center', minWidth: 52 },
-  hudRepNum:      { color: '#C8F135', fontSize: 34, fontWeight: '900', lineHeight: 36, textShadowColor: 'rgba(200,241,53,0.4)', textShadowRadius: 10 },
-  hudRepLabel:    { color: 'rgba(255,255,255,0.3)', fontSize: 8, fontWeight: '900', letterSpacing: 2 },
-  hudRight:       { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  hudTimerWrap:   { alignItems: 'center' },
-  hudTimerNum:    { color: 'rgba(255,255,255,0.8)', fontSize: 17, fontWeight: '900', letterSpacing: 3, fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace' },
-  hudTimerLabel:  { color: 'rgba(255,255,255,0.3)', fontSize: 8, fontWeight: '900', letterSpacing: 2 },
-  syncBadge: {
+  cuePill: {
+    flex: 1,
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#C8F135', paddingHorizontal: 10, paddingVertical: 5,
-    borderRadius: 20,
-    shadowColor: '#C8F135', shadowOpacity: 0.8, shadowRadius: 10,
+    borderRadius: 14, overflow: 'hidden',
+    paddingHorizontal: 14, paddingVertical: 12,
   },
-  syncTxt:  { color: '#000', fontSize: 9, fontWeight: '900', letterSpacing: 1 },
+  cueText: { color: '#FFF', fontSize: 12, fontWeight: '700', flex: 1 },
   finishBtn: {
-    width: 40, height: 40, borderRadius: 20,
+    width: 48, height: 48, borderRadius: 24,
     backgroundColor: '#C8F135',
     alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#C8F135', shadowOpacity: 0.6, shadowRadius: 10,
+    shadowColor: '#C8F135', shadowOpacity: 0.6, shadowRadius: 14,
+    flexShrink: 0,
   },
 
   // ── Screen edge glow (perfect form) ─────────────────────────
