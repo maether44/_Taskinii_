@@ -55,6 +55,7 @@ export default function Insights() {
     userId,
     isLoading,
     error,
+    aiHistory,
   } = useInsights(period);
 
   const [aiInsights,    setAiInsights]    = useState([]);
@@ -258,6 +259,27 @@ export default function Insights() {
           </View>
         </View>
 
+        {/* Recent AI Coaching */}
+        {aiHistory && aiHistory.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Recent AI Coaching</Text>
+            {aiHistory.slice(0, 5).map((item, i) => {
+              const dateStr = new Date(item.created_at).toLocaleDateString('en-US', {
+                month: 'short', day: 'numeric',
+              });
+              return (
+                <View key={i} style={styles.coachCard}>
+                  <View style={styles.coachHeader}>
+                    <Text style={styles.coachType}>{item.insight_type?.toUpperCase()}</Text>
+                    <Text style={styles.coachDate}>{dateStr}</Text>
+                  </View>
+                  <Text style={styles.coachText}>{item.message}</Text>
+                </View>
+              );
+            })}
+          </>
+        )}
+
         <View style={{ height: 20 }} />
       </ScrollView>
     </View>
@@ -317,6 +339,12 @@ const styles = StyleSheet.create({
   insightText:   { color: '#C8BFEE', fontSize: 13, lineHeight: 19 },
 
   heatmapCard: { backgroundColor: '#1A1432', borderRadius: 20, padding: 18, marginBottom: 24, borderWidth: 1, borderColor: '#3D2F7A', gap: 6 },
+
+  coachCard:   { backgroundColor: '#1A1432', borderRadius: 16, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#3D2F7A', borderLeftWidth: 4, borderLeftColor: '#6F4BF2' },
+  coachHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  coachType:   { color: '#6F4BF2', fontSize: 10, fontWeight: '800', letterSpacing: 1 },
+  coachDate:   { color: '#7A6AAA', fontSize: 10 },
+  coachText:   { color: '#C8BFEE', fontSize: 13, lineHeight: 19 },
   heatRow:     { flexDirection: 'row', alignItems: 'center', gap: 6 },
   heatDay:     { color: '#7A6AAA', fontSize: 10, width: 28 },
   heatCell:    { width: 28, height: 28, borderRadius: 6 },

@@ -17,6 +17,10 @@ import { supabase } from '../lib/supabase';  // mobile-frontend uses lib/supabas
 
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
+// Deduplication map: prevents concurrent calls for the same user+period
+// from each independently missing the cache and both calling Groq.
+const inFlight = new Map();
+
 // Valid insight category tags — must match what the Edge Function returns
 const VALID_TAGS = ['Performance', 'Correlation', 'Optimization', 'Prediction', 'Recovery', 'Nutrition'];
 
@@ -102,7 +106,16 @@ async function callEdgeFunction(stats, period) {
 // Checks the 6h cache first; only calls Groq if stale or absent.
 // Returns Promise<Array<{ icon, title, text, tag, color }>>
 // =============================================================================
-export async function generateAndCacheInsights(userId, rawStats, period) {
+export function generateAndCacheInsights(userId, rawStats, period) {
+  const key = `${userId}:${period}`;
+  if (inFlight.has(key)) return inFlight.get(key);
+  const promise = _generateAndCacheInsights(userId, rawStats, period);
+  inFlight.set(key, promise);
+  promise.finally(() => inFlight.delete(key));
+  return promise;
+}
+
+async function _generateAndCacheInsights(userId, rawStats, period) {
   try {
     // ── Step 1: Cache check ────────────────────────────────────────────────
     const since = new Date(Date.now() - CACHE_TTL_MS).toISOString();
@@ -113,6 +126,7 @@ export async function generateAndCacheInsights(userId, rawStats, period) {
       .select('*')
       .eq('user_id', userId)
       .eq('period',  period)
+      .eq('source',  'yara')
       .gte('created_at', since)
       .order('created_at', { ascending: false })
       .limit(4);
@@ -142,7 +156,11 @@ export async function generateAndCacheInsights(userId, rawStats, period) {
       insight_type: normalizeTag(ins.tag),
       message:      `${ins.title}|${ins.text}`,
       period,
+      source:       'yara',
     }));
+    // Delete previous rows for this user+period before inserting fresh ones
+    // so the table doesn't grow unbounded across cache refreshes.
+    await supabase.from('ai_insights').delete().eq('user_id', userId).eq('period', period).eq('source', 'yara');
     console.log('[yaraInsightsService] Inserting', rows.length, 'rows into ai_insights');
     const { error: insertErr } = await supabase.from('ai_insights').insert(rows);
     if (insertErr) {
