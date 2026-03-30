@@ -9,15 +9,16 @@
  *     The client builds the system prompt and conversation history itself;
  *     this function just proxies the call so the API key stays server-side.
  *
- *   MODE B — RAG query  (existing ai-assistant consumers)
+ *   MODE B — RAG query  (Insights screen / direct callers)
  *     Body: { userId, query }
- *     Fetches the user's profile, weekly tracking data, and recent workouts
- *     from Supabase, builds a rich context prompt, calls Groq, persists the
- *     result to ai_insights, and returns { response, insight_type, model, usage }.
+ *     Classifies the query to determine which data slices are relevant, fetches
+ *     only those slices from the 5 specialised RPCs, builds a rich context
+ *     prompt, calls Groq (70b model), persists the result to ai_insights
+ *     (source='rag'), and returns { response, insight_type, model, usage }.
  *
  * SECURITY
- *   GROQ_API_KEY is stored as a Supabase secret (supabase secrets set GROQ_API_KEY=...)
- *   and read via Deno.env.get().  It is never sent to the client.
+ *   GROQ_API_KEY is stored as a Supabase secret and read via Deno.env.get().
+ *   It is never sent to the client.
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
@@ -63,7 +64,7 @@ Deno.serve(async (req) => {
     }
 
     // ══════════════════════════════════════════════════════════════
-    // MODE B — RAG query (original behaviour)
+    // MODE B — Intelligent RAG query
     // ══════════════════════════════════════════════════════════════
     const { userId, query } = body
 
@@ -76,52 +77,62 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
-    // ── LAYER 1: RETRIEVE ──────────────────────────────────────────
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select(`
-        id, full_name, goal, activity_level, height_cm, weight_kg, gender,
-        assistant_tone, experience, equipment, diet_pref, sleep_quality, stress_level
-      `)
-      .eq('id', userId)
-      .single()
+    // ── Query classification — decide which data slices we need ───
+    const needs = classifyQuery(query)
+    console.log(`[ai-assistant] Query classified: ${JSON.stringify(needs)}`)
 
-    if (profileError) throw new Error(`Profile query failed: ${profileError.message}`)
-    if (!profile)     throw new Error('No profile found for this user')
+    // ── LAYER 1: RETRIEVE — fetch only relevant data slices ───────
+    const [
+      profileRow,
+      activityData,
+      nutritionData,
+      workoutData,
+      bodyMetricsData,
+      aiHistoryData,
+    ] = await Promise.all([
+      // Profile is always fetched — needed for tone/goal personalisation
+      supabase
+        .from('profiles')
+        .select(`
+          id, full_name, goal, activity_level, height_cm, weight_kg, gender,
+          assistant_tone, experience, equipment, diet_pref, sleep_quality, stress_level
+        `)
+        .eq('id', userId)
+        .single(),
 
-    const { data: targets } = await supabase
-      .from('calorie_targets')
-      .select('daily_calories, protein_target, carbs_target, fat_target, effective_from')
-      .eq('user_id', userId)
-      .order('effective_from', { ascending: false })
-      .limit(1)
-      .single()
+      needs.activity
+        ? supabase.rpc('get_user_full_activity_summary', { p_user_id: userId })
+        : Promise.resolve({ data: null, error: null }),
 
-    const { data: weeklyContext, error: weeklyError } = await supabase
-      .rpc('get_user_weekly_context', { p_user_id: userId })
+      needs.nutrition
+        ? supabase.rpc('get_user_nutrition_summary', { p_user_id: userId })
+        : Promise.resolve({ data: null, error: null }),
 
-    if (weeklyError) throw new Error(`Weekly context failed: ${weeklyError.message}`)
+      needs.workout
+        ? supabase.rpc('get_user_workout_summary', { p_user_id: userId })
+        : Promise.resolve({ data: null, error: null }),
 
-    const { data: workouts, error: workoutError } = await supabase
-      .from('workout_sessions')
-      .select(`
-        id, started_at, ended_at, calories_burned, notes, ai_feedback,
-        workout_exercises ( posture_score, sets, reps, weight_kg )
-      `)
-      .eq('user_id', userId)
-      .order('started_at', { ascending: false })
-      .limit(3)
+      needs.body
+        ? supabase.rpc('get_user_body_metrics_history', { p_user_id: userId })
+        : Promise.resolve({ data: null, error: null }),
 
-    if (workoutError) throw new Error(`Workout query failed: ${workoutError.message}`)
+      needs.history
+        ? supabase.rpc('get_user_ai_history', { p_user_id: userId })
+        : Promise.resolve({ data: null, error: null }),
+    ])
 
-    // ── LAYER 2: AUGMENT ───────────────────────────────────────────
-    const prompt = buildPrompt(
-      profile,
-      targets    ?? null,
-      weeklyContext ?? [],
-      workouts   ?? [],
-      query
-    )
+    if (profileRow.error) throw new Error(`Profile query failed: ${profileRow.error.message}`)
+    if (!profileRow.data)  throw new Error('No profile found for this user')
+
+    const profile      = profileRow.data
+    const activity     = activityData.data    ?? null
+    const nutrition    = nutritionData.data   ?? null
+    const workouts     = workoutData.data     ?? null
+    const bodyMetrics  = bodyMetricsData.data ?? null
+    const aiHistory    = aiHistoryData.data   ?? null
+
+    // ── LAYER 2: AUGMENT — build the context-rich prompt ──────────
+    const prompt = buildPrompt(profile, activity, nutrition, workouts, bodyMetrics, aiHistory, query)
 
     // ── LAYER 3: GENERATE ──────────────────────────────────────────
     const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -132,7 +143,7 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         model:       'llama-3.3-70b-versatile',
-        max_tokens:  350,
+        max_tokens:  400,
         temperature: 0.7,
         messages: [{ role: 'user', content: prompt }]
       })
@@ -148,15 +159,17 @@ Deno.serve(async (req) => {
 
     if (!aiResponse) throw new Error('No response generated by Groq')
 
-    console.log(`Tokens — input: ${groqData.usage?.prompt_tokens}, output: ${groqData.usage?.completion_tokens}`)
+    console.log(`[ai-assistant] Tokens — input: ${groqData.usage?.prompt_tokens}, output: ${groqData.usage?.completion_tokens}`)
 
-    // Persist the insight
-    const insightType = classifyInsight(query)
+    // Persist the insight with source='rag' so cache queries can distinguish
+    // these rows from 'yara' insight cards written by the yara-insights function.
+    const insightType = classifyInsightType(query)
     await supabase.from('ai_insights').insert({
       user_id:      userId,
       insight_type: insightType,
       message:      aiResponse,
-      is_read:      false
+      source:       'rag',
+      is_read:      false,
     })
 
     return new Response(
@@ -164,12 +177,13 @@ Deno.serve(async (req) => {
         response:     aiResponse,
         insight_type: insightType,
         model:        'llama-3.3-70b-versatile',
-        usage:        groqData.usage
+        usage:        groqData.usage,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
-  } catch (err) {
+  } catch (err: any) {
+    console.error('[ai-assistant] error:', err.message)
     return new Response(
       JSON.stringify({ error: err.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -178,8 +192,47 @@ Deno.serve(async (req) => {
 })
 
 
-// ── Prompt builder (Mode B only) ─────────────────────────────────────────────
-function buildPrompt(profile: any, targets: any, tracking: any[], workouts: any[], query: string): string {
+// =============================================================================
+// classifyQuery(query)
+//
+// Returns a flags object indicating which data slices are relevant to the query.
+// Only flagged slices are fetched — avoids unnecessary RPC calls and latency.
+// =============================================================================
+function classifyQuery(query: string): {
+  activity: boolean
+  nutrition: boolean
+  workout: boolean
+  body: boolean
+  history: boolean
+} {
+  const q = query.toLowerCase()
+
+  return {
+    activity:  /step|walk|sleep|rest|water|hydrat|activ|cardio|move|calori/.test(q),
+    nutrition: /eat|food|protein|calori|nutrition|meal|diet|macro|carb|fat|vitamin/.test(q),
+    workout:   /workout|exercise|train|gym|lift|run|set|rep|weight|muscle|strength|push|pull|squat|bench/.test(q),
+    body:      /weight|bmi|body|fat|lean|mass|progress|gain|lose|physique/.test(q),
+    history:   /last time|previously|before|history|remember|told|said|advice/.test(q),
+  }
+}
+
+
+// =============================================================================
+// buildPrompt(...)
+//
+// Assembles the final Groq user message from whichever data slices were fetched.
+// Null slices are replaced with brief "not available" notes so the model always
+// has full context on what data exists vs. what was not fetched.
+// =============================================================================
+function buildPrompt(
+  profile:     any,
+  activity:    any,
+  nutrition:   any,
+  workouts:    any,
+  bodyMetrics: any,
+  aiHistory:   any,
+  query:       string,
+): string {
   const tone = profile.assistant_tone ?? 'motivational'
 
   const profileSection = `USER PROFILE:
@@ -189,76 +242,100 @@ Activity level: ${profile.activity_level ?? 'not set'}
 Experience: ${profile.experience ?? 'not set'}
 Equipment available: ${profile.equipment ?? 'not set'}
 Diet preference: ${profile.diet_pref ?? 'not set'}
-Weight: ${profile.weight_kg ?? '?'}kg
-Height: ${profile.height_cm ?? '?'}cm
-Gender: ${profile.gender ?? 'not set'}
+Weight: ${profile.weight_kg ?? '?'} kg  |  Height: ${profile.height_cm ?? '?'} cm  |  Gender: ${profile.gender ?? 'not set'}
 Baseline sleep quality: ${profile.sleep_quality ?? 'not set'}
-Baseline stress level: ${profile.stress_level ?? 'not set'}
-Daily calorie target: ${targets?.daily_calories ?? 'not set'} kcal
-Daily protein target: ${targets?.protein_target ?? 'not set'} g
-Daily carbs target: ${targets?.carbs_target ?? 'not set'} g
-Daily fat target: ${targets?.fat_target ?? 'not set'} g`
+Baseline stress level: ${profile.stress_level ?? 'not set'}`
 
-  const trackingSection = tracking.length === 0
-    ? `LAST 7 DAYS: No tracking data available yet.\nEncourage the user to start logging their daily activity.`
-    : `LAST ${tracking.length} DAYS OF DATA (most recent first):
-${tracking.map(day => {
-      const date = new Date(day.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-      const sleepFlag   = day.sleep_hours !== null && day.sleep_hours < 6 ? ' ⚠️ LOW' : ''
-      const waterFlag   = day.water_ml    !== null && day.water_ml    < 1500 ? ' ⚠️ LOW' : ''
-      const calTarget   = targets?.daily_calories ?? 2000
-      const calStatus   = day.total_calories !== null
-        ? day.total_calories > calTarget
-          ? ` (+${Math.round(day.total_calories - calTarget)} OVER target)`
-          : ` (-${Math.round(calTarget - day.total_calories)} under target)`
-        : ' (not logged)'
-      const proteinTarget = targets?.protein_target ?? 150
-      const proteinFlag   = day.total_protein_g !== null && day.total_protein_g < proteinTarget * 0.5 ? ' ⚠️ LOW' : ''
-      return `\n${date}:\n  Sleep:    ${day.sleep_hours ?? 'not logged'}h${sleepFlag}\n  Steps:    ${day.steps?.toLocaleString() ?? 'not logged'}\n  Water:    ${day.water_ml ?? 'not logged'}ml${waterFlag}\n  Calories: ${day.total_calories ?? 'not logged'} kcal${calStatus}\n  Protein:  ${day.total_protein_g ?? 'not logged'}g${proteinFlag} (target: ${proteinTarget}g)\n  Carbs:    ${day.total_carbs_g ?? 'not logged'}g\n  Fat:      ${day.total_fat_g ?? 'not logged'}g\n  Foods logged: ${day.items_logged ?? 0} items`
-    }).join('\n')}`
+  const activitySection = activity
+    ? `ACTIVITY & SLEEP SUMMARY (last 30 days):
+Avg daily steps: ${Math.round(activity.avg_steps ?? 0).toLocaleString()}
+Avg sleep: ${Number(activity.avg_sleep_hours ?? 0).toFixed(1)} h/night
+Avg water intake: ${Math.round(activity.avg_water_ml ?? 0)} ml/day
+Active days: ${activity.active_days ?? 0} / 30
+Best step day: ${activity.max_steps?.toLocaleString() ?? 'N/A'}`
+    : `ACTIVITY & SLEEP SUMMARY: Not fetched (not relevant to this query).`
 
-  const workoutsSection = !workouts || workouts.length === 0
-    ? `RECENT WORKOUTS: No workouts logged yet.`
-    : `RECENT WORKOUTS:
-${workouts.map(w => {
+  const nutritionSection = nutrition
+    ? `NUTRITION SUMMARY (last 30 days):
+Avg daily calories: ${Math.round(nutrition.avg_calories ?? 0)} kcal
+Avg protein: ${Math.round(nutrition.avg_protein_g ?? 0)} g/day
+Avg carbs: ${Math.round(nutrition.avg_carbs_g ?? 0)} g/day
+Avg fat: ${Math.round(nutrition.avg_fat_g ?? 0)} g/day
+Days with food logged: ${nutrition.logged_days ?? 0} / 30
+Calorie target: ${nutrition.daily_calorie_target ?? 'not set'} kcal`
+    : `NUTRITION SUMMARY: Not fetched (not relevant to this query).`
+
+  const workoutsSection = workouts && Array.isArray(workouts) && workouts.length > 0
+    ? `RECENT WORKOUTS (last 3):
+${workouts.map((w: any) => {
       const date = new Date(w.started_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
       const durationMins = w.started_at && w.ended_at
         ? Math.round((new Date(w.ended_at).getTime() - new Date(w.started_at).getTime()) / 60000)
         : null
-      const exercises = w.workout_exercises ?? []
-      const postureScores = exercises.map((e: any) => e.posture_score).filter((s: any) => s !== null)
-      const avgPosture = postureScores.length > 0
-        ? (postureScores.reduce((a: number, b: number) => a + b, 0) / postureScores.length).toFixed(1)
-        : null
-      return `- ${date}:\n    Duration: ${durationMins ?? '?'} min\n    Calories burned: ${w.calories_burned ?? '?'} kcal\n    Exercises: ${exercises.length}\n    Avg posture score: ${avgPosture ?? 'N/A'}/100\n    Notes: ${w.notes ?? 'none'}\n    Previous AI feedback: ${w.ai_feedback ?? 'none'}`
+      return `- ${date}: ${durationMins ?? '?'} min, ${w.calories_burned ?? '?'} kcal, ${w.exercise_count ?? '?'} exercises, avg posture ${w.avg_posture_score ?? 'N/A'}/100`
     }).join('\n')}`
+    : workouts === null
+      ? `RECENT WORKOUTS: Not fetched (not relevant to this query).`
+      : `RECENT WORKOUTS: No workouts logged yet.`
 
-  return `You are BodyQ, a personal AI health and fitness coach.
+  const bodySection = bodyMetrics && Array.isArray(bodyMetrics) && bodyMetrics.length > 0
+    ? `BODY METRICS HISTORY (last 8 entries):
+${bodyMetrics.slice(0, 8).map((b: any) => {
+      const date = new Date(b.logged_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      return `- ${date}: ${b.weight_kg ?? '?'} kg${b.body_fat_pct ? `, ${b.body_fat_pct}% body fat` : ''}`
+    }).join('\n')}`
+    : bodyMetrics === null
+      ? `BODY METRICS HISTORY: Not fetched (not relevant to this query).`
+      : `BODY METRICS HISTORY: No entries logged yet.`
+
+  const historySection = aiHistory && Array.isArray(aiHistory) && aiHistory.length > 0
+    ? `RECENT AI COACHING HISTORY (last 3 responses):
+${aiHistory.slice(0, 3).map((h: any) => {
+      const date = new Date(h.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      return `- ${date} [${h.insight_type}]: ${h.message.slice(0, 120)}...`
+    }).join('\n')}`
+    : aiHistory === null
+      ? `COACHING HISTORY: Not fetched (not relevant to this query).`
+      : `COACHING HISTORY: No previous coaching sessions found.`
+
+  return `You are Yara, a personal AI health and fitness coach inside the BodyQ app.
 Your coaching tone is: ${tone}
 
 RULES YOU ALWAYS FOLLOW:
 - Always reference at least 2 specific numbers from the user's actual data
-- Identify the single biggest win and single biggest area to improve this week
+- Identify the single biggest win and single biggest area to improve
 - Give one concrete actionable recommendation for today or tomorrow
-- Keep your response under 150 words unless the user explicitly asks for a plan
+- Keep your response under 180 words unless the user explicitly asks for a plan
 - Never give advice that contradicts or ignores the user's actual data
-- If data is missing for some days, acknowledge it briefly
 - Always consider the user's experience level, equipment, and diet preference
 
 ${profileSection}
 
-${trackingSection}
+${activitySection}
+
+${nutritionSection}
 
 ${workoutsSection}
+
+${bodySection}
+
+${historySection}
 
 USER QUESTION: ${query}`
 }
 
-function classifyInsight(query: string): string {
+
+// =============================================================================
+// classifyInsightType(query)
+//
+// Returns the insight_type tag stored in ai_insights for RAG-generated rows.
+// Uses lowercase values to match the original schema convention for 'rag' rows.
+// =============================================================================
+function classifyInsightType(query: string): string {
   const q = query.toLowerCase()
-  if (/eat|food|protein|calorie|nutrition|meal|diet/.test(q))  return 'nutrition'
-  if (/workout|exercise|train|gym|lift|run/.test(q))           return 'workout'
-  if (/sleep|rest|recovery|tired|fatigue|sore/.test(q))        return 'recovery'
-  if (/habit|streak|routine|daily|consistent/.test(q))         return 'habit'
+  if (/eat|food|protein|calori|nutrition|meal|diet|macro/.test(q)) return 'nutrition'
+  if (/workout|exercise|train|gym|lift|run/.test(q))               return 'workout'
+  if (/sleep|rest|recovery|tired|fatigue|sore/.test(q))            return 'recovery'
+  if (/habit|streak|routine|daily|consistent/.test(q))             return 'habit'
   return 'general'
 }

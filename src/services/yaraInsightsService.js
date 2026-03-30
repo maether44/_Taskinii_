@@ -30,6 +30,10 @@ import { supabase } from '../config/supabase';
 // After 6 hours the next screen load regenerates insights with new stats.
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours in milliseconds
 
+// Deduplication map: prevents concurrent calls for the same user+period
+// from each independently missing the cache and both calling Groq.
+const inFlight = new Map();
+
 // ── Display mappings ──────────────────────────────────────────────────────────
 // These mirror the static INSIGHTS array that was in the original screen.
 // Each insight tag returned by Groq maps to a colour and emoji.
@@ -137,7 +141,16 @@ function rowToInsight(row) {
 //   Promise<Array> of { icon, title, text, tag, color } objects, or [] on error.
 //   Errors are caught internally so a Groq outage never crashes the screen.
 // =============================================================================
-export async function fetchYaraInsights(userId, period, stats) {
+export function fetchYaraInsights(userId, period, stats) {
+  const key = `${userId}:${period}`;
+  if (inFlight.has(key)) return inFlight.get(key);
+  const promise = _fetchYaraInsights(userId, period, stats);
+  inFlight.set(key, promise);
+  promise.finally(() => inFlight.delete(key));
+  return promise;
+}
+
+async function _fetchYaraInsights(userId, period, stats) {
   try {
     // ── Step 1: Check the cache ──────────────────────────────────────────────
     // We want at most 4 rows (one insight card set) generated within the last
@@ -149,6 +162,7 @@ export async function fetchYaraInsights(userId, period, stats) {
       .select('*')
       .eq('user_id', userId)
       .eq('period', period)
+      .eq('source', 'yara')
       .gte('created_at', since)           // only rows newer than 6 hours ago
       .order('created_at', { ascending: false })
       .limit(4);
@@ -172,7 +186,12 @@ export async function fetchYaraInsights(userId, period, stats) {
       insight_type: normalizeTag(ins.tag),  // sanitize compound/invalid tags before storing
       message:      `${ins.title}|${ins.text}`,
       period,
+      source:       'yara',
     }));
+    // Delete previous yara rows for this user+period before inserting fresh ones
+    // so the table doesn't grow unbounded across cache refreshes.
+    // RAG rows (source='rag') are intentionally left untouched.
+    await supabase.from('ai_insights').delete().eq('user_id', userId).eq('period', period).eq('source', 'yara');
     await supabase.from('ai_insights').insert(rows);
 
     // ── Step 4: Return the formatted insight objects ─────────────────────────

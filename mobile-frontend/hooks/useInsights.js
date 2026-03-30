@@ -190,7 +190,11 @@ export function useInsights(period) {
   const [metrics,     setMetrics]     = useState([]);
   const [trendData,   setTrendData]   = useState({ Week: [], Month: [], '3 Months': [] });
   const [heatmapData, setHeatmapData] = useState({});
-  const [streakData,  setStreakData]  = useState({ currentStreak: 0, longestStreak: 0 });
+  const [streakData,       setStreakData]       = useState({ currentStreak: 0, longestStreak: 0 });
+  const [activitySummary,  setActivitySummary]  = useState(null);
+  const [nutritionSummary, setNutritionSummary] = useState(null);
+  const [workoutSummary,   setWorkoutSummary]   = useState(null);
+  const [aiHistory,        setAiHistory]        = useState([]);
 
   // Resolve the logged-in user once on mount
   useEffect(() => {
@@ -211,10 +215,19 @@ export function useInsights(period) {
     setIsLoading(true);
     setError(null);
     try {
-      const { data, error: rpcErr } = await supabase.rpc('get_insights_data', {
-        p_user_id: userId,
-        p_period:  period,
-      });
+      const [
+        { data, error: rpcErr },
+        { data: activityData },
+        { data: nutritionData },
+        { data: workoutData },
+        { data: aiHistoryData },
+      ] = await Promise.all([
+        supabase.rpc('get_insights_data', { p_user_id: userId, p_period: period }),
+        supabase.rpc('get_user_full_activity_summary', { p_user_id: userId }),
+        supabase.rpc('get_user_nutrition_summary',     { p_user_id: userId }),
+        supabase.rpc('get_user_workout_summary',       { p_user_id: userId }),
+        supabase.rpc('get_user_ai_history',            { p_user_id: userId }),
+      ]);
 
       if (rpcErr) {
         console.error('[useInsights] RPC error:', rpcErr);
@@ -222,6 +235,11 @@ export function useInsights(period) {
       }
 
       console.log('[useInsights] RPC returned:', JSON.stringify(data).slice(0, 200));
+
+      setActivitySummary(activityData  ?? null);
+      setNutritionSummary(nutritionData ?? null);
+      setWorkoutSummary(workoutData    ?? null);
+      setAiHistory(Array.isArray(aiHistoryData) ? aiHistoryData : []);
 
       const stats   = data ?? {};
       const streaks = computeStreaks(stats.activity_dates);
@@ -253,6 +271,10 @@ export function useInsights(period) {
     trendData,
     heatmapData,
     streakData,
+    activitySummary,
+    nutritionSummary,
+    workoutSummary,
+    aiHistory,
     refresh: load,
   };
 }
