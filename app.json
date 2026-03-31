@@ -1,48 +1,47 @@
 {
-  "expo": {
-    "name": "BodyQ",
-    "slug": "bodyq",
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
-    "splash": {
-      "backgroundColor": "#0F0B1E"
-    },
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.bodyq.app",
-      "infoPlist": {
-        "NSCameraUsageDescription": "BodyQ uses your camera to scan food barcodes and analyse meals.",
-        "NSPhotoLibraryUsageDescription": "BodyQ accesses your photos to analyse food images."
-      }
-    },
-    "android": {
-      "package": "com.bodyq.app",
-      "adaptiveIcon": {
-        "backgroundColor": "#0F0B1E"
-      },
-      "edgeToEdgeEnabled": true
-    },
-    "plugins": [
-      [
-        "expo-camera",
-        {
-          "cameraPermission": "Allow BodyQ to use the camera for AI posture correction."
-        }
-      ],
-      [
-        "expo-image-picker",
-        {
-          "photosPermission": "Allow BodyQ to access your photos to analyse food images."
-        }
-      ],
-      "expo-asset"
-    ],
-    "extra": {
-      "supabaseUrl": "https://pxupvxhjrpemthzntrwe.supabase.co",
-      "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB4dXB2eGhqcnBlbXRoem50cndlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEwOTA3NDQsImV4cCI6MjA4NjY2Njc0NH0.yB2USWhCUK3K61BnBATK2mOZm6wGoRY4GY5F7dIRJ9s",
-      "geminiApiKey": "AIzaSyC7NnhSqIzsMGc8mR6ru_gtd6xQ5Ji37ZE"
-    }
-  }
+    "expo":  {
+                 "name":  "BodyQ",
+                 "slug":  "bodyq",
+                 "version":  "1.0.0",
+                 "orientation":  "portrait",
+                 "userInterfaceStyle":  "dark",
+                 "newArchEnabled":  true,
+                 "splash":  {
+                                "backgroundColor":  "#0F0B1E"
+                            },
+                 "ios":  {
+                             "supportsTablet":  true,
+                             "bundleIdentifier":  "com.bodyq.app",
+                             "infoPlist":  {
+                                               "NSCameraUsageDescription":  "BodyQ uses your camera to scan food barcodes and analyse meals.",
+                                               "NSPhotoLibraryUsageDescription":  "BodyQ accesses your photos to analyse food images."
+                                           }
+                         },
+                 "android":  {
+                                 "package":  "com.bodyq.app",
+                                 "adaptiveIcon":  {
+                                                      "backgroundColor":  "#0F0B1E"
+                                                  },
+                                 "edgeToEdgeEnabled":  true
+                             },
+                 "plugins":  [
+                                 [
+                                     "expo-camera",
+                                     {
+                                         "cameraPermission":  "Allow BodyQ to use the camera for AI posture correction."
+                                     }
+                                 ],
+                                 [
+                                     "expo-image-picker",
+                                     {
+                                         "photosPermission":  "Allow BodyQ to access your photos to analyse food images."
+                                     }
+                                 ],
+                                 "expo-asset"
+                             ],
+                 "extra":  {
+                               "supabaseUrl":  "https://pxupvxhjrpemthzntrwe.supabase.co",
+                               "supabaseAnonKey":  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB4dXB2eGhqcnBlbXRoem50cndlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEwOTA3NDQsImV4cCI6MjA4NjY2Njc0NH0.yB2USWhCUK3K61BnBATK2mOZm6wGoRY4GY5F7dIRJ9s"
+                           }
+             }
 }

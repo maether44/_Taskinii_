@@ -135,6 +135,7 @@ export default function FoodScannerScreen({
   };
 
   const onDismiss = () => { reset(); bottomSheetRef.current?.close(); };
+  const onRetry = () => { reset(); };
 
   const handleLog = async (mealType = "snack") => {
     if (!foodResult) return;
@@ -267,6 +268,7 @@ export default function FoodScannerScreen({
               }}
               onLog={handleLog}
               onDismiss={onDismiss}
+              onRetry={onRetry}
             />
           </BottomSheetScrollView>
         </BottomSheet>

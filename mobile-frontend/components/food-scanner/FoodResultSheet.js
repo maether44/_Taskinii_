@@ -54,6 +54,8 @@ export default function FoodResultSheet({ result, onLog, onDismiss }) {
   const [selectedMeal, setSelectedMeal] = useState("snack");
   const logScale = useRef(new Animated.Value(1)).current;
 
+  // Ensure result is defined and has required properties
+  const safeResult = result || {};
   const {
     name = "Unknown food", brand = "",
     calories = 0, protein = 0, carbs = 0, fat = 0, fiber = 0,
@@ -64,7 +66,15 @@ export default function FoodResultSheet({ result, onLog, onDismiss }) {
     goalType = "general_health",
     goalCalories = 2000, goalProtein = 150, goalCarbs = 250, goalFat = 65,
     currentCalories = 0, currentProtein = 0, currentCarbs = 0, currentFat = 0,
-  } = result;
+  } = safeResult;
+  
+  // Ensure suggestions is always an array
+  const safeSuggestions = Array.isArray(suggestions) ? suggestions : [];
+  
+  // Debug logging - remove once confirmed working
+  if (!Array.isArray(suggestions)) {
+    console.warn('⚠️ FoodResultSheet: suggestions is not an array', { suggestions, type: typeof suggestions });
+  }
 
   const calAfter = currentCalories + calories;
   const calPct = Math.min(calAfter / goalCalories, 1);
@@ -212,13 +222,13 @@ export default function FoodResultSheet({ result, onLog, onDismiss }) {
       </View>
 
       {/* AI Suggestions */}
-      {suggestions.length > 0 && (
+      {safeSuggestions && safeSuggestions.length > 0 && (
         <>
           <View style={s.suggHeader}>
             <Text style={{ fontSize: 14 }}>🤖</Text>
             <Text style={s.sectionHead}>AI Suggestions</Text>
           </View>
-          {suggestions.map((sug, i) => <SuggRow key={i} text={sug} delay={i * 80} />)}
+          {safeSuggestions.map((sug, i) => <SuggRow key={i} text={sug} delay={i * 80} />)}
         </>
       )}
 

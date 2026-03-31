@@ -62,7 +62,7 @@ export default function ExerciseInfo({ route, navigation }) {
         </View>
 
         {/* Images */}
-        {exercise.images && exercise.images.length > 0 && (
+        {(exercise.images || []).length > 0 && (
           <View style={s.section}>
             <Text style={s.sectionTitle}>Visual Guide</Text>
             <ScrollView
@@ -70,7 +70,7 @@ export default function ExerciseInfo({ route, navigation }) {
               showsHorizontalScrollIndicator={false}
               style={s.imageScroll}
             >
-              {exercise.images.map((img, i) => (
+              {(exercise.images || []).map((img, i) => (
                 <Image
                   key={i}
                   source={{ uri: BASE_IMG + img }}

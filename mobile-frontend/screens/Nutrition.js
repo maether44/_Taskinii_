@@ -6,7 +6,8 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator, ScrollView, StyleSheet,
   Text, TouchableOpacity, View,
@@ -65,6 +66,13 @@ export default function Nutrition({ navigation }) {
     });
   };
 
+  // Refresh data when returning from FoodScanner
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh])
+  );
+
   const openScanner = () => {
     navigate && navigate('FoodScanner', {
       currentCalories: eaten,
@@ -75,7 +83,6 @@ export default function Nutrition({ navigation }) {
       goalProtein:     goals.protein_target,
       goalCarbs:       goals.carbs_target,
       goalFat:         goals.fat_target,
-      onLogged:        refresh,
     });
   };
 

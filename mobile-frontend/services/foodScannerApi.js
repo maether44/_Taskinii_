@@ -1,16 +1,49 @@
 /**
  * src/services/foodScannerApi.js
- * Barcode  → OpenFoodFacts (free, no key needed)
- * AI Photo → Google Gemini Vision
+ * Barcode  -> OpenFoodFacts (free, no key needed)
+ * AI Photo -> Google Gemini Vision
  *
- * Keys live in app.json > extra:
- *   "geminiApiKey": "AIza..."
+ * Gemini key comes from .env via EXPO_PUBLIC_GEMINI_API_KEY.
  */
-import Constants from 'expo-constants';
+const RAW_GEMINI_KEY = (process.env.EXPO_PUBLIC_GEMINI_API_KEY || '').trim();
+const GEMINI_KEY = RAW_GEMINI_KEY.includes('PASTE_YOUR_GEMINI_API_KEY_HERE') ? '' : RAW_GEMINI_KEY;
+const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-001'];
 
-const GEMINI_KEY = Constants.expoConfig?.extra?.geminiApiKey ?? '';
+function unique(values) {
+  const out = [];
+  const seen = new Set();
+  for (const value of values) {
+    if (!value || seen.has(value)) continue;
+    seen.add(value);
+    out.push(value);
+  }
+  return out;
+}
 
-function clamp(v) { return Math.max(0, parseFloat(v) || 0); }
+async function resolveGeminiModels() {
+  if (!GEMINI_KEY) return GEMINI_MODELS;
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_KEY}`);
+    if (!res.ok) return GEMINI_MODELS;
+    const payload = await res.json().catch(() => ({}));
+    const available = Array.isArray(payload?.models) ? payload.models : [];
+    const supportsGenerate = available
+      .filter((m) => Array.isArray(m?.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
+      .map((m) => String(m?.name || '').replace(/^models\//, ''))
+      .filter((m) => m.startsWith('gemini-'));
+    return unique([...GEMINI_MODELS, ...supportsGenerate]);
+  } catch {
+    return GEMINI_MODELS;
+  }
+}
+
+function clamp(v) {
+  return Math.max(0, parseFloat(v) || 0);
+}
+
+function roundInt(v) {
+  return Math.round(clamp(v));
+}
 
 function healthScore(n) {
   let s = 50;
@@ -22,58 +55,101 @@ function healthScore(n) {
   return Math.max(0, Math.min(100, Math.round(s)));
 }
 
+function computeHealthScoreFromMacros({ calories, protein, carbs, fat, fiber }) {
+  let score = 70;
+  if (protein >= 20) score += 8;
+  if (protein < 8) score -= 8;
+  if (fiber >= 6) score += 8;
+  if (fiber < 2) score -= 6;
+  if (fat > 30) score -= 8;
+  if (carbs > 70) score -= 5;
+  if (calories > 800) score -= 10;
+  if (calories < 80) score -= 6;
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
 function buildSuggestions({ protein, carbs, fat, calories }) {
   const tips = [];
-  if (protein < 10) tips.push('Low in protein — pair with eggs, Greek yoghurt, or chicken.');
-  if (carbs > 50) tips.push('High in carbs — ideal before a workout or pair with veggies.');
-  if (fat > 15) tips.push('Contains fats — monitor your remaining daily fat budget.');
-  if (calories > 500) tips.push('Calorie-dense — consider a lighter snack next meal.');
-  if (!tips.length) tips.push('Well-balanced serving! Keep logging to stay on track.');
-  tips.push('Drink water with this meal to support digestion and satiety.');
+  if (protein < 10) tips.push('Low protein. Pair with eggs, yogurt, tofu, or chicken.');
+  if (carbs > 50) tips.push('Higher carb meal. Great before activity or with extra vegetables.');
+  if (fat > 20) tips.push('Higher fat serving. Keep your remaining daily fat budget in mind.');
+  if (calories > 550) tips.push('Calorie-dense choice. Balance later meals if needed.');
+  if (!tips.length) tips.push('Solid overall balance for a single serving.');
+  tips.push('Hydrate with this meal to support digestion and satiety.');
   return tips;
 }
 
-// ── 1. Barcode via OpenFoodFacts ──────────────────────────────────────────────
-export async function lookupBarcode(barcode) {
-  const res = await fetch(
-    `https://world.openfoodfacts.org/api/v0/product/${barcode}.json`
-  );
-  if (!res.ok) throw new Error('Network error — check your connection');
-  const json = await res.json();
-  if (json.status !== 1 || !json.product) throw new Error('Product not found in database');
-
-  const p = json.product;
-  const n = p.nutriments ?? {};
-  const serving = parseFloat(p.serving_size) || 100;
-  const scale = serving / 100;
-
-  const data = {
-    name: p.product_name || p.product_name_en || 'Unknown product',
-    brand: p.brands || '',
-    calories: Math.round(clamp(n['energy-kcal_serving'] || n['energy-kcal_100g'] * scale)),
-    protein: Math.round(clamp(n['proteins_serving'] || n['proteins_100g'] * scale)),
-    carbs: Math.round(clamp(n['carbohydrates_serving'] || n['carbohydrates_100g'] * scale)),
-    fat: Math.round(clamp(n['fat_serving'] || n['fat_100g'] * scale)),
-    fiber: Math.round(clamp(n['fiber_serving'] || n['fiber_100g'] * scale)),
-    servingSize: Math.round(serving),
-    servingUnit: 'g',
-    barcode,
-    healthScore: healthScore(n),
-    source: 'barcode',
-    confidence: 0.98,
-  };
-  data.suggestions = buildSuggestions(data);
-  return data;
-}
-
-// Normalize base64: Gemini expects raw base64, not "data:image/...;base64,..."
 function normalizeBase64(input) {
   if (typeof input !== 'string' || !input) return '';
-  const base64 = input.replace(/^data:image\/\w+;base64,/, '');
-  return base64.trim();
+  return input.replace(/^data:image\/\w+;base64,/, '').trim();
 }
 
-// When API fails (rate limit, network, etc.) we always return this so the app still works
+function extractJsonObject(rawText) {
+  const text = String(rawText || '').trim();
+  if (!text) return null;
+
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const candidate = fenced?.[1]?.trim() || text;
+
+  try {
+    return JSON.parse(candidate);
+  } catch {
+    const firstBrace = candidate.indexOf('{');
+    const lastBrace = candidate.lastIndexOf('}');
+    if (firstBrace >= 0 && lastBrace > firstBrace) {
+      const sliced = candidate.slice(firstBrace, lastBrace + 1);
+      try {
+        return JSON.parse(sliced);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+}
+
+function sanitizeAiResult(parsed) {
+  const protein = roundInt(parsed?.protein);
+  const carbs = roundInt(parsed?.carbs);
+  const fat = roundInt(parsed?.fat);
+  const fiber = roundInt(parsed?.fiber);
+  const macroCalories = protein * 4 + carbs * 4 + fat * 9;
+  const providedCalories = roundInt(parsed?.calories);
+  const calories = providedCalories > 0 ? providedCalories : macroCalories;
+
+  const servingSize = Math.max(1, roundInt(parsed?.servingSize || 100));
+  const servingUnit = typeof parsed?.servingUnit === 'string' && parsed.servingUnit.trim()
+    ? parsed.servingUnit.trim().toLowerCase()
+    : 'g';
+
+  const out = {
+    name: typeof parsed?.name === 'string' && parsed.name.trim() ? parsed.name.trim() : 'Meal (from photo)',
+    brand: typeof parsed?.brand === 'string' ? parsed.brand.trim() : '',
+    calories,
+    protein,
+    carbs,
+    fat,
+    fiber,
+    servingSize,
+    servingUnit,
+    barcode: null,
+    healthScore: clamp(parsed?.healthScore) > 0
+      ? Math.max(0, Math.min(100, roundInt(parsed.healthScore)))
+      : computeHealthScoreFromMacros({ calories, protein, carbs, fat, fiber }),
+    source: 'photo_ai',
+    confidence: Math.max(0.15, Math.min(0.99, parseFloat(parsed?.confidence) || 0.72)),
+    suggestions: Array.isArray(parsed?.suggestions)
+      ? parsed.suggestions.filter((s) => typeof s === 'string' && s.trim()).slice(0, 4)
+      : [],
+  };
+
+  if (!out.suggestions.length) {
+    out.suggestions = buildSuggestions(out);
+  }
+
+  return out;
+}
+
 function getAlwaysWorksFallback() {
   return {
     name: 'Meal (from photo)',
@@ -90,26 +166,55 @@ function getAlwaysWorksFallback() {
     source: 'estimate',
     confidence: 0.5,
     suggestions: [
-      'AI was unavailable — values are estimates. You can edit this entry in your diary.',
-      'Adjust calories and macros in Nutrition if needed.',
-      'Use barcode scan next time for precise values when the API is busy.',
+      'AI was unavailable, so these are conservative estimates.',
+      'You can adjust calories and macros before or after logging.',
+      'For packaged items, barcode scan is usually the most accurate path.',
     ],
   };
 }
 
-// Cache same photo for 3 min so double-tap / retry doesn't hit the API again
 const CACHE_TTL_MS = 3 * 60 * 1000;
 let photoCache = { key: '', result: null, ts: 0 };
+
 function cacheKey(base64) {
   const len = base64?.length ?? 0;
-  const head = (base64 || '').slice(0, 80);
+  const head = (base64 || '').slice(0, 120);
   return `${len}-${head}`;
 }
 
-// ── 2. AI Photo via Gemini Vision (fallback to estimate so it always works) ───
+export async function lookupBarcode(barcode) {
+  const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`);
+  if (!res.ok) throw new Error('Network error. Check your internet connection.');
+  const json = await res.json();
+  if (json.status !== 1 || !json.product) throw new Error('Product not found in database.');
+
+  const p = json.product;
+  const n = p.nutriments ?? {};
+  const serving = parseFloat(p.serving_size) || 100;
+  const scale = serving / 100;
+
+  const data = {
+    name: p.product_name || p.product_name_en || 'Unknown product',
+    brand: p.brands || '',
+    calories: roundInt(n['energy-kcal_serving'] || n['energy-kcal_100g'] * scale),
+    protein: roundInt(n['proteins_serving'] || n['proteins_100g'] * scale),
+    carbs: roundInt(n['carbohydrates_serving'] || n['carbohydrates_100g'] * scale),
+    fat: roundInt(n['fat_serving'] || n['fat_100g'] * scale),
+    fiber: roundInt(n['fiber_serving'] || n['fiber_100g'] * scale),
+    servingSize: Math.max(1, roundInt(serving)),
+    servingUnit: 'g',
+    barcode,
+    healthScore: healthScore(n),
+    source: 'barcode',
+    confidence: 0.98,
+  };
+  data.suggestions = buildSuggestions(data);
+  return data;
+}
+
 export async function analysePhotoWithAI(base64Image) {
   const rawBase64 = normalizeBase64(base64Image);
-  if (!rawBase64) throw new Error('No image data — try taking the photo again');
+  if (!rawBase64) throw new Error('No image data. Try taking the photo again.');
 
   const key = cacheKey(rawBase64);
   if (photoCache.key === key && Date.now() - photoCache.ts < CACHE_TTL_MS && photoCache.result) {
@@ -118,111 +223,93 @@ export async function analysePhotoWithAI(base64Image) {
 
   if (!GEMINI_KEY) {
     const demo = demoFoodResult();
-    const out = { ...demo, source: demo.source ?? 'demo', confidence: demo.confidence ?? 0.75 };
-    photoCache = { key, result: out, ts: Date.now() };
-    return out;
+    photoCache = { key, result: demo, ts: Date.now() };
+    return demo;
   }
 
-  const prompt = `You are a nutrition expert AI.
-Analyse this food photo and respond ONLY with valid JSON — no markdown, no explanation.
-Schema:
-{
-  "name": string,
-  "brand": "",
-  "calories": number,
-  "protein": number,
-  "carbs": number,
-  "fat": number,
-  "fiber": number,
-  "servingSize": number,
-  "servingUnit": "g",
-  "healthScore": number (0-100),
-  "suggestions": [string, string, string],
-  "confidence": number
-}
-Base values on a typical visible serving. Be realistic.`;
+  const prompt = [
+    'You are a nutrition assistant.',
+    'Identify the PRIMARY food item in the photo.',
+    'Estimate realistic nutrition for the visible serving only.',
+    'Return ONLY valid JSON, no markdown.',
+    'Schema:',
+    '{',
+    '  "name": "string",',
+    '  "brand": "string or empty",',
+    '  "calories": number,',
+    '  "protein": number,',
+    '  "carbs": number,',
+    '  "fat": number,',
+    '  "fiber": number,',
+    '  "servingSize": number,',
+    '  "servingUnit": "g",',
+    '  "healthScore": number,',
+    '  "confidence": number,',
+    '  "suggestions": ["short tip 1", "short tip 2", "short tip 3"]',
+    '}',
+    'Rules:',
+    '- Values must be plausible and non-negative.',
+    '- confidence must be 0 to 1.',
+    '- If uncertain, lower confidence and still provide your best estimate.',
+  ].join('\n');
 
-  const modelIds = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b'];
+  const modelIds = await resolveGeminiModels();
+
   let lastError = null;
-
   for (const modelId of modelIds) {
     try {
-      const res = await fetch(
+      const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${GEMINI_KEY}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            contents: [{
-              parts: [
-                { text: prompt },
-                { inline_data: { mime_type: 'image/jpeg', data: rawBase64 } },
-              ],
-            }],
+            contents: [
+              {
+                parts: [
+                  { text: prompt },
+                  { inline_data: { mime_type: 'image/jpeg', data: rawBase64 } },
+                ],
+              },
+            ],
             generationConfig: {
               temperature: 0.2,
-              maxOutputTokens: 1024,
+              maxOutputTokens: 1000,
               responseMimeType: 'application/json',
             },
-            safetySettings: [
-              { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-              { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-              { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-              { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-            ],
           }),
         }
       );
 
-      const json = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        if (res.status === 404) {
-          lastError = new Error(`Model ${modelId} not available`);
-          continue;
-        }
-        if (res.status === 403) {
-          lastError = new Error('Invalid API key or access denied. Check app.json extra.geminiApiKey.');
-          break;
-        }
-        lastError = new Error(json?.error?.message || `HTTP ${res.status}`);
-        if (res.status === 429) break;
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const msg = payload?.error?.message || `HTTP ${response.status}`;
+        lastError = new Error(msg);
+        if (response.status === 401 || response.status === 403) break;
         continue;
       }
 
-      const candidate = json.candidates?.[0];
-      const blockReason = candidate?.finishReason;
-      if (blockReason && blockReason !== 'STOP' && blockReason !== 'MAX_TOKENS') {
-        lastError = new Error('Image could not be analysed.');
+      const text = payload?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      const parsed = extractJsonObject(text);
+      if (!parsed) {
+        lastError = new Error('Gemini response did not contain valid JSON.');
         continue;
       }
 
-      const text = candidate?.content?.parts?.[0]?.text ?? '';
-      if (!text) {
-        lastError = new Error('No response from AI');
-        continue;
-      }
-
-      const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
-      const out = {
-        ...parsed,
-        source: parsed.source ?? 'photo_ai',
-        confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.9,
-      };
+      const out = sanitizeAiResult(parsed);
       photoCache = { key, result: out, ts: Date.now() };
       return out;
-    } catch (e) {
-      lastError = e;
-      if (e.message?.includes('API key')) break;
+    } catch (error) {
+      lastError = error;
     }
   }
 
   const fallback = getAlwaysWorksFallback();
   photoCache = { key, result: fallback, ts: Date.now() };
+  console.warn('Food photo AI fallback used:', lastError?.message || 'Unknown AI error');
   return fallback;
 }
 
-// ── Demo fallback (shown when no Gemini key is set) ───────────────────────────
 export function demoFoodResult() {
   return {
     name: 'Avocado Toast',
@@ -239,9 +326,9 @@ export function demoFoodResult() {
     source: 'demo',
     confidence: 0.75,
     suggestions: [
-      'Add a poached egg for 6g extra protein and a more satisfying meal.',
-      'Use whole-grain bread to boost fibre — aim for 25g+ daily.',
-      'Great post-workout choice; healthy fats support muscle recovery.',
+      'Add eggs or Greek yogurt to increase protein for better satiety.',
+      'Whole-grain bread can improve fiber and micronutrient profile.',
+      'Portion avocado if you need to keep calories tighter.',
     ],
   };
 }

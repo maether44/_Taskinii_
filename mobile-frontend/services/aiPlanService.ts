@@ -41,7 +41,7 @@ export const saveAIPlan = async (userId, aiPlan, answers) => {
 
     if (dayError) throw new Error(dayError.message);
 
-    const exercises = day.exercises.map((ex, j) => ({
+    const exercises = (day.exercises || []).map((ex, j) => ({
       day_id:      planDay.id,
       order_index: j,
       name:        ex.name,

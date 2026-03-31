@@ -49,11 +49,13 @@ function SuggRow({ text, delay }) {
   );
 }
 
-export default function FoodResultSheet({ result, onLog, onDismiss }) {
+export default function FoodResultSheet({ result, onLog, onDismiss, onRetry }) {
   const [logged, setLogged] = useState(false);
   const [selectedMeal, setSelectedMeal] = useState("snack");
   const logScale = useRef(new Animated.Value(1)).current;
 
+  // Ensure result is defined and has required properties
+  const safeResult = result || {};
   const {
     name = "Unknown food", brand = "",
     calories = 0, protein = 0, carbs = 0, fat = 0, fiber = 0,
@@ -64,7 +66,10 @@ export default function FoodResultSheet({ result, onLog, onDismiss }) {
     goalType = "general_health",
     goalCalories = 2000, goalProtein = 150, goalCarbs = 250, goalFat = 65,
     currentCalories = 0, currentProtein = 0, currentCarbs = 0, currentFat = 0,
-  } = result;
+  } = safeResult;
+
+  // Ensure suggestions is always an array
+  const safeSuggestions = Array.isArray(suggestions) ? suggestions : [];
 
   const calAfter = currentCalories + calories;
   const calPct = Math.min(calAfter / goalCalories, 1);
@@ -73,6 +78,7 @@ export default function FoodResultSheet({ result, onLog, onDismiss }) {
   const scoreColor = healthScore > 70 ? C.green : healthScore > 45 ? C.lime : C.red;
 
   const confidencePct = Math.round(Math.max(0, Math.min(1, confidence || 0)) * 100);
+  const isLowConfidence = confidence < 0.7 || source === 'estimate';
 
   function goalFitLabel() {
     // Very lightweight heuristic based on macros + goal
@@ -212,18 +218,23 @@ export default function FoodResultSheet({ result, onLog, onDismiss }) {
       </View>
 
       {/* AI Suggestions */}
-      {suggestions.length > 0 && (
+      {safeSuggestions && safeSuggestions.length > 0 && (
         <>
           <View style={s.suggHeader}>
             <Text style={{ fontSize: 14 }}>🤖</Text>
             <Text style={s.sectionHead}>AI Suggestions</Text>
           </View>
-          {suggestions.map((sug, i) => <SuggRow key={i} text={sug} delay={i * 80} />)}
+          {safeSuggestions.map((sug, i) => <SuggRow key={i} text={sug} delay={i * 80} />)}
         </>
       )}
 
       {/* Log button */}
       <Animated.View style={{ transform: [{ scale: logScale }], marginTop: 24 }}>
+        {isLowConfidence && onRetry && (
+          <TouchableOpacity onPress={onRetry} style={s.tryAgainBtn} activeOpacity={0.85}>
+            <Text style={s.tryAgainTxt}>🤖 Try Again - AI couldn't identify clearly</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity onPress={onLogPress} disabled={logged} activeOpacity={0.85}>
           <LinearGradient
             colors={logged ? [C.card, C.card] : [C.purple, C.accent]}
@@ -281,6 +292,8 @@ const s = StyleSheet.create({
   suggTxt: { color: C.accent, fontSize: 13, lineHeight: 20, flex: 1 },
   logBtn: { borderRadius: 14, height: 52, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1, borderColor: C.border },
   logTxt: { fontSize: 15, fontWeight: "800" },
+  tryAgainBtn: { backgroundColor: C.card, borderRadius: 12, height: 44, alignItems: "center", justifyContent: "center", marginBottom: 12, borderWidth: 1, borderColor: C.accent },
+  tryAgainTxt: { color: C.accent, fontSize: 14, fontWeight: "700" },
   scanAgain: { alignItems: "center", paddingVertical: 16 },
   scanAgainTxt: { color: C.sub, fontSize: 13, fontWeight: "600" },
   goalFitCard: { backgroundColor: C.card, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: C.border, marginBottom: 18 },
