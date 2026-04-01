@@ -33,17 +33,18 @@ export function useYaraChat(profile) {
 
       try {
         const history = await getChatHistory(user.id);
-        if (history.length === 0) {
+        const safeHistory = Array.isArray(history) ? history : [];
+        if (safeHistory.length === 0) {
           setMessages([welcome]);
         } else {
           // Rebuild UI messages from DB history
-          const uiMessages = history.map(m => ({
+          const uiMessages = (safeHistory || []).map(m => ({
             from: m.role === 'assistant' ? 'yara' : 'user',
             text: m.content,
             time: '',
           }));
           setMessages([welcome, ...uiMessages]);
-          apiHistory.current = history; // restore context for Groq
+          apiHistory.current = safeHistory; // restore context for Groq
         }
       } catch {
         setMessages([welcome]);

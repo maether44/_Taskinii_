@@ -82,7 +82,7 @@ export function useWorkouts(userId) {
     }, []);
 
     // ── Format history for Training screen display ───────────────────────────────
-    const history = sessions.map(s => {
+    const history = (sessions || []).map(s => {
         const start = s.started_at ? new Date(s.started_at) : null;
         const end = s.ended_at ? new Date(s.ended_at) : null;
         const durationM = start && end

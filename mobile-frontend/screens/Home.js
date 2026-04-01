@@ -131,7 +131,16 @@ export default function Home({ navigation }) {
               style={styles.logBtn} 
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                navigation.navigate('FoodScanner');
+                navigation.navigate('FoodScanner', {
+                  currentCalories: stats.calories.eaten,
+                  currentProtein: stats.macros.protein.current,
+                  currentCarbs: stats.macros.carbs.current,
+                  currentFat: stats.macros.fat.current || 0,
+                  goalCalories: stats.calories.target,
+                  goalProtein: stats.macros.protein.target,
+                  goalCarbs: stats.macros.carbs.target,
+                  goalFat: stats.macros.fat.target || 0,
+                });
               }}
             >
               <Text style={styles.logBtnTxt}>+ Log Meal</Text>

@@ -160,8 +160,9 @@ function formatTimer(secs) {
 export default function WorkoutActive({ route, navigation }) {
   const { user } = useAuth();
   const rawKey      = route.params?.exerciseKey || route.params?.exerciseName || 'squat';
-  const htmlKey     = resolveHtmlKey(rawKey);
-  const displayName = rawKey.replace(/_/g, ' ').toUpperCase();
+  const isPostureMode = rawKey === 'posture_check' || route.params?.mode === 'posture';
+  const htmlKey     = isPostureMode ? 'posture_check' : resolveHtmlKey(rawKey);
+  const displayName = isPostureMode ? 'POSTURE SCAN' : rawKey.replace(/_/g, ' ').toUpperCase();
 
   // ── Refs ────────────────────────────────────────────────────
   const webViewRef        = useRef(null);
@@ -390,13 +391,19 @@ export default function WorkoutActive({ route, navigation }) {
     const data = e.nativeEvent.data;
 
     if (data === 'AI_READY') {
-      if (htmlKey) {
-        webViewRef.current?.injectJavaScript(
-          `window.applyExerciseChange && window.applyExerciseChange('${htmlKey}'); true;`
-        );
+      if (isPostureMode) {
+        webViewRef.current?.injectJavaScript('window.startPostureMode && window.startPostureMode(); true;');
+        webViewRef.current?.injectJavaScript('window.startAI && window.startAI(); true;');
+        setTimeout(() => speakYara('Stand straight and face the camera. I will scan your posture.'), 400);
+      } else {
+        if (htmlKey) {
+          webViewRef.current?.injectJavaScript(
+            `window.applyExerciseChange && window.applyExerciseChange('${htmlKey}'); true;`
+          );
+        }
+        webViewRef.current?.injectJavaScript('window.startAI && window.startAI(); true;');
+        setTimeout(() => speakYara("I'm watching your form. Begin when you are ready."), 400);
       }
-      webViewRef.current?.injectJavaScript('window.startAI && window.startAI(); true;');
-      setTimeout(() => speakYara("I'm watching your form. Begin when you are ready."), 400);
       return;
     }
 
@@ -429,7 +436,13 @@ export default function WorkoutActive({ route, navigation }) {
       }
 
       if (msg.type === 'CALIBRATED') {
-        speakYara('Body detected. Calibration complete.');
+        speakYara(isPostureMode ? 'Body detected. Hold still for your posture scan.' : 'Body detected. Calibration complete.');
+      }
+
+      if (msg.type === 'POSTURE_SCORE') {
+        setFormScore(msg.score);
+        setCue(msg.verdict);
+        speakYara(msg.verdict);
       }
 
       if (msg.type === 'SYNC_STATUS') {
@@ -544,7 +557,7 @@ export default function WorkoutActive({ route, navigation }) {
   }, [isCountingDown, speakYara]);
 
   // ── Unsupported / No permission screens ────────────────────
-  if (htmlKey === null) {
+  if (htmlKey === null && !isPostureMode) {
     return (
       <View style={[s.container, s.center]}>
         <StatusBar hidden />

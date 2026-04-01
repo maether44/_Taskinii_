@@ -125,7 +125,7 @@ export default function App() {
               <Navigation />
             </NavigationContainer>
             {activeRoute !== 'WorkoutActive' && <YaraAssistant />}
-            <AppTour activeTab={activeTab} onTabPress={setActiveTab} />
+            <AppTour activeTab={activeTab} onTabPress={setActiveTab} showOnMount={true} />
           </View>
         </AuthProvider>
       </SafeAreaProvider>

@@ -567,8 +567,8 @@ export default function OnboardingGoal({ onComplete }) {
                         {/* Training days */}
                         <View style={[gc.card, { backgroundColor: T.card, borderColor: T.border }]}>
                             <Text style={[gc.sectionLabel, { color: T.sub }]}>Your {days}-Day AI Training Split</Text>
-                            {aiPlan.days?.map((day, i) => (
-                                <View key={i} style={[gc.planDayWrap, i < aiPlan.days.length - 1 && { borderBottomWidth: 1, borderBottomColor: T.border }]}>
+                            {(aiPlan.days || []).map((day, i) => (
+                                <View key={i} style={[gc.planDayWrap, i < (aiPlan.days || []).length - 1 && { borderBottomWidth: 1, borderBottomColor: T.border }]}>
                                     <View style={gc.planDayRow}>
                                         <View style={[gc.planDayNum, { backgroundColor: T.purple }]}>
                                             <Text style={gc.planDayNumTxt}>Day {i + 1}</Text>
@@ -578,7 +578,7 @@ export default function OnboardingGoal({ onComplete }) {
                                             <Text style={[gc.planDayMeta, { color: T.sub }]}>{day.focus} · {duration} min</Text>
                                         </View>
                                     </View>
-                                    {day.exercises?.map((ex, j) => (
+                                    {(day.exercises || []).map((ex, j) => (
                                         <View key={j} style={gc.exRow}>
                                             <View style={[gc.exDot, { backgroundColor: T.purple + '40' }]} />
                                             <Text style={[gc.exName, { color: T.text }]}>{ex.name}</Text>

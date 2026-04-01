@@ -782,6 +782,28 @@ const EXERCISES = {
     isPlank: true,
   },
 
+  posture_check: {
+    name: "Posture Scan",
+    description: "Stand naturally facing the camera. Yara will measure shoulder and hip alignment to give you a posture score.",
+    angleGroups: [
+      { id: "shoulderTilt", label: "Shoulder Level",  pts: [11,12,24] },
+      { id: "hipTilt",      label: "Hip Level",       pts: [23,24,26] },
+      { id: "spineLeft",    label: "Spine (L)",       pts: [11,23,25] },
+      { id: "spineRight",   label: "Spine (R)",       pts: [12,24,26] },
+      { id: "neckAngle",    label: "Neck Forward",    pts: [0,11,23]  },
+    ],
+    formRules: [
+      { id: "shoulderTilt", min: 160, max: 180, cue: "Level your shoulders — one side is higher" },
+      { id: "hipTilt",      min: 160, max: 180, cue: "Level your hips — shift your weight evenly" },
+      { id: "spineLeft",    min: 155, max: 180, cue: "Stand taller — don't lean to the side" },
+      { id: "spineRight",   min: 155, max: 180, cue: "Stand taller — don't lean to the side" },
+      { id: "neckAngle",    min: 140, max: 180, cue: "Head forward — tuck chin slightly" },
+    ],
+    repConfig: null,
+    isPlank: false,
+    isPosture: true,
+  },
+
 };
 
 /* ───────────────────────────────────────────────────────────────────
@@ -881,6 +903,18 @@ window.startCamera = startCamera;
 
 // Called by RN after AI_READY is received — enables rep counting
 window.startAI = function() {
+  repCountingEnabled = true;
+};
+
+// Called by RN when posture_check mode is active
+let postureMode = false;
+let postureScoreBuffer = [];
+let postureReportSent = false;
+window.startPostureMode = function() {
+  postureMode = true;
+  postureScoreBuffer = [];
+  postureReportSent = false;
+  applyExerciseChange('posture_check');
   repCountingEnabled = true;
 };
 
@@ -1027,6 +1061,26 @@ function onResults(results) {
 
   const totalRules = ex.formRules.filter(r => currentAngles[r.id] !== undefined).length;
   formScore = totalRules > 0 ? Math.round((passed / totalRules) * 100) : 100;
+
+  // ── Posture mode: collect 60 frames then send final score ────
+  if (postureMode && !postureReportSent) {
+    postureScoreBuffer.push(formScore);
+    phaseEl.textContent = `SCANNING ${postureScoreBuffer.length}/60`;
+    if (postureScoreBuffer.length >= 60) {
+      postureReportSent = true;
+      const avg = Math.round(postureScoreBuffer.reduce((a, b) => a + b, 0) / postureScoreBuffer.length);
+      const verdict =
+        avg >= 85 ? `Excellent posture! Score: ${avg}% — keep it up.` :
+        avg >= 65 ? `Good posture with room to improve. Score: ${avg}% — watch your ${activeCue ? activeCue.toLowerCase() : 'alignment'}.` :
+                   `Posture needs attention. Score: ${avg}% — ${activeCue || 'focus on standing tall and levelling your hips'}.`;
+      if (window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'POSTURE_SCORE', score: avg, verdict,
+        }));
+      }
+      cueBox.textContent = verdict;
+    }
+  }
 
   // Per-exercise critical joints — only these abort a rep.
   // Advisory joints still generate coaching cues but don't abort.

@@ -1,7 +1,7 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, Dimensions, Modal, Pressable,
+  StyleSheet, Dimensions, Modal, Pressable, Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -40,12 +40,6 @@ const SHADOW = {
 // ── Static data ──────────────────────────────────────────────
 const WEEK = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
-const QUICK_ACTIONS = [
-  { icon: 'search',            label: 'Library',   screen: 'ExerciseList' },
-  { icon: 'scan-outline',      label: 'PostureAI', screen: 'PostureAI'    },
-  { icon: 'analytics-outline', label: 'Progress',  screen: 'Insights'     },
-];
-
 // ── Machine Intelligence Hub Data ────────────────────────────
 const GYM_EQUIPMENT = [
   {
@@ -53,6 +47,7 @@ const GYM_EQUIPMENT = [
     name:         'Smith Machine',
     icon:         'barbell-outline',
     primaryMuscle:'Quads · Glutes',
+    imageUrl:     'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&q=80',
     exerciseKey:  'squat',
     setup: [
       'Set the bar at mid-chest height when standing.',
@@ -72,6 +67,7 @@ const GYM_EQUIPMENT = [
     name:         'Leg Press',
     icon:         'footsteps-outline',
     primaryMuscle:'Quads · Hamstrings',
+    imageUrl:     'https://images.unsplash.com/photo-1540497077202-7c8a3999166f?w=400&q=80',
     exerciseKey:  'squat',
     setup: [
       'Adjust seat so knees are at 90° with feet on platform.',
@@ -91,6 +87,7 @@ const GYM_EQUIPMENT = [
     name:         'Lat Pulldown',
     icon:         'arrow-down-circle-outline',
     primaryMuscle:'Lats · Biceps',
+    imageUrl:     'https://images.unsplash.com/photo-1581009137042-c552e485697a?w=400&q=80',
     exerciseKey:  'bicepCurl',
     setup: [
       'Adjust thigh pad to lock hips firmly in place.',
@@ -110,6 +107,7 @@ const GYM_EQUIPMENT = [
     name:         'Chest Press',
     icon:         'expand-outline',
     primaryMuscle:'Chest · Triceps',
+    imageUrl:     'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=400&q=80',
     exerciseKey:  'pushup',
     setup: [
       'Adjust seat so handles are at mid-chest height.',
@@ -129,7 +127,8 @@ const GYM_EQUIPMENT = [
     name:         'Cable Row',
     icon:         'swap-horizontal-outline',
     primaryMuscle:'Back · Rear Delts',
-    exerciseKey:  'deadlift',
+    imageUrl:     'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=400&q=80',
+    exerciseKey:  'bicepCurl',
     setup: [
       'Set pulley to hip height. Use a close-grip V-bar attachment.',
       'Sit upright, knees slightly bent, feet on platforms.',
@@ -148,6 +147,7 @@ const GYM_EQUIPMENT = [
     name:         'Shoulder Press',
     icon:         'arrow-up-circle-outline',
     primaryMuscle:'Shoulders · Triceps',
+    imageUrl:     'https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=400&q=80',
     exerciseKey:  'shoulderPress',
     setup: [
       'Adjust seat so handles are at ear/jaw height.',
@@ -167,7 +167,8 @@ const GYM_EQUIPMENT = [
     name:         'Leg Curl',
     icon:         'walk-outline',
     primaryMuscle:'Hamstrings',
-    exerciseKey:  'lunge',
+    imageUrl:     'https://images.unsplash.com/photo-1516567832786-d171bef2e97e?w=400&q=80',
+    exerciseKey:  'deadlift',
     setup: [
       'Adjust pad so it rests just above the heel, not on the ankle.',
       'Lie face-down, hips pressed into the bench.',
@@ -186,6 +187,7 @@ const GYM_EQUIPMENT = [
     name:         'Cable Curl',
     icon:         'hand-right-outline',
     primaryMuscle:'Biceps · Forearms',
+    imageUrl:     'https://images.unsplash.com/photo-1597452485675-8c2a65a7253c?w=400&q=80',
     exerciseKey:  'bicepCurl',
     setup: [
       'Set pulley to lowest pin. Use a straight or EZ bar attachment.',
@@ -201,6 +203,46 @@ const GYM_EQUIPMENT = [
     ],
   },
 ];
+
+// ── Home bodyweight exercises ────────────────────────────────
+const HOME_EXERCISES = [
+  { id: 'pushup',   name: 'Push-Up',       icon: 'body-outline',      primaryMuscle: 'Chest · Triceps',    exerciseKey: 'pushup',  sets: '4 × 15', imageUrl: 'https://images.unsplash.com/photo-1598971639058-fab3c3109a00?w=400&q=80', isHome: true },
+  { id: 'airsquat', name: 'Air Squat',     icon: 'walk-outline',      primaryMuscle: 'Quads · Glutes',     exerciseKey: 'squat',   sets: '4 × 20', imageUrl: 'https://images.unsplash.com/photo-1536922246289-88c42f957773?w=400&q=80', isHome: true },
+  { id: 'lunge',    name: 'Reverse Lunge', icon: 'footsteps-outline', primaryMuscle: 'Glutes · Quads',     exerciseKey: 'lunge',   sets: '3 × 12', imageUrl: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&q=80', isHome: true },
+  { id: 'plank',    name: 'Plank Hold',    icon: 'fitness-outline',   primaryMuscle: 'Core',               exerciseKey: 'plank',   sets: '3 × 45s',imageUrl: 'https://images.unsplash.com/photo-1601422407692-ec4eeec1d9b3?w=400&q=80', isHome: true },
+  { id: 'glute',    name: 'Glute Bridge',  icon: 'arrow-up-outline',  primaryMuscle: 'Glutes · Hamstrings',exerciseKey: 'squat',   sets: '4 × 20', imageUrl: 'https://images.unsplash.com/photo-1518611012118-696072aa579a?w=400&q=80', isHome: true },
+  { id: 'dipchest', name: 'Tricep Dip',    icon: 'arrow-down-outline',primaryMuscle: 'Triceps · Chest',   exerciseKey: 'pushup',  sets: '3 × 12', imageUrl: 'https://images.unsplash.com/photo-1530822847156-5df684ec5933?w=400&q=80', isHome: true },
+];
+
+// ── Combined Equipment Floor (Gym + Home) ────────────────────
+const COMBINED_EQUIPMENT = [
+  ...GYM_EQUIPMENT.map(e => ({ ...e, isHome: false })),
+  ...HOME_EXERCISES,
+];
+
+// ── Today's Plan circuits per focus ──────────────────────────
+const PLAN_CIRCUITS = {
+  strength: [
+    { name: 'Barbell Squat',   icon: 'barbell-outline',          key: 'squat',         sets: '4×8',  target: 'Quads · Glutes' },
+    { name: 'Chest Press',     icon: 'expand-outline',           key: 'pushup',        sets: '3×10', target: 'Chest · Triceps' },
+    { name: 'Cable Row',       icon: 'swap-horizontal-outline',  key: 'bicepCurl',     sets: '3×12', target: 'Back · Rear Delts' },
+  ],
+  upper: [
+    { name: 'Shoulder Press',  icon: 'arrow-up-circle-outline',  key: 'shoulderPress', sets: '4×10', target: 'Shoulders · Triceps' },
+    { name: 'Lat Pulldown',    icon: 'arrow-down-circle-outline',key: 'bicepCurl',     sets: '3×12', target: 'Lats · Biceps' },
+    { name: 'Cable Curl',      icon: 'hand-right-outline',       key: 'bicepCurl',     sets: '3×15', target: 'Biceps' },
+  ],
+  lower: [
+    { name: 'Leg Press',       icon: 'footsteps-outline',        key: 'squat',         sets: '4×10', target: 'Quads · Hamstrings' },
+    { name: 'Leg Curl',        icon: 'walk-outline',             key: 'deadlift',      sets: '3×12', target: 'Hamstrings' },
+    { name: 'Smith Machine',   icon: 'barbell-outline',          key: 'squat',         sets: '3×10', target: 'Quads · Glutes' },
+  ],
+  recovery: [
+    { name: 'Plank Hold',      icon: 'fitness-outline',          key: 'plank',         sets: '3×45s',target: 'Core' },
+    { name: 'Air Squat',       icon: 'walk-outline',             key: 'squat',         sets: '3×20', target: 'Full Body' },
+    { name: 'Glute Bridge',    icon: 'arrow-up-outline',         key: 'squat',         sets: '3×20', target: 'Glutes' },
+  ],
+};
 
 // ── Fatigue → color / label ──────────────────────────────────
 function fatigueColor(pct) {
@@ -237,11 +279,16 @@ const BODY_SPOTS = [
 ];
 
 // ── Body Silhouette SVG ──────────────────────────────────────
-function BodySilhouette({ fatigueMap }) {
+function BodySilhouette({ fatigueMap, selectedMuscle, onMusclePress }) {
   const colorOf = (muscleId) => {
+    if (selectedMuscle && muscleId !== selectedMuscle) return 'rgba(255,255,255,0.04)';
     const entry = fatigueMap[muscleId];
-    if (!entry) return UNTRAINED;
+    if (!entry) return selectedMuscle === muscleId ? C.lime : UNTRAINED;
     return fatigueColor(entry.fatigue_pct);
+  };
+  const opacityOf = (muscleId) => {
+    if (selectedMuscle && muscleId !== selectedMuscle) return 0.3;
+    return colorOf(muscleId) === UNTRAINED ? 0.6 : 0.9;
   };
 
   return (
@@ -257,12 +304,13 @@ function BodySilhouette({ fatigueMap }) {
       <Rect x={63} y={136} width={26} height={72} rx={13} fill="#1A1538" stroke="#2A2550" strokeWidth={1} />
       <Rect x={33} y={205} width={22} height={55} rx={11} fill="#1A1538" stroke="#2A2550" strokeWidth={1} />
       <Rect x={65} y={205} width={22} height={55} rx={11} fill="#1A1538" stroke="#2A2550" strokeWidth={1} />
-      {BODY_SPOTS.map((s, i) => (
+      {BODY_SPOTS.map((spot, i) => (
         <Ellipse
           key={i}
-          cx={s.cx} cy={s.cy} rx={s.rx} ry={s.ry}
-          fill={colorOf(s.id)}
-          opacity={colorOf(s.id) === UNTRAINED ? 0.6 : 0.75}
+          cx={spot.cx} cy={spot.cy} rx={spot.rx} ry={spot.ry}
+          fill={colorOf(spot.id)}
+          opacity={opacityOf(spot.id)}
+          onPress={() => onMusclePress?.(spot.id === selectedMuscle ? null : spot.id)}
         />
       ))}
       <Circle cx={55} cy={15} r={2} fill="rgba(255,255,255,0.15)" />
@@ -272,30 +320,45 @@ function BodySilhouette({ fatigueMap }) {
   );
 }
 
-// ── Machine Card ─────────────────────────────────────────────
+// ── Equipment Floor Card (Netflix-style) ─────────────────────
 function MachineCard({ machine, onPress }) {
   return (
-    <TouchableOpacity
-      style={s.machineCard}
-      onPress={() => onPress(machine)}
-      activeOpacity={0.82}
-    >
-      {/* Lime glow behind icon */}
-      <View style={s.machineIconWrap}>
-        <Ionicons
-          name={machine.icon}
-          size={32}
-          color={C.lime}
-          style={{ shadowColor: C.lime, shadowOpacity: 0.9, shadowRadius: 14 }}
-        />
+    <TouchableOpacity style={s.machineCard} onPress={() => onPress(machine)} activeOpacity={0.82}>
+      {machine.imageUrl ? (
+        <Image source={{ uri: machine.imageUrl }} style={s.machineCardBg} resizeMode="cover" />
+      ) : (
+        <LinearGradient colors={['#1A1535', '#0F0B1E']} style={s.machineCardBg} />
+      )}
+      {/* Scrim */}
+      <LinearGradient
+        colors={['rgba(0,0,0,0.05)', 'rgba(8,4,24,0.92)']}
+        style={[s.machineCardBg, { position: 'absolute' }]}
+      />
+      {/* Gym / Home badge */}
+      <View style={[s.floorBadge, machine.isHome ? s.floorBadgeHome : s.floorBadgeGym]}>
+        <Ionicons name={machine.isHome ? 'home-outline' : 'barbell-outline'} size={9} color="#fff" />
+        <Text style={s.floorBadgeTxt}>{machine.isHome ? 'HOME' : 'GYM'}</Text>
       </View>
-      <Text style={s.machineName}>{machine.name}</Text>
-      <Text style={s.machineMuscle}>{machine.primaryMuscle}</Text>
-      <View style={s.machineAiBadge}>
-        <Ionicons name="sparkles" size={9} color={C.lime} />
-        <Text style={s.machineAiTxt}> AI READY</Text>
+      {/* Icon center */}
+      <View style={s.machineIconWrap}>
+        <Ionicons name={machine.icon} size={26} color={C.lime} />
+      </View>
+      {/* Bottom text */}
+      <View style={s.machineCardBottom}>
+        <Text style={s.machineName}>{machine.name}</Text>
+        <Text style={s.machineMuscle}>{machine.primaryMuscle}</Text>
       </View>
     </TouchableOpacity>
+  );
+}
+
+// ── Uniform Section Header ────────────────────────────────────
+function SectionHeader({ title, sub }) {
+  return (
+    <View style={s.sectionHeader}>
+      <Text style={s.sectionHeaderTxt}>{title}</Text>
+      {sub ? <Text style={s.sectionHeaderSub}>{sub}</Text> : null}
+    </View>
   );
 }
 
@@ -463,25 +526,146 @@ export default function Training({ navigation }) {
   const [weekDays,       setWeekDays]       = useState(Array(7).fill(false));
   const [streakCount,    setStreakCount]     = useState(0);
   const [recoveryPct,    setRecoveryPct]    = useState(100);
-  const [selectedMachine, setSelectedMachine] = useState(null);
-  const [modalVisible,    setModalVisible]    = useState(false);
+  const [selectedMachine,  setSelectedMachine]  = useState(null);
+  const [modalVisible,     setModalVisible]     = useState(false);
+  const [overloadTip,      setOverloadTip]      = useState(null);
+  const [nutritionTip,     setNutritionTip]     = useState(null);
+  const [selectedMuscle,   setSelectedMuscle]   = useState(null);
+  const [environment,      setEnvironment]      = useState('gym');  // 'gym' | 'home'
+  const [todayPlan,        setTodayPlan]        = useState([]);
+  const machineScrollRef = useRef(null);
+  const [recommendation,   setRecommendation]   = useState({
+    title: 'Full Body\nStrength', duration: '25 min', kcal: '280 kcal',
+    focus: 'Strength Focus', exerciseKey: 'squat',
+    reason: '"Based on your current fitness status — let\'s push today."',
+  });
 
   const loadData = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // ── 0. Environment preference from profiles ───────────
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('environment')
+        .eq('id', user.id)
+        .maybeSingle();
+      if (profile?.environment) setEnvironment(profile.environment);
+
+      // ── 1. Muscle fatigue ──────────────────────────────────
       const rows = await getMuscleFatigue(user.id);
       const map = {};
       rows.forEach(r => { map[r.muscle_name] = r; });
       setFatigueMap(map);
       setFatigueList(rows);
-      setRecoveryPct(
-        rows.length === 0
-          ? 100
-          : Math.round(rows.reduce((s, m) => s + (100 - m.fatigue_pct), 0) / rows.length)
-      );
+      const recPct = rows.length === 0
+        ? 100
+        : Math.round(rows.reduce((s, m) => s + (100 - m.fatigue_pct), 0) / rows.length);
+      setRecoveryPct(recPct);
 
+      // ── 2. Sleep today ─────────────────────────────────────
+      const TODAY_STR = new Date().toISOString().split('T')[0];
+      const { data: activityRow } = await supabase
+        .from('daily_activity')
+        .select('sleep_hours')
+        .eq('user_id', user.id)
+        .eq('date', TODAY_STR)
+        .maybeSingle();
+      const sleepHours = activityRow?.sleep_hours ?? null;
+
+      // ── 3. Smart recommendation logic ──────────────────────
+      const topFatigued = rows.find(m => m.fatigue_pct >= 70);
+      const lowSleep    = sleepHours !== null && sleepHours < 6;
+
+      if (lowSleep) {
+        setRecommendation({
+          title: 'Recovery &\nMobility',
+          duration: '18 min', kcal: '120 kcal', focus: 'Active Recovery',
+          exerciseKey: 'plank',
+          reason: `"Only ${sleepHours}h of sleep detected. Low-intensity mobility will help you recover faster."`,
+        });
+      } else if (topFatigued) {
+        const muscle = topFatigued.muscle_name;
+        const isLower = ['Quads','Hamstrings','Glutes','Calves'].includes(muscle);
+        setRecommendation({
+          title: isLower ? 'Upper Body\nFocus' : 'Lower Body\nFocus',
+          duration: '22 min', kcal: '210 kcal',
+          focus: isLower ? 'Upper Body' : 'Lower Body',
+          exerciseKey: isLower ? 'shoulderPress' : 'squat',
+          reason: `"Your ${muscle} are at ${topFatigued.fatigue_pct}% fatigue. Switching to ${isLower ? 'upper body' : 'lower body'} today is the smart move."`,
+        });
+      } else {
+        setRecommendation({
+          title: 'Full Body\nStrength',
+          duration: '25 min', kcal: '280 kcal', focus: 'Strength Focus',
+          exerciseKey: 'squat',
+          reason: '"All muscles are fresh and recovery is strong — push hard today."',
+        });
+      }
+
+      // ── 3b. Build Today's Plan from recommendation focus ──
+      const planKey = lowSleep ? 'recovery'
+        : topFatigued
+          ? (['Quads','Hamstrings','Glutes','Calves'].includes(topFatigued.muscle_name) ? 'upper' : 'lower')
+          : 'strength';
+      const circuit = PLAN_CIRCUITS[planKey] || PLAN_CIRCUITS.strength;
+
+      // Fetch previous best for each circuit exercise
+      const planWithBests = await Promise.all(circuit.map(async (ex) => {
+        const { data: prev } = await supabase
+          .from('workout_sessions')
+          .select('notes, created_at')
+          .eq('user_id', user.id)
+          .ilike('notes', `%${ex.key}%`)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        const note = prev?.[0]?.notes || '';
+        const repM = note.match(/(\d+)\s*reps/i);
+        const formM = note.match(/(\d+)%\s*form/i);
+        return {
+          ...ex,
+          prevReps: repM ? parseInt(repM[1]) : null,
+          prevForm: formM ? parseInt(formM[1]) : null,
+        };
+      }));
+      setTodayPlan(planWithBests);
+
+      // ── 4. Progressive overload: last 2 sessions for recommended exercise ──
+      let chosenKey = 'squat';
+      if (lowSleep) chosenKey = 'plank';
+      else if (topFatigued) {
+        const isLower = ['Quads','Hamstrings','Glutes','Calves'].includes(topFatigued.muscle_name);
+        chosenKey = isLower ? 'shoulderPress' : 'squat';
+      }
+
+      const { data: pastSessions } = await supabase
+        .from('workout_sessions')
+        .select('notes, created_at')
+        .eq('user_id', user.id)
+        .ilike('notes', `%${chosenKey}%`)
+        .order('created_at', { ascending: false })
+        .limit(2);
+
+      if (pastSessions && pastSessions.length > 0) {
+        const last = pastSessions[0];
+        const formMatch = last.notes?.match(/(\d+)%\s*form/i);
+        const repMatch  = last.notes?.match(/(\d+)\s*reps/i);
+        const lastForm  = formMatch ? parseInt(formMatch[1]) : null;
+        const lastReps  = repMatch  ? parseInt(repMatch[1])  : null;
+
+        if (lastForm !== null && lastForm >= 85) {
+          setOverloadTip(`Form was ${lastForm}%${lastReps ? ` for ${lastReps} reps` : ''} last time — add 2.5kg today for progressive overload!`);
+        } else if (lastForm !== null && lastForm < 60) {
+          setOverloadTip(`Form was ${lastForm}% last time — focus on technique before adding weight.`);
+        } else {
+          setOverloadTip(null);
+        }
+      } else {
+        setOverloadTip(null);
+      }
+
+      // ── 5. This week's dots (Mon–Sun) ──────────────────────
       const today = new Date();
       const dow = today.getDay();
       const monday = new Date(today);
@@ -497,16 +681,64 @@ export default function Training({ navigation }) {
         .gte('created_at', monday.toISOString())
         .lt('created_at', sunday.toISOString());
 
-      const doneSet = new Set(
+      const weekDoneSet = new Set(
         (sessions ?? []).map(s => new Date(s.created_at).toISOString().split('T')[0])
       );
       const days = Array.from({ length: 7 }, (_, i) => {
         const d = new Date(monday);
         d.setDate(monday.getDate() + i);
-        return doneSet.has(d.toISOString().split('T')[0]);
+        return weekDoneSet.has(d.toISOString().split('T')[0]);
       });
       setWeekDays(days);
-      setStreakCount(days.filter(Boolean).length);
+
+      // ── 5. True consecutive streak ─────────────────────────
+      const { data: allSessions } = await supabase
+        .from('workout_sessions')
+        .select('created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      const allDates = new Set(
+        (allSessions ?? []).map(s => new Date(s.created_at).toISOString().split('T')[0])
+      );
+
+      let streak = 0;
+      const cursor = new Date();
+      cursor.setHours(0, 0, 0, 0);
+      // Allow streak to include today OR start from yesterday
+      if (!allDates.has(cursor.toISOString().split('T')[0])) {
+        cursor.setDate(cursor.getDate() - 1);
+      }
+      while (allDates.has(cursor.toISOString().split('T')[0])) {
+        streak++;
+        cursor.setDate(cursor.getDate() - 1);
+      }
+      setStreakCount(streak);
+
+      // ── 7. High-protein meal tip from today's food logs ────
+      const { data: foodLogs } = await supabase
+        .from('food_logs')
+        .select('quantity_grams, foods(protein_per_100g, name)')
+        .eq('user_id', user.id)
+        .gte('consumed_at', `${TODAY_STR}T00:00:00.000Z`)
+        .lte('consumed_at', `${TODAY_STR}T23:59:59.999Z`);
+
+      if (foodLogs && foodLogs.length > 0) {
+        const totalProtein = foodLogs.reduce((sum, log) => {
+          const p = log.foods?.protein_per_100g || 0;
+          const q = log.quantity_grams || 100;
+          return sum + Math.round(p * q / 100);
+        }, 0);
+        if (totalProtein >= 30) {
+          setNutritionTip(`You've already hit ${totalProtein}g of protein today — muscles are fuelled. Push hard!`);
+        } else if (totalProtein > 0) {
+          setNutritionTip(`${totalProtein}g protein logged today. Aim for more before training for better recovery.`);
+        } else {
+          setNutritionTip(null);
+        }
+      } else {
+        setNutritionTip(null);
+      }
 
     } catch (e) {
       console.warn('[BodyQ] Training fetch:', e);
@@ -517,9 +749,24 @@ export default function Training({ navigation }) {
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
-  const handleNav = (screen) => { if (screen) navigation.navigate(screen); };
+  const toggleEnvironment = useCallback(async (env) => {
+    setEnvironment(env);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      await supabase.from('profiles').update({ environment: env }).eq('id', user.id);
+    } catch (e) { /* non-critical */ }
+  }, []);
 
-  const topFatigued = fatigueList.find(m => m.fatigue_pct >= 70);
+  const handleMusclePress = useCallback((muscleId) => {
+    setSelectedMuscle(muscleId);
+    // Auto-scroll machine hub into view
+    if (muscleId && machineScrollRef.current) {
+      machineScrollRef.current.scrollTo({ x: 0, animated: true });
+    }
+  }, []);
+
+  const topMuscle = fatigueList[0]; // most fatigued overall (for Yara card)
 
   const openMachineModal = useCallback((machine) => {
     setSelectedMachine(machine);
@@ -541,23 +788,34 @@ export default function Training({ navigation }) {
     <View style={s.root}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
 
-        {/* ── HEADER ── */}
+        {/* ────────────── HEADER ────────────── */}
         <Reanimated.View entering={FadeInDown.delay(0).springify()} style={s.header}>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={s.greeting}>{greeting},</Text>
-            <Text style={s.subGreeting}>Your studio is ready.</Text>
+            <Text style={s.subGreeting}>Training Command Center</Text>
           </View>
-          <View style={[s.recoveryBadge, SHADOW]}>
-            <Text style={s.recoveryNum}>{recoveryPct}%</Text>
-            <Text style={s.recoveryLabel}>RECOVERY</Text>
+          <View style={s.headerChips}>
+            <View style={s.liveChip}>
+              <Ionicons name="flame" size={11} color={C.lime} />
+              <Text style={s.liveChipTxt}>{streakCount > 0 ? `${streakCount}d` : '—'}</Text>
+            </View>
+            <View style={[s.liveChip, { borderColor: 'rgba(124,92,252,0.35)', backgroundColor: 'rgba(124,92,252,0.1)' }]}>
+              <Ionicons name="battery-charging-outline" size={11} color={C.accent} />
+              <Text style={[s.liveChipTxt, { color: C.accent }]}>{recoveryPct}%</Text>
+            </View>
           </View>
         </Reanimated.View>
 
-        {/* ── HERO CARD ── */}
-        <Reanimated.View entering={FadeInDown.delay(100).springify()}>
+        {/* ══════════════════════════════════════
+            §1  THE DAILY BLUEPRINT
+        ══════════════════════════════════════ */}
+        <Reanimated.View entering={FadeInDown.delay(50).springify()}>
+          <SectionHeader title="THE DAILY BLUEPRINT" sub="AI-driven program" />
+
+          {/* Hero Card */}
           <TouchableOpacity
             activeOpacity={0.9}
-            onPress={() => navigation.navigate('WorkoutActive', { exerciseName: 'squat' })}
+            onPress={() => navigation.navigate('WorkoutActive', { exerciseName: recommendation.exerciseKey })}
           >
             <LinearGradient
               colors={[C.purple, C.purpleD, '#1A0E4F']}
@@ -565,17 +823,31 @@ export default function Training({ navigation }) {
               style={[s.heroCard, SHADOW]}
             >
               <View style={s.heroAccentLine} />
+
+              {/* Environment badge — top right, tappable */}
+              <TouchableOpacity
+                style={s.envBadge}
+                onPress={(e) => { e.stopPropagation?.(); toggleEnvironment(environment === 'gym' ? 'home' : 'gym'); }}
+                activeOpacity={0.75}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name={environment === 'gym' ? 'barbell-outline' : 'home-outline'} size={11} color={C.lime} />
+                <Text style={s.envBadgeTxt}>
+                  {environment === 'gym' ? 'Full Gym' : 'Home'}
+                </Text>
+              </TouchableOpacity>
+
               <View style={s.heroBadge}>
                 <Ionicons name="sparkles" size={10} color={C.lime} />
                 <Text style={s.heroBadgeTxt}>  AI RECOMMENDED</Text>
               </View>
-              <Text style={s.heroLabel}>TODAY'S PROGRAM</Text>
-              <Text style={s.heroTitle}>Hyper-Mobility{'\n'}Reset</Text>
+              <Text style={s.heroLabel}>DAILY BLUEPRINT</Text>
+              <Text style={s.heroTitle}>{recommendation.title}</Text>
               <View style={s.heroMeta}>
                 {[
-                  { icon: 'time-outline',  val: '18 min' },
-                  { icon: 'flame-outline', val: '240 kcal' },
-                  { icon: 'body-outline',  val: 'Posture Focus' },
+                  { icon: 'time-outline',  val: recommendation.duration },
+                  { icon: 'flame-outline', val: recommendation.kcal },
+                  { icon: 'body-outline',  val: recommendation.focus },
                 ].map((m, i) => (
                   <View key={i} style={s.metaChip}>
                     <Ionicons name={m.icon} size={11} color="rgba(255,255,255,0.6)" />
@@ -583,210 +855,298 @@ export default function Training({ navigation }) {
                   </View>
                 ))}
               </View>
+              {overloadTip && (
+                <View style={s.overloadBadge}>
+                  <Ionicons name="trending-up" size={11} color="#000" />
+                  <Text style={s.overloadBadgeTxt}>{overloadTip}</Text>
+                </View>
+              )}
               <View style={s.heroFooter}>
-                <Text style={s.heroLogic}>"Based on your 6h sleep &{'\n'}4h desk session today."</Text>
+                <Text style={s.heroLogic}>{recommendation.reason}</Text>
                 <View style={s.playCircle}>
                   <Ionicons name="play" size={22} color="#000" />
                 </View>
               </View>
             </LinearGradient>
           </TouchableOpacity>
+
+          {/* Today's Plan — 3-circuit scroll */}
+          {todayPlan.length > 0 && (
+            <View style={s.planWrap}>
+              <View style={s.planLabelRow}>
+                <Text style={s.planLabel}>TODAY'S CIRCUIT</Text>
+                <View style={s.planCircuitBadge}><Text style={s.planCircuitTxt}>3 EXERCISES</Text></View>
+              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={s.planScroll}
+                decelerationRate="fast"
+                snapToInterval={192}
+              >
+                {todayPlan.map((ex, i) => (
+                  <TouchableOpacity
+                    key={i}
+                    style={s.planCard}
+                    onPress={() => navigation.navigate('WorkoutActive', { exerciseName: ex.key })}
+                    activeOpacity={0.85}
+                  >
+                    <BlurView intensity={18} tint="dark" style={StyleSheet.absoluteFillObject} />
+                    <View style={[s.planBorderOverlay, i === 0 && s.planBorderActive]} />
+                    <View style={s.planCardNum}>
+                      <Text style={s.planCardNumTxt}>{i + 1}</Text>
+                    </View>
+                    <View style={s.planIconCircle}>
+                      <Ionicons name={ex.icon} size={22} color={i === 0 ? C.lime : C.accent} />
+                    </View>
+                    <Text style={s.planExName}>{ex.name}</Text>
+                    <Text style={s.planTarget}>{ex.target}</Text>
+                    <View style={s.planSetsRow}>
+                      <Ionicons name="repeat-outline" size={11} color="rgba(255,255,255,0.4)" />
+                      <Text style={s.planSets}>{ex.sets}</Text>
+                    </View>
+                    {ex.prevReps !== null && (
+                      <View style={s.planPrevBest}>
+                        <Ionicons name="trophy-outline" size={9} color={C.lime} />
+                        <Text style={s.planPrevBestTxt}>
+                          Last: {ex.prevReps} reps{ex.prevForm ? ` · ${ex.prevForm}%` : ''}
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
         </Reanimated.View>
 
-        {/* ── RECOVERY STATUS ── */}
-        <Reanimated.View entering={FadeInDown.delay(150).springify()}>
-          <View style={s.sectionRow}>
-            <Text style={s.sectionTitle}>Recovery Status</Text>
-            <Text style={s.sectionSub}>Last 48 hrs</Text>
-          </View>
+        {/* ══════════════════════════════════════
+            §2  BODY RECOVERY ARCHITECT
+        ══════════════════════════════════════ */}
+        <Reanimated.View entering={FadeInDown.delay(120).springify()}>
+          <SectionHeader title="BODY RECOVERY ARCHITECT" sub="Last 48 hrs" />
 
-          <View style={[s.heatmapCard, SHADOW]}>
-            <View style={s.heatmapBody}>
-              <BodySilhouette fatigueMap={fatigueMap} />
-            </View>
-            <View style={s.heatmapList}>
-              {fatigueLoading ? (
-                <Text style={s.heatmapLoading}>Syncing...</Text>
-              ) : fatigueList.length === 0 ? (
-                <>
-                  <Text style={s.heatmapEmpty}>No workout{'\n'}data yet.</Text>
-                  <Text style={s.heatmapEmptySub}>All muscles{'\n'}are fresh!</Text>
-                </>
-              ) : (
-                fatigueList.slice(0, 6).map((m) => {
-                  const col = fatigueColor(m.fatigue_pct);
-                  return (
-                    <View key={m.muscle_name} style={s.muscleRow}>
-                      <View style={[s.muscleDot, { backgroundColor: col }]} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={s.muscleName}>{m.muscle_name}</Text>
-                        <View style={s.muscleBarBg}>
-                          <View
-                            style={[
-                              s.muscleBarFill,
-                              {
-                                width: `${m.fatigue_pct}%`,
-                                backgroundColor: col,
-                                shadowColor: col,
-                                shadowOpacity: 0.7,
-                                shadowRadius: 6,
-                                elevation: 4,
-                              },
-                            ]}
-                          />
+          {/* Glass heatmap card */}
+          <View style={[s.glassCard, SHADOW]}>
+            <BlurView intensity={22} tint="dark" style={StyleSheet.absoluteFillObject} />
+            <View style={s.glassCardBorder} pointerEvents="none" />
+            <View style={s.heatmapInner}>
+              <View style={s.heatmapBody}>
+                <BodySilhouette
+                  fatigueMap={fatigueMap}
+                  selectedMuscle={selectedMuscle}
+                  onMusclePress={handleMusclePress}
+                />
+                {selectedMuscle && (
+                  <TouchableOpacity onPress={() => setSelectedMuscle(null)} style={s.clearMuscleBtn}>
+                    <Text style={s.clearMuscleTxt}>✕ {selectedMuscle}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              <View style={s.heatmapList}>
+                {fatigueLoading ? (
+                  <Text style={s.heatmapLoading}>Syncing...</Text>
+                ) : fatigueList.length === 0 ? (
+                  <>
+                    <Text style={s.heatmapEmpty}>No workout{'\n'}data yet.</Text>
+                    <Text style={s.heatmapEmptySub}>All muscles{'\n'}are fresh!</Text>
+                  </>
+                ) : (
+                  fatigueList.slice(0, 6).map((m) => {
+                    const col = fatigueColor(m.fatigue_pct);
+                    const isActive = selectedMuscle === m.muscle_name;
+                    return (
+                      <TouchableOpacity
+                        key={m.muscle_name}
+                        style={[s.muscleRow, isActive && s.muscleRowActive]}
+                        onPress={() => handleMusclePress(isActive ? null : m.muscle_name)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={[s.muscleDot, { backgroundColor: col }]} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={[s.muscleName, isActive && { color: C.lime }]}>{m.muscle_name}</Text>
+                          <View style={s.muscleBarBg}>
+                            <View style={[s.muscleBarFill, { width: `${m.fatigue_pct}%`, backgroundColor: col }]} />
+                          </View>
                         </View>
-                      </View>
-                      <Text style={[s.muscleTag, { color: col }]}>{fatigueLabel(m.fatigue_pct)}</Text>
+                        <Text style={[s.muscleTag, { color: col }]}>{fatigueLabel(m.fatigue_pct)}</Text>
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
+                <View style={s.legend}>
+                  {[{ color: C.lime, label: 'Fresh' }, { color: '#FF9500', label: 'Sore' }, { color: C.purple, label: 'Fatigued' }].map(l => (
+                    <View key={l.label} style={s.legendItem}>
+                      <View style={[s.legendDot, { backgroundColor: l.color }]} />
+                      <Text style={s.legendTxt}>{l.label}</Text>
                     </View>
-                  );
-                })
-              )}
-              <View style={s.legend}>
-                {[
-                  { color: C.lime,    label: 'Fresh'    },
-                  { color: '#FF9500', label: 'Sore'     },
-                  { color: C.purple,  label: 'Fatigued' },
-                ].map(l => (
-                  <View key={l.label} style={s.legendItem}>
-                    <View style={[s.legendDot, { backgroundColor: l.color }]} />
-                    <Text style={s.legendTxt}>{l.label}</Text>
-                  </View>
-                ))}
+                  ))}
+                </View>
               </View>
             </View>
           </View>
 
+          {/* Yara Insight */}
           {fatigueList.length > 0 && (
-            <LinearGradient
-              colors={['#7C5CFC', '#4A2FC8']}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-              style={[s.yaraCard, SHADOW]}
-            >
+            <View style={[s.glassCard, s.yaraGlass, SHADOW]}>
+              <BlurView intensity={22} tint="dark" style={StyleSheet.absoluteFillObject} />
+              <LinearGradient
+                colors={['rgba(124,92,252,0.18)', 'rgba(74,47,200,0.08)']}
+                style={StyleSheet.absoluteFillObject}
+              />
+              <View style={s.glassCardBorder} pointerEvents="none" />
               <View style={s.yaraHeader}>
                 <Text style={s.yaraTitle}>YARA INSIGHT</Text>
                 <View style={s.yaraLiveDot} />
               </View>
-              <Text style={s.yaraText}>
-                {topFatigued
-                  ? `"Your ${topFatigued.muscle_name} are at ${topFatigued.fatigue_pct}% fatigue. I recommend ${topFatigued.fatigue_pct >= 70 ? 'a rest day or Upper Body' : 'lighter work'} for your next session."`
-                  : `"All muscles are recovering well. You're ready for a full session today!"`}
-              </Text>
-            </LinearGradient>
-          )}
-        </Reanimated.View>
-
-        {/* ── 7-DAY STREAK ── */}
-        <Reanimated.View entering={FadeInDown.delay(200).springify()} style={[s.streakCard, SHADOW]}>
-          <View style={s.streakHeader}>
-            <Ionicons name="flame" size={16} color={C.lime} />
-            <Text style={s.streakTitle}>Consistency</Text>
-            <Text style={s.streakSub}>{streakCount} / 7 days</Text>
-          </View>
-          <View style={s.weekRow}>
-            {WEEK.map((day, i) => {
-              const done = weekDays[i];
-              return (
-                <View key={i} style={s.dayCol}>
-                  <View style={[s.dayDot, done && s.dayDotDone]}>
-                    {done && <Ionicons name="checkmark" size={11} color="#000" />}
-                  </View>
-                  <Text style={[s.dayLabel, done && s.dayLabelDone]}>{day}</Text>
+              {nutritionTip && (
+                <View style={s.nutritionTipRow}>
+                  <Ionicons name="nutrition-outline" size={12} color={C.lime} />
+                  <Text style={s.nutritionTipTxt}>{nutritionTip}</Text>
                 </View>
-              );
-            })}
-          </View>
-        </Reanimated.View>
-
-        {/* ── QUICK ACTIONS ── */}
-        <Reanimated.View entering={FadeInDown.delay(250).springify()} style={s.actionRow}>
-          {QUICK_ACTIONS.map((a, i) => (
-            <TouchableOpacity
-              key={i}
-              style={[s.actionBtn, SHADOW]}
-              onPress={() => handleNav(a.screen)}
-              activeOpacity={0.8}
-            >
-              <View style={s.actionIconWrap}>
-                <Ionicons name={a.icon} size={20} color={C.lime} />
-              </View>
-              <Text style={s.actionTxt}>{a.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </Reanimated.View>
-
-        {/* ══ MACHINE INTELLIGENCE HUB ══════════════════════════ */}
-        <Reanimated.View entering={FadeInDown.delay(290).springify()}>
-          <View style={s.sectionRow}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
-              <Text style={s.sectionTitle}>Machine Intelligence</Text>
-              <View style={s.hubBadge}>
-                <Text style={s.hubBadgeTxt}>HUB</Text>
-              </View>
+              )}
+              <Text style={s.yaraText}>
+                {topMuscle
+                  ? topMuscle.fatigue_pct >= 70
+                    ? `"Your ${topMuscle.muscle_name} are at ${topMuscle.fatigue_pct}% fatigue — danger zone. Skip direct loading, focus on antagonists."`
+                    : topMuscle.fatigue_pct >= 30
+                    ? `"Your ${topMuscle.muscle_name} are ${topMuscle.fatigue_pct}% fatigued. Train lighter — reduce weight 15–20% and prioritise form."`
+                    : `"${topMuscle.muscle_name} at ${topMuscle.fatigue_pct}% — ideal overload window. Push a little harder than last time."`
+                  : `"All muscle groups fully fresh. Today is a perfect max-effort session — your body is primed."`}
+              </Text>
             </View>
-            <Text style={s.sectionSub}>Tap any machine</Text>
-          </View>
+          )}
 
+          {/* Streak tracker */}
+          <View style={[s.glassCard, s.streakGlass, SHADOW]}>
+            <BlurView intensity={18} tint="dark" style={StyleSheet.absoluteFillObject} />
+            <View style={s.glassCardBorder} pointerEvents="none" />
+            <View style={s.streakHeader}>
+              <Ionicons name="flame" size={15} color={C.lime} />
+              <Text style={s.streakTitle}>Workout Streak</Text>
+              <Text style={s.streakSub}>{streakCount} day{streakCount !== 1 ? 's' : ''}</Text>
+            </View>
+            <View style={s.weekRow}>
+              {WEEK.map((day, i) => {
+                const done = weekDays[i];
+                return (
+                  <View key={i} style={s.dayCol}>
+                    <View style={[s.dayDot, done && s.dayDotDone]}>
+                      {done && <Ionicons name="checkmark" size={10} color="#000" />}
+                    </View>
+                    <Text style={[s.dayLabel, done && s.dayLabelDone]}>{day}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        </Reanimated.View>
+
+        {/* ══════════════════════════════════════
+            §3  THE EQUIPMENT FLOOR
+        ══════════════════════════════════════ */}
+        <Reanimated.View entering={FadeInDown.delay(190).springify()}>
+          <SectionHeader
+            title="THE EQUIPMENT FLOOR"
+            sub={selectedMuscle ? `Filtered: ${selectedMuscle}` : 'Gym + Home · Tap to explore'}
+          />
           <ScrollView
+            ref={(r) => { machineScrollRef.current = r; }}
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={s.machineScroll}
             decelerationRate="fast"
-            snapToInterval={148}
+            snapToInterval={156}
           >
-            {GYM_EQUIPMENT.map((machine) => (
+            {(selectedMuscle
+              ? COMBINED_EQUIPMENT.filter(m =>
+                  m.primaryMuscle.toLowerCase().includes(selectedMuscle.toLowerCase()))
+              : COMBINED_EQUIPMENT
+            ).map((item) => (
               <MachineCard
-                key={machine.id}
-                machine={machine}
-                onPress={openMachineModal}
+                key={item.id}
+                machine={item}
+                onPress={(m) => {
+                  if (m.isHome) {
+                    navigation.navigate('WorkoutActive', { exerciseName: m.exerciseKey });
+                  } else {
+                    openMachineModal(m);
+                  }
+                }}
               />
             ))}
           </ScrollView>
         </Reanimated.View>
 
-        {/* ── PERFORMANCE LIBRARY ── */}
-        <Reanimated.View entering={FadeInDown.delay(300).springify()} style={{ marginTop: 4 }}>
-          <View style={s.sectionRow}>
-            <Text style={s.sectionTitle}>Performance Library</Text>
-            <TouchableOpacity onPress={() => handleNav('ExerciseList')}>
-              <Text style={s.sectionLink}>View All</Text>
-            </TouchableOpacity>
-          </View>
-          <TouchableOpacity style={[s.libCard, SHADOW]} onPress={() => handleNav('ExerciseList')} activeOpacity={0.85}>
-            <LinearGradient
-              colors={['#1A1535', C.card]}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-              style={s.libGradient}
-            >
-              <View style={s.libIconBox}>
-                <Ionicons name="barbell-outline" size={28} color={C.lime} />
-              </View>
-              <View style={s.libInfo}>
-                <Text style={s.libMain}>Browse 1,300+ Exercises</Text>
-                <Text style={s.libSub}>Bodyweight · Barbell · Cable · Machine</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={C.lime} />
-            </LinearGradient>
-          </TouchableOpacity>
-        </Reanimated.View>
+        {/* ══════════════════════════════════════
+            §4  THE PERFORMANCE LAB
+        ══════════════════════════════════════ */}
+        <Reanimated.View entering={FadeInDown.delay(250).springify()}>
+          <SectionHeader title="THE PERFORMANCE LAB" sub="Tools & analytics" />
+          <View style={s.labGrid}>
 
-        {/* ── POSTURE AI CARD ── */}
-        <Reanimated.View entering={FadeInDown.delay(350).springify()} style={{ marginTop: 14 }}>
-          <TouchableOpacity activeOpacity={0.85} onPress={() => handleNav('PostureAI')}>
-            <View style={[s.postureCard, SHADOW]}>
-              <View style={s.postureLeft}>
-                <View style={s.postureIconBox}>
-                  <Ionicons name="scan-outline" size={26} color={C.purple} />
+            {/* Posture AI Scan */}
+            <TouchableOpacity
+              style={s.labCard}
+              onPress={() => navigation.navigate('WorkoutActive', { exerciseName: 'posture_check', mode: 'posture' })}
+              activeOpacity={0.82}
+            >
+              <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
+              <View style={s.glassCardBorder} pointerEvents="none" />
+              <LinearGradient colors={['rgba(124,92,252,0.2)', 'transparent']} style={StyleSheet.absoluteFillObject} />
+              <View style={s.labIconWrap}>
+                <Ionicons name="scan-outline" size={26} color={C.purple} />
+              </View>
+              <Text style={s.labCardTitle}>Posture AI Scan</Text>
+              <Text style={s.labCardSub}>Real-time form{'\n'}correction</Text>
+              <View style={s.labArrow}>
+                <Ionicons name="arrow-forward" size={13} color="#000" />
+              </View>
+            </TouchableOpacity>
+
+            {/* Exercise Library */}
+            <TouchableOpacity
+              style={s.labCard}
+              onPress={() => navigation.navigate('ExerciseList')}
+              activeOpacity={0.82}
+            >
+              <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
+              <View style={s.glassCardBorder} pointerEvents="none" />
+              <LinearGradient colors={['rgba(200,241,53,0.12)', 'transparent']} style={StyleSheet.absoluteFillObject} />
+              <View style={[s.labIconWrap, { borderColor: 'rgba(200,241,53,0.25)' }]}>
+                <Ionicons name="barbell-outline" size={26} color={C.lime} />
+              </View>
+              <Text style={s.labCardTitle}>Exercise Library</Text>
+              <Text style={s.labCardSub}>1,300+ exercises{'\n'}with AI form check</Text>
+              <View style={[s.labArrow, { backgroundColor: C.lime }]}>
+                <Ionicons name="arrow-forward" size={13} color="#000" />
+              </View>
+            </TouchableOpacity>
+
+            {/* Strength Analytics */}
+            <TouchableOpacity
+              style={[s.labCard, s.labCardWide]}
+              onPress={() => navigation.navigate('Insights')}
+              activeOpacity={0.82}
+            >
+              <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
+              <View style={s.glassCardBorder} pointerEvents="none" />
+              <LinearGradient colors={['rgba(157,133,245,0.15)', 'transparent']} style={StyleSheet.absoluteFillObject} />
+              <View style={s.labWideInner}>
+                <View style={[s.labIconWrap, { borderColor: 'rgba(157,133,245,0.3)', marginBottom: 0, marginRight: 14 }]}>
+                  <Ionicons name="analytics-outline" size={26} color={C.accent} />
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.postureTitle}>AI Posture Coach</Text>
-                  <Text style={s.postureSub}>Real-time form correction</Text>
+                <View>
+                  <Text style={s.labCardTitle}>Strength Analytics</Text>
+                  <Text style={s.labCardSub}>Volume · PRs · Trends</Text>
                 </View>
               </View>
-              <View style={s.postureArrow}>
-                <Ionicons name="arrow-forward" size={16} color="#000" />
+              <View style={[s.labArrow, { backgroundColor: C.accent, position: 'absolute', top: 16, right: 16 }]}>
+                <Ionicons name="arrow-forward" size={13} color="#000" />
               </View>
-            </View>
-          </TouchableOpacity>
+            </TouchableOpacity>
+
+          </View>
         </Reanimated.View>
 
         <View style={{ height: 100 }} />
@@ -809,7 +1169,7 @@ const s = StyleSheet.create({
   scroll: { paddingHorizontal: 20, paddingTop: 62, paddingBottom: 20 },
 
   // Header
-  header:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 },
+  header:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
   greeting:      { color: C.text, fontSize: 26, fontWeight: '900', letterSpacing: -0.5 },
   subGreeting:   { color: C.sub, fontSize: 14, marginTop: 2 },
   recoveryBadge: { backgroundColor: C.card, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, alignItems: 'center', borderWidth: 1.5, borderColor: C.lime },
@@ -827,7 +1187,11 @@ const s = StyleSheet.create({
   metaChip:       { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
   metaChipTxt:    { color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: '600' },
   heroFooter:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
-  heroLogic:      { color: 'rgba(255,255,255,0.55)', fontStyle: 'italic', fontSize: 12, lineHeight: 18, flex: 1 },
+  heroLogic:       { color: 'rgba(255,255,255,0.55)', fontStyle: 'italic', fontSize: 12, lineHeight: 18, flex: 1 },
+  overloadBadge:   { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#C8F135', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 10, alignSelf: 'flex-start' },
+  overloadBadgeTxt: { color: '#000', fontSize: 11, fontWeight: '800', flex: 1, flexShrink: 1 },
+  nutritionTipRow:  { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8, backgroundColor: 'rgba(200,241,53,0.07)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  nutritionTipTxt:  { color: C.lime, fontSize: 11, fontWeight: '600', flex: 1 },
   playCircle:     { width: 52, height: 52, backgroundColor: C.lime, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
 
   // Section row
@@ -843,10 +1207,11 @@ const s = StyleSheet.create({
   heatmapLoading: { color: C.sub, fontSize: 12, fontStyle: 'italic' },
   heatmapEmpty:   { color: C.text, fontSize: 13, fontWeight: '700', lineHeight: 18 },
   heatmapEmptySub:{ color: C.lime, fontSize: 11, marginTop: 4, lineHeight: 16 },
-  muscleRow:     { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  muscleRow:       { flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 3, paddingHorizontal: 4, borderRadius: 8 },
+  muscleRowActive: { backgroundColor: 'rgba(200,241,53,0.08)', borderRadius: 8 },
   muscleDot:     { width: 8, height: 8, borderRadius: 4 },
   muscleName:    { color: C.text, fontSize: 11, fontWeight: '700', marginBottom: 3 },
-  muscleBarBg:   { height: 4, backgroundColor: C.border, borderRadius: 2, overflow: 'visible' },
+  muscleBarBg:   { height: 4, backgroundColor: C.border, borderRadius: 2, overflow: 'hidden' },
   muscleBarFill: { height: 4, borderRadius: 2 },
   muscleTag:     { fontSize: 8, fontWeight: '900', letterSpacing: 0.5, minWidth: 52, textAlign: 'right' },
   legend:      { flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' },
@@ -885,35 +1250,30 @@ const s = StyleSheet.create({
   machineScroll:{ paddingHorizontal: 0, paddingBottom: 8, paddingRight: 20, gap: 12, flexDirection: 'row', marginBottom: 28 },
 
   machineCard: {
-    width: 136,
+    width: 148,
+    height: 180,
     backgroundColor: C.bg,
     borderRadius: 22,
-    padding: 16,
+    overflow: 'hidden',
     borderWidth: 1,
     borderColor: C.lime,
-    alignItems: 'center',
     ...SHADOW,
     shadowColor: C.lime,
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-  },
-  machineIconWrap: {
-    width: 60,
-    height: 60,
-    borderRadius: 18,
-    backgroundColor: 'rgba(200,241,53,0.07)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(200,241,53,0.22)',
-    shadowColor: C.lime,
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.18,
     shadowRadius: 12,
   },
-  machineName:   { color: C.text, fontSize: 12, fontWeight: '800', textAlign: 'center', marginBottom: 4 },
-  machineMuscle: { color: C.sub, fontSize: 10, textAlign: 'center', marginBottom: 10 },
-  machineAiBadge:{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(200,241,53,0.08)', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
+  machineIconWrap: {
+    position: 'absolute',
+    top: 40,
+    alignSelf: 'center',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  machineName:   { color: C.text, fontSize: 12, fontWeight: '800', marginBottom: 2 },
+  machineMuscle: { color: 'rgba(255,255,255,0.55)', fontSize: 9 },
+  machineAiBadge:{ position: 'absolute', top: 10, right: 10, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(200,241,53,0.18)', paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: 'rgba(200,241,53,0.4)' },
   machineAiTxt:  { color: C.lime, fontSize: 8, fontWeight: '900', letterSpacing: 0.8 },
 
   // ── Modal ────────────────────────────────────────────────
@@ -1035,4 +1395,106 @@ const s = StyleSheet.create({
   postureTitle:  { color: C.text, fontSize: 15, fontWeight: '700' },
   postureSub:    { color: C.sub, fontSize: 11, marginTop: 2 },
   postureArrow:  { width: 32, height: 32, borderRadius: 16, backgroundColor: C.lime, alignItems: 'center', justifyContent: 'center' },
+
+  liveChip:    { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(200,241,53,0.1)', borderWidth: 1, borderColor: 'rgba(200,241,53,0.25)', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 4 },
+  liveChipTxt: { color: C.lime, fontSize: 10, fontWeight: '800' },
+
+  // Environment Toggle
+  envToggleWrap: { flexDirection: 'row', backgroundColor: C.card, borderRadius: 14, padding: 4, marginBottom: 20, borderWidth: 1, borderColor: C.border, alignSelf: 'flex-start', gap: 2 },
+  envBtn:        { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 18, paddingVertical: 9, borderRadius: 10 },
+  envBtnActive:  { backgroundColor: C.lime },
+  envBtnTxt:     { color: C.sub, fontSize: 13, fontWeight: '700' },
+  envBtnTxtActive:{ color: '#000', fontWeight: '800' },
+
+  // Today's Plan
+  planCircuitBadge: { backgroundColor: 'rgba(124,92,252,0.15)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: 'rgba(124,92,252,0.3)' },
+  planCircuitTxt:   { color: C.accent, fontSize: 9, fontWeight: '900', letterSpacing: 1.2 },
+  planScroll:       { paddingBottom: 8, paddingRight: 20, gap: 10, flexDirection: 'row', marginBottom: 8 },
+  planCardNum:      { position: 'absolute', top: 10, right: 12, width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
+  planCardNumTxt:   { color: 'rgba(255,255,255,0.7)', fontSize: 10, fontWeight: '900' },
+  planIconCircle:   { width: 44, height: 44, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  planExName:       { color: C.text, fontSize: 13, fontWeight: '800', marginBottom: 2 },
+  planTarget:       { color: 'rgba(255,255,255,0.45)', fontSize: 9, marginBottom: 8 },
+  planSetsRow:      { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 8 },
+  planSets:         { color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: '600' },
+  planPrevBest:     { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(200,241,53,0.1)', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, alignSelf: 'flex-start' },
+  planPrevBestTxt:  { color: C.lime, fontSize: 9, fontWeight: '800' },
+
+  // Muscle filter
+  clearMuscleBtn: { marginTop: 6, alignSelf: 'center', backgroundColor: 'rgba(200,241,53,0.12)', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: 'rgba(200,241,53,0.3)' },
+  clearMuscleTxt: { color: C.lime, fontSize: 10, fontWeight: '800' },
+
+  // Netflix machine card
+  machineCardBg:     { ...StyleSheet.absoluteFillObject, borderRadius: 22 },
+  machineCardBottom: { position: 'absolute', bottom: 14, left: 12, right: 12 },
+
+  // ── Section Headers (unified) ────────────────────────────
+  sectionHeader:    { marginTop: 32, marginBottom: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(200,241,53,0.13)', paddingBottom: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
+  sectionHeaderTxt: { color: C.lime, fontSize: 11, fontWeight: '900', letterSpacing: 2.2 },
+  sectionHeaderSub: { color: C.sub, fontSize: 10, fontWeight: '600' },
+
+  // ── Header chips ─────────────────────────────────────────
+  headerChips:   { flexDirection: 'row', gap: 6 },
+
+  // ── Glassmorphism base card ───────────────────────────────
+  glassCard: {
+    borderRadius: 22,
+    overflow: 'hidden',
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: 'rgba(22,18,48,0.85)', // fallback for Android BlurView
+  },
+  glassCardBorder: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  heatmapInner:  { flexDirection: 'row', padding: 16 },
+  yaraGlass:     { marginTop: 2 },
+  streakGlass:   { marginTop: 2, padding: 18 },
+
+  // ── Environment badge (inside hero card) ─────────────────
+  envBadge:    { position: 'absolute', top: 16, right: 16, flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(200,241,53,0.14)', borderWidth: 1, borderColor: 'rgba(200,241,53,0.35)', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5 },
+  envBadgeTxt: { color: C.lime, fontSize: 10, fontWeight: '800' },
+
+  // ── Today's Plan (inside Blueprint) ──────────────────────
+  planWrap:         { marginTop: 14 },
+  planLabelRow:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  planLabel:        { color: 'rgba(255,255,255,0.4)', fontSize: 9, fontWeight: '900', letterSpacing: 1.8 },
+  planCard:         { width: 184, borderRadius: 22, overflow: 'hidden', ...SHADOW, shadowColor: C.purple, shadowOpacity: 0.22, padding: 16, minHeight: 170 },
+  planBorderOverlay:{ ...StyleSheet.absoluteFillObject, borderRadius: 22, borderWidth: 1, borderColor: 'rgba(255,255,255,0.09)' },
+  planBorderActive: { borderColor: 'rgba(200,241,53,0.4)' },
+
+  // ── Equipment Floor badge ─────────────────────────────────
+  floorBadge:     { position: 'absolute', top: 10, left: 10, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
+  floorBadgeGym:  { backgroundColor: 'rgba(124,92,252,0.55)' },
+  floorBadgeHome: { backgroundColor: 'rgba(200,241,53,0.45)' },
+  floorBadgeTxt:  { color: '#fff', fontSize: 8, fontWeight: '900', letterSpacing: 0.8 },
+
+  // ── Performance Lab ───────────────────────────────────────
+  labGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 8 },
+  labCard: {
+    width: (width - 50) / 2,
+    minHeight: 150,
+    borderRadius: 22,
+    overflow: 'hidden',
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    ...SHADOW,
+  },
+  labCardWide: { width: width - 40, minHeight: 72 },
+  labIconWrap: {
+    width: 48, height: 48, borderRadius: 14,
+    backgroundColor: 'rgba(124,92,252,0.15)',
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: 'rgba(124,92,252,0.3)',
+    marginBottom: 12,
+  },
+  labCardTitle: { color: C.text, fontSize: 14, fontWeight: '800', marginBottom: 4 },
+  labCardSub:   { color: C.sub, fontSize: 11, lineHeight: 16 },
+  labArrow: { position: 'absolute', bottom: 14, right: 14, width: 28, height: 28, borderRadius: 14, backgroundColor: C.purple, alignItems: 'center', justifyContent: 'center' },
+  labWideInner: { flexDirection: 'row', alignItems: 'center' },
 });

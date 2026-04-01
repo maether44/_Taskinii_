@@ -21,7 +21,6 @@ import {
   View,
 } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { useRoute, useNavigation } from '@react-navigation/native';
 
 import { useNutrition } from '../../hooks/useNutrition';
 import { useProfile } from '../../hooks/useProfile';
@@ -102,15 +101,12 @@ function ModeToggle({ mode, onChange }) {
 }
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
-export default function FoodScannerScreen() {
-  const route = useRoute();
-  const navigation = useNavigation();
-  const { params = {} } = route;
-  
-  const {
-    currentCalories = 0, currentProtein = 0, currentCarbs = 0, currentFat = 0,
-    goalCalories = 2000, goalProtein = 150, goalCarbs = 250, goalFat = 65,
-  } = params;
+export default function FoodScannerScreen({
+  onClose,
+  onLogged,
+  currentCalories = 0, currentProtein = 0, currentCarbs = 0, currentFat = 0,
+  goalCalories = 2000, goalProtein = 150, goalCarbs = 250, goalFat = 65,
+}) {
   const [mode, setMode] = useState("barcode");
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef(null);
@@ -138,26 +134,24 @@ export default function FoodScannerScreen() {
     } catch { }
   };
 
-  const onDismiss = () => { reset(); navigation.goBack(); };
+  const onDismiss = () => { reset(); bottomSheetRef.current?.close(); };
+  const onRetry = () => { reset(); };
 
   const handleLog = async (mealType = "snack") => {
-    if (!foodResult) {
-      console.error('ERROR: foodResult is null or undefined in handleLog');
-      return;
-    }
+    if (!foodResult) return;
     const success = await logScannedFood({
       mealType,
-      foodName: foodResult.name || 'Unknown',
+      foodName: foodResult.name,
       brand: foodResult.brand || "",
-      calories: foodResult.calories || 0,
-      protein: foodResult.protein || 0,
+      calories: foodResult.calories,
+      protein: foodResult.protein,
       carbs: foodResult.carbs,
       fat: foodResult.fat,
       fiber: foodResult.fiber || 0,
       quantity: foodResult.servingSize,
       barcode: foodResult.barcode || null,
     });
-    if (success) { navigation.goBack(); }
+    if (success) { onLogged && onLogged(); }
   };
 
   // Permission screens
@@ -201,7 +195,7 @@ export default function FoodScannerScreen() {
 
       {/* Header */}
       <View style={s.header}>
-        <TouchableOpacity style={s.iconBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+        <TouchableOpacity style={s.iconBtn} onPress={onClose} activeOpacity={0.8}>
           <Ionicons name="chevron-back" size={22} color="#fff" />
         </TouchableOpacity>
         <View style={{ alignItems: "center" }}>
@@ -274,6 +268,7 @@ export default function FoodScannerScreen() {
               }}
               onLog={handleLog}
               onDismiss={onDismiss}
+              onRetry={onRetry}
             />
           </BottomSheetScrollView>
         </BottomSheet>

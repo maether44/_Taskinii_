@@ -1,119 +1,57 @@
-import React from "react";
-import { View, Text, StyleSheet } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons } from "@expo/vector-icons";
+import { StyleSheet, Text, View } from 'react-native';
 
-export default function StatCard({
-  title,
-  value,
-  unit,
-  icon,
-  gradient,
-  percentage,
-}) {
+/**
+ * StatCard
+ * Props:
+ *   icon    string  — emoji
+ *   label   string  — bottom label
+ *   value   string  — big number/text
+ *   sub     string  — small text below value (optional)
+ *   delta   string  — e.g. "+12%" (optional)
+ *   up      bool    — delta direction for color
+ *   color   string  — icon bg tint
+ *   style   object  — extra container styles
+ */
+export default function StatCard({ icon, label, value, sub, delta, up, color = '#7C5CFC', style }) {
   return (
-    <View style={styles.cardContainer}>
-      <LinearGradient
-        colors={gradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.card}
-      >
-        <View style={styles.cardHeader}>
-          <View style={styles.iconContainer}>
-            <Ionicons name={icon} size={24} color="white" />
-          </View>
-          <Text style={styles.cardTitle}>{title}</Text>
+    <View style={[styles.card, style]}>
+      <View style={[styles.iconWrap, { backgroundColor: color + '20' }]}>
+        <Text style={styles.icon}>{icon}</Text>
+      </View>
+      <Text style={styles.value}>{value}</Text>
+      {sub && <Text style={styles.sub}>{sub}</Text>}
+      <Text style={styles.label}>{label}</Text>
+      {delta !== undefined && (
+        <View style={[styles.delta, up ? styles.deltaUp : styles.deltaDown]}>
+          <Text style={[styles.deltaText, up ? styles.deltaTextUp : styles.deltaTextDown]}>
+            {up ? '↑' : '↓'} {delta}
+          </Text>
         </View>
-
-        <View style={styles.cardBody}>
-          <Text style={styles.value}>{value}</Text>
-          <Text style={styles.unit}>{unit}</Text>
-        </View>
-
-        {percentage !== undefined && (
-          <View style={styles.progressContainer}>
-            <View style={styles.progressBar}>
-              <View
-                style={[styles.progressFill, { width: `${percentage}%` }]}
-              />
-            </View>
-            <Text style={styles.progressText}>{percentage}% of goal</Text>
-          </View>
-        )}
-      </LinearGradient>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  cardContainer: {
-    marginBottom: 5,
-  },
   card: {
-    borderRadius: 20,
-    padding: 20,
-    elevation: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
+    backgroundColor: '#181430',
+    borderRadius: 16, padding: 14,
+    borderWidth: 1, borderColor: '#251E42',
+    alignItems: 'flex-start',
   },
-  cardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 15,
+  iconWrap: {
+    width: 36, height: 36, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 10,
   },
-  iconContainer: {
-    width: 45,
-    height: 45,
-    borderRadius: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "white",
-    opacity: 0.95,
-  },
-  cardBody: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    marginBottom: 15,
-  },
-  value: {
-    fontSize: 36,
-    fontWeight: "bold",
-    color: "white",
-    marginRight: 8,
-  },
-  unit: {
-    fontSize: 18,
-    color: "white",
-    opacity: 0.8,
-  },
-  progressContainer: {
-    marginTop: 5,
-  },
-  progressBar: {
-    height: 8,
-    backgroundColor: "rgba(255, 255, 255, 0.3)",
-    borderRadius: 4,
-    overflow: "hidden",
-    marginBottom: 8,
-  },
-  progressFill: {
-    height: "100%",
-    backgroundColor: "white",
-    borderRadius: 4,
-  },
-  progressText: {
-    fontSize: 14,
-    color: "white",
-    opacity: 0.9,
-    fontWeight: "500",
-  },
+  icon:  { fontSize: 18 },
+  value: { color: '#fff', fontSize: 22, fontWeight: '800', letterSpacing: -0.5 },
+  sub:   { color: '#9D85F5', fontSize: 11, marginTop: 1 },
+  label: { color: '#6B5F8A', fontSize: 11, marginTop: 4 },
+  delta: { borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2, marginTop: 6 },
+  deltaUp:       { backgroundColor: '#34C75920' },
+  deltaDown:     { backgroundColor: '#FF3B3020' },
+  deltaText:     { fontSize: 10, fontWeight: '700' },
+  deltaTextUp:   { color: '#34C759' },
+  deltaTextDown: { color: '#FF3B30' },
 });
