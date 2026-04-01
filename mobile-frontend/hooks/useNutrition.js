@@ -24,11 +24,12 @@ export const MEAL_TYPE_MAP = {
 };
 
 export function useNutrition() {
-    const [loading, setLoading]     = useState(false);
-    const [goals, setGoals]         = useState(DEFAULT_GOALS);
-    const [foodLogs, setFoodLogs]   = useState([]);
-    const [waterMl, setWaterMl]     = useState(0);
-    const [userId, setUserId]       = useState(null);
+    const [loading, setLoading]         = useState(false);
+    const [goals, setGoals]             = useState(DEFAULT_GOALS);
+    const [foodLogs, setFoodLogs]       = useState([]);
+    const [waterMl, setWaterMl]         = useState(0);
+    const [caloriesBurned, setCaloriesBurned] = useState(0);
+    const [userId, setUserId]           = useState(null);
 
     // Local guest logs (when no auth)
     const [guestLogs, setGuestLogs] = useState([]);
@@ -76,12 +77,13 @@ export function useNutrition() {
 
             const { data: activity } = await supabase
                 .from("daily_activity")
-                .select("water_ml")
+                .select("water_ml, calories_burned")
                 .eq("user_id", userId)
                 .eq("date", TODAY)
                 .single();
 
             setWaterMl(activity?.water_ml || 0);
+            setCaloriesBurned(activity?.calories_burned || 0);
         } catch (e) {
             console.error("loadTodayData error:", e);
         } finally {
@@ -200,15 +202,16 @@ export function useNutrition() {
     return {
         loading,
         goals,
-        eaten:   totals.calories,
-        protein: totals.protein,
-        carbs:   totals.carbs,
-        fat:     totals.fat,
+        eaten:          totals.calories,
+        protein:        totals.protein,
+        carbs:          totals.carbs,
+        fat:            totals.fat,
         waterMl,
+        caloriesBurned,
         mealsBySlot,
-        foodLogs: allLogs,
+        foodLogs:       allLogs,
         logScannedFood,
         logWater,
-        refresh: loadTodayData,
+        refresh:        loadTodayData,
     };
 }

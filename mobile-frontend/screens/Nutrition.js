@@ -46,15 +46,17 @@ export default function Nutrition({ navigation }) {
     loading,
     goals,
     eaten, protein, carbs, fat, waterMl,
+    caloriesBurned,
     mealsBySlot,
     logWater,
     refresh,
-    logScannedFood,
   } = useNutrition();
 
-  const calRemaining = Math.max(goals.calorie_target - eaten, 0);
-  const calPct       = Math.min(eaten / goals.calorie_target, 1);
-  const over         = eaten > goals.calorie_target;
+  // Dynamic budget: base goal + calories burned from workouts today
+  const adjustedGoal = goals.calorie_target + (caloriesBurned || 0);
+  const calRemaining = Math.max(adjustedGoal - eaten, 0);
+  const calPct       = Math.min(eaten / adjustedGoal, 1);
+  const over         = eaten > adjustedGoal;
   const waterPct     = Math.min(waterMl / goals.water_target_ml, 1);
   const waterGlasses = Math.round(waterMl / 250);
   const waterGoalG   = Math.round(goals.water_target_ml / 250);
@@ -149,6 +151,17 @@ export default function Nutrition({ navigation }) {
         {/* ── CALORIE SUMMARY ─────────────────────────────────────────────── */}
         <View style={s.card}>
           <Text style={s.cardLabel}>CALORIES</Text>
+
+          {/* Workout bonus banner */}
+          {caloriesBurned > 0 && (
+            <View style={s.workoutBanner}>
+              <Ionicons name="flame" size={13} color={C.lime} />
+              <Text style={s.workoutBannerTxt}>
+                Workout added +{caloriesBurned} kcal to your budget today
+              </Text>
+            </View>
+          )}
+
           <View style={s.calRow}>
             <RingProgress size={100} stroke={9} progress={calPct} color={over ? C.red : C.lime}>
               <View style={{ alignItems: 'center' }}>
@@ -158,13 +171,13 @@ export default function Nutrition({ navigation }) {
             </RingProgress>
             <View style={s.calStats}>
               <View style={s.calStat}>
-                <Text style={s.calStatVal}>{goals.calorie_target}</Text>
-                <Text style={s.calStatLbl}>Goal</Text>
+                <Text style={s.calStatVal}>{adjustedGoal}</Text>
+                <Text style={s.calStatLbl}>Budget</Text>
               </View>
               <View style={s.calDivider} />
               <View style={s.calStat}>
                 <Text style={[s.calStatVal, { color: over ? C.red : C.lime }]}>
-                  {over ? `+${eaten - goals.calorie_target}` : calRemaining}
+                  {over ? `+${eaten - adjustedGoal}` : calRemaining}
                 </Text>
                 <Text style={s.calStatLbl}>{over ? 'Over' : 'Left'}</Text>
               </View>
@@ -329,7 +342,9 @@ const s = StyleSheet.create({
   calStatVal:  { color: C.text, fontSize: 18, fontWeight: '800' },
   calStatLbl:  { color: C.sub, fontSize: 11 },
   calDivider:  { height: 1, backgroundColor: C.border },
-  calBar:      { height: 6, backgroundColor: C.border, borderRadius: 3, overflow: 'hidden', marginTop: 16 },
+  calBar:          { height: 6, backgroundColor: C.border, borderRadius: 3, overflow: 'hidden', marginTop: 16 },
+  workoutBanner:   { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(200,241,53,0.08)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(200,241,53,0.2)' },
+  workoutBannerTxt:{ color: C.lime, fontSize: 11, fontWeight: '700', flex: 1 },
   calBarFill:  { height: 6, borderRadius: 3 },
 
   // Macros
