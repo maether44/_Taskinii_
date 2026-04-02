@@ -10,6 +10,9 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
 import { registerRootComponent } from "expo";
+import * as Notifications from "expo-notifications";
+import * as Device from "expo-device";
+import Constants from "expo-constants";
 
 // Context & Supabase
 import { supabase } from "./lib/supabase";
@@ -31,10 +34,19 @@ import FoodScannerScreen from "./components/food-scanner/FoodScannerScreen";
 import WorkoutSummary from "./screens/workout/WorkoutSummary";
 
 // Global Components
-import YaraAssistant from "./components/YaraAssistant";
 import AppTour from "./components/onBoarding/AppTour";
 
 SplashScreen.preventAutoHideAsync();
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
+
 const Stack = createStackNavigator();
 
 function getActiveRouteName(state) {
@@ -124,7 +136,7 @@ export default function App() {
             >
               <Navigation />
             </NavigationContainer>
-            {activeRoute !== 'WorkoutActive' && <YaraAssistant />}
+            {/* {activeRoute !== 'WorkoutActive' && <YaraAssistant />} */}
             <AppTour activeTab={activeTab} onTabPress={setActiveTab} showOnMount={true} />
           </View>
         </AuthProvider>
