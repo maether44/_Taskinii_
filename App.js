@@ -1,180 +1,160 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { View, StyleSheet, ActivityIndicator } from "react-native";
-import { StatusBar } from "expo-status-bar";
-import * as SplashScreen from "expo-splash-screen";
-import * as Font from "expo-font";
-import {
-  Outfit_400Regular,
-  Outfit_500Medium,
-  Outfit_600SemiBold,
-  Outfit_700Bold,
-} from "@expo-google-fonts/outfit";
-import { Inter_400Regular, Inter_600SemiBold } from "@expo-google-fonts/inter";
-import { SafeAreaProvider } from "react-native-safe-area-context";
-import { NavigationContainer } from "@react-navigation/native";
-import { createStackNavigator } from "@react-navigation/stack";
-import { registerRootComponent } from "expo";
+// App.js — BodyQ root
+// Uses flat navigate() pattern (no React Navigation) matching existing screens
 
-// Auth (Zeineb's)
-import { supabase } from "./mobile-frontend/lib/supabase";
-import { AuthProvider, useAuth } from "./mobile-frontend/context/AuthContext";
-import SignIn from "./mobile-frontend/auth/SignIn";
-import SignUp from "./mobile-frontend/auth/SignUp";
-import OnBoardingGoal from "./mobile-frontend/screens/OnBoardingGoal";
+import { registerRootComponent } from 'expo';
+import { useState } from 'react';
+import { StatusBar, StyleSheet, View } from 'react-native';
 
-// Navigation & Layout (Zeineb's)
-import NavBar from "./mobile-frontend/components/NavBar";
+import AppTour, { resetTour } from './components/AppTour';
+import NavBar from './components/NavBar';
+import YaraAssistant from './components/YaraAssistant';
 
-// Shared Screens - use Zeineb's versions as base
-import Profile from "./mobile-frontend/screens/Profile";
-import Nutrition from "./mobile-frontend/screens/Nutrition";
-import Training from "./mobile-frontend/screens/Training";
-import Insights from "./mobile-frontend/screens/Insights";
-import Home from "./mobile-frontend/screens/Home";
-import ExerciseInfo from "./mobile-frontend/screens/ExerciseInfo";
-import ExerciseCard from "./mobile-frontend/components/ExerciseCard";
+import Home     from './screens/Home';
+import Insights from './screens/Insights';
+import Nutrition from './screens/Nutrition';
+import PostureAI from './screens/PostureAI';
+import Profile  from './screens/Profile';
+import Training from './screens/Training';
 
-// Nutrition & Sleep & Workout (Zeineb's)
-import MealLogger from "./mobile-frontend/screens/nutrition/MealLogger";
-import FoodDetail from "./mobile-frontend/screens/nutrition/FoodDetail";
-import SleepLog from "./mobile-frontend/screens/sleep/SleepLog";
-import WorkoutActive from "./mobile-frontend/screens/workout/WorkoutActive";
-import WorkoutSummary from "./mobile-frontend/screens/workout/WorkoutSummary";
+import FoodScannerScreen from './components/FoodScanner/FoodScannerScreen';
+import MealLogger   from './screens/nutrition/MealLogger';
+import SleepLog     from './screens/sleep/SleepLog';
+import WorkoutActive  from './screens/workout/WorkoutActive';
+import WorkoutSummary from './screens/workout/WorkoutSummary';
+import OnboardingGoal from './screens/onboarding/OnboardingGoal';
 
-// Your unique screens & components
-import FoodScannerScreen from "./src/components/food-scanner/FoodScannerScreen";
-import PostureAI from "./src/screens/PostureAI";
-import YaraAssistant from "./src/components/ai-assistant/YaraAssistant";
-import AppTour, { resetTour } from "./src/components/tour/AppTour";
+export default function App() {
+  const [onboarded,    setOnboarded]    = useState(false);
+  const [userProfile,  setUserProfile]  = useState(null);
+  const [activeTab,    setActiveTab]    = useState('Home');
+  const [subScreen,    setSubScreen]    = useState(null);  // { screen, props }
+  const [tourKey,      setTourKey]      = useState(0);
 
-SplashScreen.preventAutoHideAsync();
+  const navigate = (screen, props = {}) => setSubScreen({ screen, props });
+  const goBack   = () => setSubScreen(null);
 
-const Stack = createStackNavigator();
-
-function Navigation({ userProfile }) {
-  const { user, isNewUser, loading } = useAuth();
-
-  if (loading) {
+  // ── Onboarding ──────────────────────────────────────────────────────────────
+  if (!onboarded) {
     return (
-      <View style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" color="#6F4BF2" />
+      <View style={s.root}>
+        <StatusBar barStyle="light-content" backgroundColor="#0A0814" />
+        <OnboardingGoal
+          onComplete={profile => {
+            setUserProfile(profile);
+            setOnboarded(true);
+          }}
+        />
       </View>
     );
   }
 
-  return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {!user ? (
-        // Not logged in → auth screens
-        <>
-          <Stack.Screen name="SignIn" component={SignIn} />
-          <Stack.Screen name="SignUp" component={SignUp} />
-        </>
-      ) : isNewUser ? (
-        // Onboarding
-        <Stack.Screen name="OnBoarding" component={OnBoardingGoal} />
-      ) : (
-        // Main app
-        <>
-          <Stack.Screen name="MainApp" component={NavBar} />
-          <Stack.Screen name="Home" component={Home} />
-          <Stack.Screen name="Profile" component={Profile} />
-          <Stack.Screen name="Nutrition" component={Nutrition} />
-          <Stack.Screen name="Training" component={Training} />
-          <Stack.Screen name="Insights" component={Insights} />
-          <Stack.Screen name="MealLogger" component={MealLogger} />
-          <Stack.Screen name="FoodDetail" component={FoodDetail} />
-          <Stack.Screen name="SleepLog" component={SleepLog} />
-          <Stack.Screen name="WorkoutActive" component={WorkoutActive} />
-          <Stack.Screen name="WorkoutSummary" component={WorkoutSummary} />
-          <Stack.Screen name="ExerciseCard" component={ExerciseCard} />
-          <Stack.Screen name="ExerciseInfo" component={ExerciseInfo} />
-          {/* Your unique screens */}
-          <Stack.Screen name="PostureAI" component={PostureAI} />
-          <Stack.Screen name="FoodScanner" component={FoodScannerScreen} />
-        </>
-      )}
-    </Stack.Navigator>
-  );
-}
+  // ── Sub-screens ─────────────────────────────────────────────────────────────
+  if (subScreen) {
+    const { screen, props } = subScreen;
 
-export default function App() {
-  const [appIsReady, setAppIsReady] = useState(false);
-  const [userProfile, setUserProfile] = useState(null);
-  const [tourKey, setTourKey] = useState(0);
-  const [activeTab, setActiveTab] = useState("Home");
+    if (screen === 'WorkoutActive') return (
+      <View style={s.root}>
+        <StatusBar barStyle="light-content" />
+        <WorkoutActive
+          workout={props.workout}
+          onFinish={result =>
+            navigate('WorkoutSummary', {
+              result,
+              workoutName: props.workout?.name,
+              workout: props.workout,
+            })
+          }
+        />
+      </View>
+    );
 
-  useEffect(() => {
-    async function prepare() {
-      try {
-        await Font.loadAsync({
-          "Outfit-Regular": Outfit_400Regular,
-          "Outfit-Medium": Outfit_500Medium,
-          "Outfit-SemiBold": Outfit_600SemiBold,
-          "Outfit-Bold": Outfit_700Bold,
-          "Inter-Regular": Inter_400Regular,
-          "Inter-SemiBold": Inter_600SemiBold,
-        });
+    if (screen === 'WorkoutSummary') return (
+      <View style={s.root}>
+        <StatusBar barStyle="light-content" />
+        <WorkoutSummary
+          result={props.result}
+          workoutName={props.workoutName}
+          onHome={goBack}
+          onGoAgain={() => navigate('WorkoutActive', { workout: props.workout })}
+        />
+      </View>
+    );
 
-        const { data, error } = await supabase.auth.getSession();
-        if (error) {
-          console.log("Supabase connection error:", error.message);
-        } else {
-          console.log("Successfully connected to Supabase!");
-        }
-      } catch (e) {
-        console.warn(e);
-      } finally {
-        setAppIsReady(true);
-      }
+    if (screen === 'MealLogger') return (
+      <View style={s.root}>
+        <StatusBar barStyle="light-content" />
+        <MealLogger
+          mealSlot={props.mealSlot}
+          onSave={(items, totals) => {
+            props.onSaved?.();
+            goBack();
+          }}
+          onClose={goBack}
+        />
+      </View>
+    );
+
+    if (screen === 'SleepLog') return (
+      <View style={s.root}>
+        <StatusBar barStyle="light-content" />
+        <SleepLog onSave={goBack} onClose={goBack} />
+      </View>
+    );
+
+    if (screen === 'FoodScanner') return (
+      <View style={s.root}>
+        <StatusBar barStyle="light-content" />
+        <FoodScannerScreen
+          currentCalories={props.currentCalories}
+          currentProtein={props.currentProtein}
+          currentCarbs={props.currentCarbs}
+          currentFat={props.currentFat}
+          goalCalories={props.goalCalories}
+          goalProtein={props.goalProtein}
+          goalCarbs={props.goalCarbs}
+          goalFat={props.goalFat}
+          onLogged={() => { props.onLogged?.(); goBack(); }}
+          onClose={goBack}
+        />
+      </View>
+    );
+  }
+
+  // ── Main app ─────────────────────────────────────────────────────────────────
+  const renderScreen = () => {
+    switch (activeTab) {
+      case 'Home':      return <Home      navigate={navigate} />;
+      case 'Nutrition': return <Nutrition navigate={navigate} />;
+      case 'PostureAI': return <PostureAI navigate={navigate} />;
+      case 'Training':  return <Training  navigate={navigate} />;
+      case 'Insights':  return <Insights  navigate={navigate} />;
+      case 'Profile':   return (
+        <Profile
+          navigate={navigate}
+          replayTour={async () => {
+            await resetTour();
+            setTourKey(k => k + 1);
+          }}
+        />
+      );
+      default:          return <Home navigate={navigate} />;
     }
-
-    prepare();
-  }, []);
-
-  const onLayoutRootView = useCallback(async () => {
-    if (appIsReady) {
-      await SplashScreen.hideAsync();
-    }
-  }, [appIsReady]);
-
-  if (!appIsReady) return null;
-
-  const replayTour = async () => {
-    await resetTour();
-    setTourKey((k) => k + 1);
   };
 
   return (
-    <SafeAreaProvider>
-      <AuthProvider>
-        <View style={styles.container} onLayout={onLayoutRootView}>
-          <StatusBar style="auto" />
-          <NavigationContainer>
-            <Navigation userProfile={userProfile} />
-          </NavigationContainer>
-          {/* Your unique floating components */}
-          <YaraAssistant userProfile={userProfile} />
-          <AppTour
-            key={tourKey}
-            activeTab={activeTab}
-            onTabPress={setActiveTab}
-          />
-        </View>
-      </AuthProvider>
-    </SafeAreaProvider>
+    <View style={s.root}>
+      <StatusBar barStyle="light-content" backgroundColor="#0A0814" />
+      <View style={s.screen}>{renderScreen()}</View>
+      <NavBar activeTab={activeTab} onTabPress={setActiveTab} />
+      <YaraAssistant userProfile={userProfile} />
+      <AppTour key={tourKey} activeTab={activeTab} onTabPress={setActiveTab} />
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#0F0B1E",
-  },
-  centered: {
-    justifyContent: "center",
-    alignItems: "center",
-  },
+const s = StyleSheet.create({
+  root:   { flex: 1, backgroundColor: '#0A0814' },
+  screen: { flex: 1 },
 });
 
 registerRootComponent(App);

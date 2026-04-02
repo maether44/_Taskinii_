@@ -9,6 +9,7 @@ export function useDashboard() {
   const [error,        setError]        = useState(null);
   const [muscleFatigue,setMuscleFatigue]= useState([]);
   const [workoutCals,  setWorkoutCals]  = useState(0);
+  const [sleepHours,   setSleepHours]   = useState(null);
 
   const loadAllData = useCallback(async () => {
     try {
@@ -27,7 +28,7 @@ export function useDashboard() {
         getMuscleFatigue(user.id),
         supabase
           .from('daily_activity')
-          .select('calories_burned')
+          .select('calories_burned, sleep_hours, sleep_quality')
           .eq('user_id', user.id)
           .eq('date', TODAY)
           .maybeSingle(),
@@ -41,7 +42,9 @@ export function useDashboard() {
 
       setMuscleFatigue(fatigue);
 
-      setWorkoutCals(activityRow.data?.calories_burned ?? 0);
+      const activity = activityRow.data;
+      setWorkoutCals(activity?.calories_burned ?? 0);
+      setSleepHours(activity?.sleep_hours ?? null);
 
     } catch (err) {
       console.error('Critical error in useDashboard:', err);
@@ -74,7 +77,8 @@ export function useDashboard() {
       },
       water: { current: data?.activity?.water_ml || 0, target: 2500 },
       steps: data?.activity?.steps || 0,
-      sleep: data?.activity?.sleep_hours ?? null,
+      // sleepHours comes from direct daily_activity query (not RPC) so it's always fresh
+      sleep: sleepHours ?? data?.activity?.sleep_hours ?? null,
     },
     workoutCalories: workoutCals,
     muscleFatigue,

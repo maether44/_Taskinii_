@@ -12,7 +12,7 @@
  *      or generates new ones via the yara-insights Edge Function (Groq).
  *   3. While loading, <Skeleton> blocks fill the same space as real content.
  */
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
     ScrollView,
     StyleSheet,
@@ -20,6 +20,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useInsights } from '../hooks/useInsights';
 import { generateAndCacheInsights } from '../services/yaraInsightsService';
 
@@ -56,7 +57,11 @@ export default function Insights() {
     isLoading,
     error,
     aiHistory,
+    refresh,
   } = useInsights(period);
+
+  // Re-fetch whenever the tab comes into focus
+  useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
   const [aiInsights,    setAiInsights]    = useState([]);
   const [insightsLoading, setInsightsLoading] = useState(false);

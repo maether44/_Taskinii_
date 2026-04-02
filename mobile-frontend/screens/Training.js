@@ -681,13 +681,19 @@ export default function Training({ navigation }) {
         .gte('created_at', monday.toISOString())
         .lt('created_at', sunday.toISOString());
 
+      // Use local date string to avoid UTC off-by-one when user is ahead of UTC
+      const toLocal = d => {
+        const dt = new Date(d);
+        return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+      };
+
       const weekDoneSet = new Set(
-        (sessions ?? []).map(s => new Date(s.created_at).toISOString().split('T')[0])
+        (sessions ?? []).map(s => toLocal(s.created_at))
       );
       const days = Array.from({ length: 7 }, (_, i) => {
         const d = new Date(monday);
         d.setDate(monday.getDate() + i);
-        return weekDoneSet.has(d.toISOString().split('T')[0]);
+        return weekDoneSet.has(toLocal(d));
       });
       setWeekDays(days);
 
@@ -699,17 +705,17 @@ export default function Training({ navigation }) {
         .order('created_at', { ascending: false });
 
       const allDates = new Set(
-        (allSessions ?? []).map(s => new Date(s.created_at).toISOString().split('T')[0])
+        (allSessions ?? []).map(s => toLocal(s.created_at))
       );
 
       let streak = 0;
       const cursor = new Date();
       cursor.setHours(0, 0, 0, 0);
       // Allow streak to include today OR start from yesterday
-      if (!allDates.has(cursor.toISOString().split('T')[0])) {
+      if (!allDates.has(toLocal(cursor))) {
         cursor.setDate(cursor.getDate() - 1);
       }
-      while (allDates.has(cursor.toISOString().split('T')[0])) {
+      while (allDates.has(toLocal(cursor))) {
         streak++;
         cursor.setDate(cursor.getDate() - 1);
       }
@@ -812,112 +818,91 @@ export default function Training({ navigation }) {
         <Reanimated.View entering={FadeInDown.delay(50).springify()}>
           <SectionHeader title="THE DAILY BLUEPRINT" sub="AI-driven program" />
 
-          {/* Hero Card */}
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={() => navigation.navigate('WorkoutActive', { exerciseName: recommendation.exerciseKey })}
+          {/* Blueprint Card — AI reason + circuit in one connected card */}
+          <LinearGradient
+            colors={[C.purple, C.purpleD, '#1A0E4F']}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+            style={[s.heroCard, SHADOW]}
           >
-            <LinearGradient
-              colors={[C.purple, C.purpleD, '#1A0E4F']}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-              style={[s.heroCard, SHADOW]}
+            <View style={s.heroAccentLine} />
+
+            {/* Environment badge — top right */}
+            <TouchableOpacity
+              style={s.envBadge}
+              onPress={() => toggleEnvironment(environment === 'gym' ? 'home' : 'gym')}
+              activeOpacity={0.75}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <View style={s.heroAccentLine} />
+              <Ionicons name={environment === 'gym' ? 'barbell-outline' : 'home-outline'} size={11} color={C.lime} />
+              <Text style={s.envBadgeTxt}>{environment === 'gym' ? 'Full Gym' : 'Home'}</Text>
+            </TouchableOpacity>
 
-              {/* Environment badge — top right, tappable */}
-              <TouchableOpacity
-                style={s.envBadge}
-                onPress={(e) => { e.stopPropagation?.(); toggleEnvironment(environment === 'gym' ? 'home' : 'gym'); }}
-                activeOpacity={0.75}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Ionicons name={environment === 'gym' ? 'barbell-outline' : 'home-outline'} size={11} color={C.lime} />
-                <Text style={s.envBadgeTxt}>
-                  {environment === 'gym' ? 'Full Gym' : 'Home'}
-                </Text>
-              </TouchableOpacity>
-
-              <View style={s.heroBadge}>
-                <Ionicons name="sparkles" size={10} color={C.lime} />
-                <Text style={s.heroBadgeTxt}>  AI RECOMMENDED</Text>
-              </View>
-              <Text style={s.heroLabel}>DAILY BLUEPRINT</Text>
-              <Text style={s.heroTitle}>{recommendation.title}</Text>
-              <View style={s.heroMeta}>
-                {[
-                  { icon: 'time-outline',  val: recommendation.duration },
-                  { icon: 'flame-outline', val: recommendation.kcal },
-                  { icon: 'body-outline',  val: recommendation.focus },
-                ].map((m, i) => (
-                  <View key={i} style={s.metaChip}>
-                    <Ionicons name={m.icon} size={11} color="rgba(255,255,255,0.6)" />
-                    <Text style={s.metaChipTxt}> {m.val}</Text>
-                  </View>
-                ))}
-              </View>
-              {overloadTip && (
-                <View style={s.overloadBadge}>
-                  <Ionicons name="trending-up" size={11} color="#000" />
-                  <Text style={s.overloadBadgeTxt}>{overloadTip}</Text>
-                </View>
-              )}
-              <View style={s.heroFooter}>
-                <Text style={s.heroLogic}>{recommendation.reason}</Text>
-                <View style={s.playCircle}>
-                  <Ionicons name="play" size={22} color="#000" />
-                </View>
-              </View>
-            </LinearGradient>
-          </TouchableOpacity>
-
-          {/* Today's Plan — 3-circuit scroll */}
-          {todayPlan.length > 0 && (
-            <View style={s.planWrap}>
-              <View style={s.planLabelRow}>
-                <Text style={s.planLabel}>TODAY'S CIRCUIT</Text>
-                <View style={s.planCircuitBadge}><Text style={s.planCircuitTxt}>3 EXERCISES</Text></View>
-              </View>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={s.planScroll}
-                decelerationRate="fast"
-                snapToInterval={192}
-              >
-                {todayPlan.map((ex, i) => (
-                  <TouchableOpacity
-                    key={i}
-                    style={s.planCard}
-                    onPress={() => navigation.navigate('WorkoutActive', { exerciseName: ex.key })}
-                    activeOpacity={0.85}
-                  >
-                    <BlurView intensity={18} tint="dark" style={StyleSheet.absoluteFillObject} />
-                    <View style={[s.planBorderOverlay, i === 0 && s.planBorderActive]} />
-                    <View style={s.planCardNum}>
-                      <Text style={s.planCardNumTxt}>{i + 1}</Text>
-                    </View>
-                    <View style={s.planIconCircle}>
-                      <Ionicons name={ex.icon} size={22} color={i === 0 ? C.lime : C.accent} />
-                    </View>
-                    <Text style={s.planExName}>{ex.name}</Text>
-                    <Text style={s.planTarget}>{ex.target}</Text>
-                    <View style={s.planSetsRow}>
-                      <Ionicons name="repeat-outline" size={11} color="rgba(255,255,255,0.4)" />
-                      <Text style={s.planSets}>{ex.sets}</Text>
-                    </View>
-                    {ex.prevReps !== null && (
-                      <View style={s.planPrevBest}>
-                        <Ionicons name="trophy-outline" size={9} color={C.lime} />
-                        <Text style={s.planPrevBestTxt}>
-                          Last: {ex.prevReps} reps{ex.prevForm ? ` · ${ex.prevForm}%` : ''}
-                        </Text>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
+            {/* AI header */}
+            <View style={s.heroBadge}>
+              <Ionicons name="sparkles" size={10} color={C.lime} />
+              <Text style={s.heroBadgeTxt}>  AI RECOMMENDED</Text>
             </View>
-          )}
+            <Text style={s.heroLabel}>DAILY BLUEPRINT</Text>
+            <Text style={s.heroTitle}>{recommendation.title}</Text>
+            <View style={s.heroMeta}>
+              {[
+                { icon: 'time-outline',  val: recommendation.duration },
+                { icon: 'flame-outline', val: recommendation.kcal },
+                { icon: 'body-outline',  val: recommendation.focus },
+              ].map((m, i) => (
+                <View key={i} style={s.metaChip}>
+                  <Ionicons name={m.icon} size={11} color="rgba(255,255,255,0.6)" />
+                  <Text style={s.metaChipTxt}> {m.val}</Text>
+                </View>
+              ))}
+            </View>
+            {overloadTip && (
+              <View style={s.overloadBadge}>
+                <Ionicons name="trending-up" size={11} color="#000" />
+                <Text style={s.overloadBadgeTxt}>{overloadTip}</Text>
+              </View>
+            )}
+            {/* Why this workout */}
+            <Text style={s.heroLogic}>{recommendation.reason}</Text>
+
+            {/* ── Circuit ── */}
+            <View style={s.circuitDivider} />
+            <Text style={s.circuitLabel}>TODAY'S CIRCUIT</Text>
+            {todayPlan.map((ex, i) => (
+              <TouchableOpacity
+                key={i}
+                style={[s.circuitRow, i === todayPlan.length - 1 && { borderBottomWidth: 0 }]}
+                onPress={() => navigation.navigate('WorkoutActive', { exerciseName: ex.key })}
+                activeOpacity={0.7}
+              >
+                <View style={s.circuitNumCircle}>
+                  <Text style={s.circuitNumTxt}>{i + 1}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.circuitName}>{ex.name}</Text>
+                  <Text style={s.circuitTarget}>{ex.target}</Text>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={s.circuitSets}>{ex.sets}</Text>
+                  {ex.prevReps !== null && (
+                    <Text style={s.circuitPrev}>
+                      Last: {ex.prevReps}r{ex.prevForm ? ` · ${ex.prevForm}%` : ''}
+                    </Text>
+                  )}
+                </View>
+              </TouchableOpacity>
+            ))}
+
+            {/* Start CTA */}
+            <TouchableOpacity
+              style={s.startBtn}
+              onPress={() => navigation.navigate('WorkoutActive', { exerciseName: todayPlan[0]?.key ?? recommendation.exerciseKey })}
+              activeOpacity={0.85}
+            >
+              <Text style={s.startBtnTxt}>Start Workout</Text>
+              <Ionicons name="arrow-forward" size={16} color="#000" />
+            </TouchableOpacity>
+          </LinearGradient>
         </Reanimated.View>
 
         {/* ══════════════════════════════════════
@@ -1085,40 +1070,25 @@ export default function Training({ navigation }) {
           <SectionHeader title="THE PERFORMANCE LAB" sub="Tools & analytics" />
           <View style={s.labGrid}>
 
-            {/* Posture AI Scan */}
-            <TouchableOpacity
-              style={s.labCard}
-              onPress={() => navigation.navigate('WorkoutActive', { exerciseName: 'posture_check', mode: 'posture' })}
-              activeOpacity={0.82}
-            >
-              <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
-              <View style={s.glassCardBorder} pointerEvents="none" />
-              <LinearGradient colors={['rgba(124,92,252,0.2)', 'transparent']} style={StyleSheet.absoluteFillObject} />
-              <View style={s.labIconWrap}>
-                <Ionicons name="scan-outline" size={26} color={C.purple} />
-              </View>
-              <Text style={s.labCardTitle}>Posture AI Scan</Text>
-              <Text style={s.labCardSub}>Real-time form{'\n'}correction</Text>
-              <View style={s.labArrow}>
-                <Ionicons name="arrow-forward" size={13} color="#000" />
-              </View>
-            </TouchableOpacity>
-
             {/* Exercise Library */}
             <TouchableOpacity
-              style={s.labCard}
+              style={[s.labCard, s.labCardWide]}
               onPress={() => navigation.navigate('ExerciseList')}
               activeOpacity={0.82}
             >
               <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
               <View style={s.glassCardBorder} pointerEvents="none" />
               <LinearGradient colors={['rgba(200,241,53,0.12)', 'transparent']} style={StyleSheet.absoluteFillObject} />
-              <View style={[s.labIconWrap, { borderColor: 'rgba(200,241,53,0.25)' }]}>
-                <Ionicons name="barbell-outline" size={26} color={C.lime} />
+              <View style={s.labWideInner}>
+                <View style={[s.labIconWrap, { borderColor: 'rgba(200,241,53,0.25)', marginBottom: 0, marginRight: 14 }]}>
+                  <Ionicons name="barbell-outline" size={26} color={C.lime} />
+                </View>
+                <View>
+                  <Text style={s.labCardTitle}>Exercise Library</Text>
+                  <Text style={s.labCardSub}>1,300+ exercises with AI form check</Text>
+                </View>
               </View>
-              <Text style={s.labCardTitle}>Exercise Library</Text>
-              <Text style={s.labCardSub}>1,300+ exercises{'\n'}with AI form check</Text>
-              <View style={[s.labArrow, { backgroundColor: C.lime }]}>
+              <View style={[s.labArrow, { backgroundColor: C.lime, position: 'absolute', top: 16, right: 16 }]}>
                 <Ionicons name="arrow-forward" size={13} color="#000" />
               </View>
             </TouchableOpacity>
@@ -1186,8 +1156,7 @@ const s = StyleSheet.create({
   heroMeta:       { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 24 },
   metaChip:       { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
   metaChipTxt:    { color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: '600' },
-  heroFooter:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
-  heroLogic:       { color: 'rgba(255,255,255,0.55)', fontStyle: 'italic', fontSize: 12, lineHeight: 18, flex: 1 },
+  heroLogic:       { color: 'rgba(255,255,255,0.55)', fontStyle: 'italic', fontSize: 12, lineHeight: 18, marginBottom: 0 },
   overloadBadge:   { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#C8F135', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 10, alignSelf: 'flex-start' },
   overloadBadgeTxt: { color: '#000', fontSize: 11, fontWeight: '800', flex: 1, flexShrink: 1 },
   nutritionTipRow:  { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8, backgroundColor: 'rgba(200,241,53,0.07)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
@@ -1459,13 +1428,18 @@ const s = StyleSheet.create({
   envBadge:    { position: 'absolute', top: 16, right: 16, flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(200,241,53,0.14)', borderWidth: 1, borderColor: 'rgba(200,241,53,0.35)', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5 },
   envBadgeTxt: { color: C.lime, fontSize: 10, fontWeight: '800' },
 
-  // ── Today's Plan (inside Blueprint) ──────────────────────
-  planWrap:         { marginTop: 14 },
-  planLabelRow:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  planLabel:        { color: 'rgba(255,255,255,0.4)', fontSize: 9, fontWeight: '900', letterSpacing: 1.8 },
-  planCard:         { width: 184, borderRadius: 22, overflow: 'hidden', ...SHADOW, shadowColor: C.purple, shadowOpacity: 0.22, padding: 16, minHeight: 170 },
-  planBorderOverlay:{ ...StyleSheet.absoluteFillObject, borderRadius: 22, borderWidth: 1, borderColor: 'rgba(255,255,255,0.09)' },
-  planBorderActive: { borderColor: 'rgba(200,241,53,0.4)' },
+  // ── Blueprint Circuit (embedded in hero card) ─────────────
+  circuitDivider:   { height: 1, backgroundColor: 'rgba(255,255,255,0.1)', marginTop: 16, marginBottom: 14 },
+  circuitLabel:     { color: 'rgba(255,255,255,0.4)', fontSize: 9, fontWeight: '900', letterSpacing: 1.8, marginBottom: 10 },
+  circuitRow:       { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.08)' },
+  circuitNumCircle: { width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(200,241,53,0.12)', borderWidth: 1, borderColor: 'rgba(200,241,53,0.3)', alignItems: 'center', justifyContent: 'center' },
+  circuitNumTxt:    { color: C.lime, fontSize: 10, fontWeight: '900' },
+  circuitName:      { color: C.text, fontSize: 13, fontWeight: '800' },
+  circuitTarget:    { color: 'rgba(255,255,255,0.45)', fontSize: 10, marginTop: 1 },
+  circuitSets:      { color: C.lime, fontSize: 12, fontWeight: '800' },
+  circuitPrev:      { color: 'rgba(255,255,255,0.35)', fontSize: 9, marginTop: 2 },
+  startBtn:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.lime, borderRadius: 14, paddingVertical: 14, marginTop: 16 },
+  startBtnTxt:      { color: '#000', fontSize: 15, fontWeight: '900' },
 
   // ── Equipment Floor badge ─────────────────────────────────
   floorBadge:     { position: 'absolute', top: 10, left: 10, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },

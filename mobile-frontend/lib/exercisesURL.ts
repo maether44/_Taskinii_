@@ -7,5 +7,6 @@ export const fetchExercises = async () => {
   return data;
 };
 
+
 export const getImageUrl = (imagePath) =>
   `${BASE_URL}/exercises/${imagePath}`;
