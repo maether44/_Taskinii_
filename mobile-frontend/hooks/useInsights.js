@@ -216,8 +216,8 @@ export function useInsights(period) {
         // 4. Muscle fatigue — also sent to Groq so AI knows recovery state
         getMuscleFatigue(userId).catch(() => []),
 
-        // 5. AI coaching history
-        supabase.rpc('get_user_ai_history', { p_user_id: userId }).catch(() => ({ data: [] })),
+        // 5. AI coaching history — wrap in Promise.resolve so .catch works on PostgrestFilterBuilder
+        Promise.resolve(supabase.rpc('get_user_ai_history', { p_user_id: userId })).catch(() => ({ data: [] })),
       ]);
 
       if (rpcErr) throw rpcErr;
