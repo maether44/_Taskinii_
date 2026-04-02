@@ -91,6 +91,7 @@ export function useDashboard() {
       return data?.insight || "You're doing great! Stay consistent and the results will follow.";
     })(),
     logSleep: useCallback(async (hours) => {
+      setSleepHours(hours);
       setData(prev => {
         if (!prev) return prev;
         return { ...prev, activity: { ...prev.activity, sleep_hours: hours } };
