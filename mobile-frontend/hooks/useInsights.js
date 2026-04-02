@@ -1,139 +1,96 @@
 /**
  * mobile-frontend/hooks/useInsights.js
  *
- * Custom React hook that powers the Insights screen with real Supabase data.
- * Calls the `get_insights_data` RPC once per (user, period) combination, then
- * derives everything the screen needs (metrics, heatmap, trend chart, streaks).
+ * Powers the Insights screen with real Supabase data.
+ *
+ * DATA SOURCES
+ *   1. get_insights_data RPC  — workout count, avg steps/sleep/calories, heatmap (42 days
+ *                               with sleep + water since migration v2), activity dates for streak
+ *   2. food_logs + foods      — direct query for nutrition breakdown per period
+ *   3. workout_sessions       — direct query for workout summary per period
+ *   4. getMuscleFatigue()     — current muscle recovery state, also forwarded to Groq
  *
  * RETURNS
- *   isLoading   — true while the RPC is in-flight
- *   error       — set if the RPC or auth fails
- *   rawStats    — raw RPC response forwarded to yaraInsightsService
- *   userId      — current auth user ID
- *   metrics     — 4 summary cards: Streak, Workouts, Steps, Sleep
- *   trendData   — { Week, Month, '3 Months' } arrays of 0-100 scores
- *   heatmapData — { 'YYYY-MM-DD': 0|1|2|3 } intensity map
- *   streakData  — { currentStreak, longestStreak }
- *   refresh     — manually re-fetch
+ *   isLoading, error, refresh
+ *   rawStats         — full payload forwarded to yaraInsightsService (now includes muscleFatigue)
+ *   userId
+ *   metrics          — 4 summary cards: Streak, Workouts, Avg Steps, Avg Sleep
+ *   trendData        — { Week, Month, '3 Months' } health-score arrays for the chart
+ *   heatmapData      — { 'YYYY-MM-DD': 0|1|2|3 } intensity map
+ *   nutritionSummary — { avgCal, avgProtein, avgCarbs, avgFat, loggedDays }
+ *   workoutSummary   — { count, totalCal, avgDurationMin }
+ *   muscleFatigue    — [{ muscle_name, fatigue_pct }] sorted by fatigue desc
+ *   aiHistory        — recent AI coaching rows from ai_insights table
  */
 import { useCallback, useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';  // mobile-frontend uses lib/supabase (not config/)
+import { supabase } from '../lib/supabase';
+import { getMuscleFatigue } from '../services/workoutService';
 
 
-// =============================================================================
-// computeStreaks(activityDates)
-// Walks backward through 'YYYY-MM-DD' active-day strings to find:
-//   currentStreak — consecutive days ending today (or yesterday if today not logged yet)
-//   longestStreak — longest consecutive run in the last 90 days
-// =============================================================================
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
 function computeStreaks(activityDates) {
   if (!activityDates?.length) return { currentStreak: 0, longestStreak: 0 };
-
   const dateSet = new Set(activityDates);
-
-  // Current streak — walk backward from today
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   let currentStreak = 0;
   const cursor = new Date(today);
-  const todayStr = cursor.toISOString().split('T')[0];
-  if (!dateSet.has(todayStr)) {
-    // Today not logged yet — start from yesterday to avoid false resets
+  const toLocal = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  if (!dateSet.has(toLocal(cursor))) cursor.setDate(cursor.getDate() - 1);
+  while (dateSet.has(toLocal(cursor))) {
+    currentStreak++;
     cursor.setDate(cursor.getDate() - 1);
   }
-  while (true) {
-    const ds = cursor.toISOString().split('T')[0];
-    if (dateSet.has(ds)) {
-      currentStreak++;
-      cursor.setDate(cursor.getDate() - 1);
-    } else {
-      break;
-    }
-  }
-
-  // Longest streak — scan sorted dates for consecutive pairs
   const sorted = Array.from(dateSet).sort();
-  let longest = 0;
-  let streak  = sorted.length ? 1 : 0;
+  let longest = 0, streak = sorted.length ? 1 : 0;
   for (let i = 1; i < sorted.length; i++) {
-    const diffDays = (new Date(sorted[i]) - new Date(sorted[i - 1])) / 86400000;
-    if (diffDays === 1) {
-      streak++;
-    } else {
-      longest = Math.max(longest, streak);
-      streak  = 1;
-    }
+    const diff = (new Date(sorted[i]) - new Date(sorted[i - 1])) / 86400000;
+    if (diff === 1) { streak++; } else { longest = Math.max(longest, streak); streak = 1; }
   }
-  longest = Math.max(longest, streak);
-
-  return { currentStreak, longestStreak: longest };
+  return { currentStreak, longestStreak: Math.max(longest, streak) };
 }
 
-
-// =============================================================================
-// buildHeatmapData(heatmapDays)
-// Converts the 42-day RPC array into { 'YYYY-MM-DD': 0|1|2|3 }.
-// Intensity: 3=workout, 2=8000+ steps, 1=some movement/calories, 0=nothing
-// =============================================================================
 function buildHeatmapData(heatmapDays) {
   const map = {};
   (heatmapDays ?? []).forEach(d => {
-    const intensity = d.has_workout   ? 3
-      : d.steps > 8000               ? 2
-      : d.steps > 2000               ? 1
-      : d.calories > 0               ? 1
+    const intensity = d.has_workout ? 3
+      : d.steps > 8000             ? 2
+      : d.steps > 2000             ? 1
+      : d.calories > 0             ? 1
       : 0;
     map[d.date] = intensity;
   });
   return map;
 }
 
-
-// =============================================================================
-// scoreDay(d) — 0-100 health score for one day, used by buildTrendData
-// Workout +40, steps≥8000 +35, steps≥4000 +18, food logged +25, capped at 100
-// =============================================================================
+// Health score 0-100: workout, steps, food, sleep, water — all connected
 function scoreDay(d) {
   let s = 0;
-  if (d.has_workout)       s += 40;
-  if (d.steps > 8000)      s += 35;
-  else if (d.steps > 4000) s += 18;
-  if (d.calories > 0)      s += 25;
+  if (d.has_workout)        s += 35;
+  if (d.steps > 8000)       s += 25;
+  else if (d.steps > 4000)  s += 12;
+  if (d.calories > 0)       s += 20;
+  if (d.sleep >= 7)         s += 15;
+  else if (d.sleep >= 6)    s +=  8;
+  if (d.water >= 2000)      s +=  5;
   return Math.min(s, 100);
 }
 
-
-// =============================================================================
-// buildTrendData(heatmapDays)
-// Returns { Week: [7], Month: [12], '3 Months': [12] } score arrays for the chart.
-// =============================================================================
 function buildTrendData(heatmapDays) {
   const days = heatmapDays ?? [];
-
-  // Week: last 7 days
   const weekBars = days.slice(-7).map(scoreDay);
-
-  // Month: last 30 days bucketed into 12 bars
-  const last30        = days.slice(-30);
-  const bucketSize30  = Math.ceil(last30.length / 12) || 1;
-  const monthBars     = [];
-  for (let i = 0; i < 12; i++) {
-    const chunk = last30.slice(i * bucketSize30, (i + 1) * bucketSize30);
-    monthBars.push(chunk.length
-      ? Math.round(chunk.reduce((s, d) => s + scoreDay(d), 0) / chunk.length)
-      : 0);
-  }
-
-  // 3 Months: all 42 days bucketed into 12 bars
-  const bucketSize3m  = Math.ceil(days.length / 12) || 1;
-  const threeMonthBars = [];
-  for (let i = 0; i < 12; i++) {
-    const chunk = days.slice(i * bucketSize3m, (i + 1) * bucketSize3m);
-    threeMonthBars.push(chunk.length
-      ? Math.round(chunk.reduce((s, d) => s + scoreDay(d), 0) / chunk.length)
-      : 0);
-  }
-
+  const last30 = days.slice(-30);
+  const b30 = Math.ceil(last30.length / 12) || 1;
+  const monthBars = Array.from({ length: 12 }, (_, i) => {
+    const chunk = last30.slice(i * b30, (i + 1) * b30);
+    return chunk.length ? Math.round(chunk.reduce((s, d) => s + scoreDay(d), 0) / chunk.length) : 0;
+  });
+  const b3m = Math.ceil(days.length / 12) || 1;
+  const threeMonthBars = Array.from({ length: 12 }, (_, i) => {
+    const chunk = days.slice(i * b3m, (i + 1) * b3m);
+    return chunk.length ? Math.round(chunk.reduce((s, d) => s + scoreDay(d), 0) / chunk.length) : 0;
+  });
   return {
     Week:       weekBars.length       ? weekBars       : [0, 0, 0, 0, 0, 0, 0],
     Month:      monthBars.length      ? monthBars      : new Array(12).fill(0),
@@ -141,117 +98,152 @@ function buildTrendData(heatmapDays) {
   };
 }
 
-
-// =============================================================================
-// buildMetrics(stats, streakData)
-// Produces the 4-card summary grid (Streak, Workouts, Avg Steps, Avg Sleep).
-// =============================================================================
 function buildMetrics(stats, streakData) {
   const fmtK = v => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(Math.round(v ?? 0));
   const { workout_count = 0, avg_steps = 0, avg_sleep = 0 } = stats;
-
   return [
-    {
-      label: 'Streak',
-      value: `${streakData.currentStreak}d`,
-      delta: streakData.currentStreak > 0 ? 'Active' : 'Start!',
-      up:    streakData.currentStreak > 0,
-    },
-    {
-      label: 'Workouts',
-      value: String(workout_count),
-      delta: workout_count > 0 ? `+${workout_count}` : '0',
-      up:    workout_count > 0,
-    },
-    {
-      label: 'Avg. Steps',
-      value: fmtK(avg_steps),
-      delta: avg_steps >= 8000 ? 'On target' : avg_steps > 0 ? 'Below' : '–',
-      up:    avg_steps >= 8000,
-    },
-    {
-      label: 'Avg. Sleep',
-      value: avg_sleep > 0 ? `${avg_sleep}h` : '–',
-      delta: avg_sleep >= 7 ? 'Good' : avg_sleep > 0 ? 'Low' : '–',
-      up:    avg_sleep >= 7,
-    },
+    { label: 'Streak',     value: `${streakData.currentStreak}d`, delta: streakData.currentStreak > 0 ? 'Active' : 'Start!', up: streakData.currentStreak > 0 },
+    { label: 'Workouts',   value: String(workout_count), delta: workout_count > 0 ? `+${workout_count}` : '0', up: workout_count > 0 },
+    { label: 'Avg. Steps', value: fmtK(avg_steps), delta: avg_steps >= 8000 ? 'On target' : avg_steps > 0 ? 'Below' : '–', up: avg_steps >= 8000 },
+    { label: 'Avg. Sleep', value: avg_sleep > 0 ? `${avg_sleep}h` : '–', delta: avg_sleep >= 7 ? 'Good' : avg_sleep > 0 ? 'Low' : '–', up: avg_sleep >= 7 },
   ];
 }
 
+// Period string → JS Date for direct Supabase queries
+function periodToStartDate(period) {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  if (period === 'Week')        d.setDate(d.getDate() - 7);
+  else if (period === 'Month')  d.setDate(d.getDate() - 30);
+  else                          d.setDate(d.getDate() - 90);
+  return d;
+}
 
-// =============================================================================
-// useInsights(period) — exported hook
-// =============================================================================
+// Compute nutrition summary from raw food_log rows
+function buildNutritionSummary(rows) {
+  if (!rows?.length) return null;
+  const dayMap = {};
+  rows.forEach(row => {
+    const day = row.consumed_at?.split('T')[0];
+    if (!day || !row.foods) return;
+    if (!dayMap[day]) dayMap[day] = { cal: 0, protein: 0, carbs: 0, fat: 0 };
+    const q = (row.quantity_grams ?? 0) / 100;
+    dayMap[day].cal     += (row.foods.calories_per_100g ?? 0) * q;
+    dayMap[day].protein += (row.foods.protein_per_100g  ?? 0) * q;
+    dayMap[day].carbs   += (row.foods.carbs_per_100g    ?? 0) * q;
+    dayMap[day].fat     += (row.foods.fat_per_100g      ?? 0) * q;
+  });
+  const days = Object.values(dayMap);
+  if (!days.length) return null;
+  return {
+    avgCal:     Math.round(days.reduce((s, d) => s + d.cal,     0) / days.length),
+    avgProtein: Math.round(days.reduce((s, d) => s + d.protein, 0) / days.length),
+    avgCarbs:   Math.round(days.reduce((s, d) => s + d.carbs,   0) / days.length),
+    avgFat:     Math.round(days.reduce((s, d) => s + d.fat,     0) / days.length),
+    loggedDays: days.length,
+  };
+}
+
+// Compute workout summary from raw session rows
+function buildWorkoutSummary(rows) {
+  if (!rows?.length) return { count: 0, totalCal: 0, avgDurationMin: 0 };
+  const totalCal = rows.reduce((s, w) => s + (w.calories_burned ?? 0), 0);
+  const durations = rows
+    .filter(w => w.started_at && w.ended_at)
+    .map(w => (new Date(w.ended_at) - new Date(w.started_at)) / 60000);
+  const avgDurationMin = durations.length
+    ? Math.round(durations.reduce((s, d) => s + d, 0) / durations.length)
+    : 0;
+  return { count: rows.length, totalCal, avgDurationMin };
+}
+
+
+// ─── Hook ─────────────────────────────────────────────────────────────────────
+
 export function useInsights(period) {
-  const [userId,      setUserId]      = useState(null);
-  const [isLoading,   setIsLoading]   = useState(true);
-  const [error,       setError]       = useState(null);
-  const [rawStats,    setRawStats]    = useState(null);
-  const [metrics,     setMetrics]     = useState([]);
-  const [trendData,   setTrendData]   = useState({ Week: [], Month: [], '3 Months': [] });
-  const [heatmapData, setHeatmapData] = useState({});
-  const [streakData,       setStreakData]       = useState({ currentStreak: 0, longestStreak: 0 });
-  const [activitySummary,  setActivitySummary]  = useState(null);
+  const [userId,           setUserId]           = useState(null);
+  const [isLoading,        setIsLoading]        = useState(true);
+  const [error,            setError]            = useState(null);
+  const [rawStats,         setRawStats]         = useState(null);
+  const [metrics,          setMetrics]          = useState([]);
+  const [trendData,        setTrendData]        = useState({ Week: [], Month: [], '3 Months': [] });
+  const [heatmapData,      setHeatmapData]      = useState({});
   const [nutritionSummary, setNutritionSummary] = useState(null);
   const [workoutSummary,   setWorkoutSummary]   = useState(null);
+  const [muscleFatigue,    setMuscleFatigue]    = useState([]);
   const [aiHistory,        setAiHistory]        = useState([]);
 
-  // Resolve the logged-in user once on mount
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
-      if (data?.user) {
-        console.log('[useInsights] userId resolved:', data.user.id);
-        setUserId(data.user.id);
-      } else {
-        console.warn('[useInsights] No authenticated user found');
-        setIsLoading(false);
-      }
+      if (data?.user) setUserId(data.user.id);
+      else setIsLoading(false);
     });
   }, []);
 
   const load = useCallback(async () => {
     if (!userId) return;
-    console.log('[useInsights] Calling get_insights_data RPC — userId:', userId, 'period:', period);
     setIsLoading(true);
     setError(null);
     try {
+      const startDate = periodToStartDate(period);
+      const startIso  = startDate.toISOString();
+
       const [
-        { data, error: rpcErr },
-        { data: activityData },
-        { data: nutritionData },
-        { data: workoutData },
+        { data: rpcData, error: rpcErr },
+        { data: nutritionRows },
+        { data: workoutRows },
+        fatigueRows,
         { data: aiHistoryData },
       ] = await Promise.all([
+        // 1. Main insights RPC (heatmap, streak dates, aggregated stats)
         supabase.rpc('get_insights_data', { p_user_id: userId, p_period: period }),
-        supabase.rpc('get_user_full_activity_summary', { p_user_id: userId }),
-        supabase.rpc('get_user_nutrition_summary',     { p_user_id: userId }),
-        supabase.rpc('get_user_workout_summary',       { p_user_id: userId }),
-        supabase.rpc('get_user_ai_history',            { p_user_id: userId }),
+
+        // 2. Nutrition — food_logs joined to foods for macro data
+        supabase
+          .from('food_logs')
+          .select('consumed_at, quantity_grams, foods(calories_per_100g, protein_per_100g, carbs_per_100g, fat_per_100g)')
+          .eq('user_id', userId)
+          .gte('consumed_at', startIso),
+
+        // 3. Workout sessions — for summary card
+        supabase
+          .from('workout_sessions')
+          .select('calories_burned, started_at, ended_at')
+          .eq('user_id', userId)
+          .gte('started_at', startIso)
+          .not('ended_at', 'is', null),
+
+        // 4. Muscle fatigue — also sent to Groq so AI knows recovery state
+        getMuscleFatigue(userId).catch(() => []),
+
+        // 5. AI coaching history
+        supabase.rpc('get_user_ai_history', { p_user_id: userId }).catch(() => ({ data: [] })),
       ]);
 
-      if (rpcErr) {
-        console.error('[useInsights] RPC error:', rpcErr);
-        throw rpcErr;
-      }
+      if (rpcErr) throw rpcErr;
 
-      console.log('[useInsights] RPC returned:', JSON.stringify(data).slice(0, 200));
-
-      setActivitySummary(activityData  ?? null);
-      setNutritionSummary(nutritionData ?? null);
-      setWorkoutSummary(workoutData    ?? null);
-      setAiHistory(Array.isArray(aiHistoryData) ? aiHistoryData : []);
-
-      const stats   = data ?? {};
+      const stats   = rpcData ?? {};
       const streaks = computeStreaks(stats.activity_dates);
 
-      console.log('[useInsights] Streaks:', streaks);
-      console.log('[useInsights] heatmap_days count:', stats.heatmap_days?.length ?? 0);
+      const nutrition = buildNutritionSummary(nutritionRows);
+      const workout   = buildWorkoutSummary(workoutRows);
 
-      setRawStats(stats);
-      setStreakData(streaks);
+      setMuscleFatigue(fatigueRows ?? []);
+      setNutritionSummary(nutrition);
+      setWorkoutSummary(workout);
+      setAiHistory(Array.isArray(aiHistoryData) ? aiHistoryData : []);
       setMetrics(buildMetrics(stats, streaks));
       setTrendData(buildTrendData(stats.heatmap_days));
       setHeatmapData(buildHeatmapData(stats.heatmap_days));
+
+      // rawStats forwarded to Groq — now includes muscle fatigue
+      setRawStats({
+        ...stats,
+        nutrition_summary: nutrition,
+        workout_summary:   workout,
+        muscle_fatigue:    fatigueRows ?? [],
+      });
+
     } catch (e) {
       console.error('[useInsights] load error:', e);
       setError(e);
@@ -263,18 +255,10 @@ export function useInsights(period) {
   useEffect(() => { load(); }, [load]);
 
   return {
-    isLoading,
-    error,
-    rawStats,
-    userId,
-    metrics,
-    trendData,
-    heatmapData,
-    streakData,
-    activitySummary,
-    nutritionSummary,
-    workoutSummary,
+    isLoading, error, refresh: load,
+    rawStats, userId,
+    metrics, trendData, heatmapData,
+    nutritionSummary, workoutSummary, muscleFatigue,
     aiHistory,
-    refresh: load,
   };
 }
