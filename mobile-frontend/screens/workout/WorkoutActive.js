@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View, StyleSheet, TouchableOpacity, Text,
-  StatusBar, Animated, Platform, Dimensions,
+  StatusBar, Animated, Platform, Dimensions, ScrollView,
 } from 'react-native';
 import Reanimated, {
   useSharedValue, useAnimatedStyle, withSpring, interpolate,
@@ -150,6 +150,166 @@ function resolveHtmlKey(name) {
 }
 
 
+// ── Exercise instructions (shown in HelpOverlay) ───────────────
+const EXERCISE_INSTRUCTIONS = {
+  squat: [
+    'Stand feet shoulder-width, toes slightly out.',
+    'Brace your core and keep chest tall throughout.',
+    'Descend until thighs are parallel to the floor.',
+    'Drive through heels to stand — squeeze glutes at the top.',
+    'Keep knees tracking over your toes at all times.',
+  ],
+  pushup: [
+    'Start in a high plank — hands just wider than shoulders.',
+    'Keep your body in a straight line from head to heels.',
+    'Lower until chest is 2–3 cm from the floor.',
+    'Press back up, fully extending elbows at the top.',
+    'Breathe in on the way down, out on the way up.',
+  ],
+  bicepCurl: [
+    'Stand tall, dumbbells at sides, palms facing forward.',
+    'Pin your elbows to your sides — they must NOT swing.',
+    'Curl to full contraction, supinating wrists at the top.',
+    'Lower slowly over 3 counts — that eccentric builds muscle.',
+    'Keep shoulders back and core engaged throughout.',
+  ],
+  shoulderPress: [
+    'Hold dumbbells at ear height, palms facing forward.',
+    'Sit or stand tall — do NOT arch your lower back.',
+    'Press directly overhead until arms are fully extended.',
+    'Lower back to ear height with control over 2–3 counts.',
+    'Exhale as you press, inhale as you lower.',
+  ],
+  deadlift: [
+    'Stand with feet hip-width, bar (or dumbbells) over mid-foot.',
+    'Hinge at hips — keep back flat, chest up, core braced.',
+    'Drive through heels, extending hips and knees together.',
+    'Stand fully upright — hips through at lockout.',
+    'Hinge back down with control, maintaining a neutral spine.',
+  ],
+  lunge: [
+    'Stand tall, step one foot forward into a wide stance.',
+    'Lower your back knee toward the floor — stop just before it touches.',
+    'Keep front shin vertical — knee directly above ankle.',
+    'Drive through the front heel to return to start.',
+    'Alternate legs each rep, keeping core tight throughout.',
+  ],
+  plank: [
+    'Forearms on the floor, elbows under shoulders.',
+    'Extend legs behind you — body forms a straight line.',
+    'Engage core hard — prevent hips from sagging or rising.',
+    'Squeeze glutes and quads to reinforce the position.',
+    'Breathe steadily — 2 counts in, 2 counts out.',
+  ],
+  posture_check: [
+    'Stand naturally — do not over-correct your posture.',
+    'Look straight ahead, chin parallel to the floor.',
+    'Let shoulders relax — avoid shrugging or rounding.',
+    'Feet hip-width apart, weight evenly distributed.',
+    'Hold still for 5 seconds while Yara measures alignment.',
+  ],
+};
+
+// ── HelpOverlay — slides up from bottom on voice command ───────
+function HelpOverlay({ visible, exerciseKey, onClose }) {
+  const slideY = useSharedValue(300);
+  const opacity = useSharedValue(0);
+
+  useEffect(() => {
+    if (visible) {
+      slideY.value  = withSpring(0,   { damping: 18, stiffness: 220 });
+      opacity.value = withSpring(1,   { damping: 20, stiffness: 180 });
+    } else {
+      slideY.value  = withSpring(300, { damping: 20, stiffness: 260 });
+      opacity.value = withSpring(0,   { damping: 20, stiffness: 260 });
+    }
+  }, [visible]);
+
+  const cardStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: slideY.value }],
+    opacity:   opacity.value,
+  }));
+
+  const key = exerciseKey || 'squat';
+  const instructions = EXERCISE_INSTRUCTIONS[key] || EXERCISE_INSTRUCTIONS.squat;
+  const label = key.replace(/_/g, ' ').toUpperCase();
+
+  if (!visible && opacity.value === 0) return null;
+
+  return (
+    <Reanimated.View
+      style={[StyleSheet.absoluteFillObject, { zIndex: 200 }]}
+      pointerEvents={visible ? 'box-none' : 'none'}
+    >
+      {/* Dim backdrop */}
+      <TouchableOpacity
+        activeOpacity={1}
+        style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.72)' }]}
+        onPress={onClose}
+      />
+
+      {/* Instruction card */}
+      <Reanimated.View style={[hw.card, cardStyle]}>
+        {/* Top lime accent */}
+        <View style={hw.accentBar} />
+
+        {/* Header */}
+        <View style={hw.header}>
+          <View>
+            <Text style={hw.superLabel}>HOW TO MOVE</Text>
+            <Text style={hw.exerciseName}>{label}</Text>
+          </View>
+          <TouchableOpacity onPress={onClose} style={hw.closeBtn} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+            <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 18, fontWeight: '700' }}>✕</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Steps */}
+        <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 260 }}>
+          {instructions.map((step, i) => (
+            <View key={i} style={hw.stepRow}>
+              <View style={hw.stepNum}>
+                <Text style={hw.stepNumTxt}>{i + 1}</Text>
+              </View>
+              <Text style={hw.stepTxt}>{step}</Text>
+            </View>
+          ))}
+        </ScrollView>
+
+        {/* Voice hint */}
+        <View style={hw.footer}>
+          <View style={hw.voiceDot} />
+          <Text style={hw.footerTxt}>Say "close" or tap outside to dismiss</Text>
+        </View>
+      </Reanimated.View>
+    </Reanimated.View>
+  );
+}
+
+const hw = StyleSheet.create({
+  card: {
+    position: 'absolute',
+    bottom: 0, left: 0, right: 0,
+    backgroundColor: 'rgba(0,0,0,0.92)',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingBottom: 36,
+    overflow: 'hidden',
+  },
+  accentBar:    { height: 3, backgroundColor: '#C6FF33', marginHorizontal: 40, borderRadius: 2, marginBottom: 0 },
+  header:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 20, paddingBottom: 12 },
+  superLabel:   { color: '#C6FF33', fontSize: 10, fontWeight: '900', letterSpacing: 2, marginBottom: 4 },
+  exerciseName: { color: '#FFFFFF', fontSize: 20, fontWeight: '800', letterSpacing: -0.5 },
+  closeBtn:     { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
+  stepRow:      { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingHorizontal: 20, paddingVertical: 8 },
+  stepNum:      { width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(198,255,51,0.15)', borderWidth: 1, borderColor: 'rgba(198,255,51,0.5)', alignItems: 'center', justifyContent: 'center', marginTop: 1 },
+  stepNumTxt:   { color: '#C6FF33', fontSize: 11, fontWeight: '900' },
+  stepTxt:      { color: '#FFFFFF', fontSize: 14, lineHeight: 20, flex: 1 },
+  footer:       { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16, paddingHorizontal: 20 },
+  voiceDot:     { width: 7, height: 7, borderRadius: 3.5, backgroundColor: '#C6FF33' },
+  footerTxt:    { color: 'rgba(255,255,255,0.4)', fontSize: 11 },
+});
+
 function formatTimer(secs) {
   const m = Math.floor(secs / 60);
   const s = secs % 60;
@@ -218,6 +378,8 @@ export default function WorkoutActive({ route, navigation }) {
   const [guideVisible,    setGuideVisible]   = useState(false);
   // Once true, keeps the guide WebView mounted for instant re-show
   const [guideEverShown,  setGuideEverShown] = useState(false);
+  // Voice-command triggered help overlay
+  const [isHelpVisible,   setIsHelpVisible]  = useState(false);
 
   // ── Cleanup on unmount ──────────────────────────────────────
   useEffect(() => {
@@ -227,6 +389,10 @@ export default function WorkoutActive({ route, navigation }) {
       clearInterval(timerIntervalRef.current);
       clearTimeout(tapTimerRef.current);
       Speech.stop().catch(() => {});
+      // Tell the WebView to stop speech recognition to save battery
+      webViewRef.current?.injectJavaScript(
+        'if(window.onRNMessage) window.onRNMessage(\'{"type":"STOP_VOICE"}\'); true;'
+      );
     };
   }, []);
 
@@ -443,6 +609,11 @@ export default function WorkoutActive({ route, navigation }) {
         setFormScore(msg.score);
         setCue(msg.verdict);
         speakYara(msg.verdict);
+      }
+
+      if (msg.type === 'VOICE_COMMAND') {
+        if (msg.action === 'OPEN_HELP')  setIsHelpVisible(true);
+        if (msg.action === 'CLOSE_HELP') setIsHelpVisible(false);
       }
 
       if (msg.type === 'SYNC_STATUS') {
@@ -663,8 +834,22 @@ export default function WorkoutActive({ route, navigation }) {
             <Ionicons name="volume-high-outline" size={10} color="rgba(200,241,53,0.8)" />
             <Text style={s.micLabel}>YARA COACH</Text>
           </BlurView>
+
+          {/* Bottom-right: Level 2 voice listening indicator */}
+          <BlurView intensity={20} tint="dark" style={s.voiceTag}>
+            <Animated.View style={[s.voiceTagDot, { transform: [{ scale: micPulseAnim }] }]} />
+            <Ionicons name="mic" size={10} color="#C6FF33" />
+            <Text style={s.voiceTagTxt}>LISTENING</Text>
+          </BlurView>
         </>
       )}
+
+      {/* ══ VOICE-COMMAND HELP OVERLAY ════════════════════════════ */}
+      <HelpOverlay
+        visible={isHelpVisible}
+        exerciseKey={htmlKey}
+        onClose={() => setIsHelpVisible(false)}
+      />
 
       {/* ══ HOLOGRAM GUIDE MODAL ════════════════════════════════ */}
       {guideEverShown && (
@@ -855,6 +1040,17 @@ const s = StyleSheet.create({
     zIndex: 40,
   },
   micLabel: { color: 'rgba(124,92,252,0.7)', fontSize: 8, fontWeight: '800', letterSpacing: 1, marginLeft: 4 },
+
+  // ── Level 2 voice indicator (bottom-right) ──────────────────
+  voiceTag: {
+    position: 'absolute', bottom: 110, right: 16,
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    borderRadius: 12, overflow: 'hidden',
+    paddingHorizontal: 8, paddingVertical: 5,
+    zIndex: 40,
+  },
+  voiceTagDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#C6FF33' },
+  voiceTagTxt: { color: '#C6FF33', fontSize: 8, fontWeight: '900', letterSpacing: 1 },
 
   // ── Hologram Guide: backdrop + modal card ───────────────────
   guideBackdrop: {

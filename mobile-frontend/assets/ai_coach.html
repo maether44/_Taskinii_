@@ -1524,6 +1524,80 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
+// ── Level 2: Context-Aware Voice Commands ────────────────────────
+// Runs in parallel with MediaPipe — lightweight, no frame processing.
+(function initVoiceCommands() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return; // browser doesn't support it (Android WebView, old iOS)
+
+  const recognition = new SR();
+  recognition.continuous      = true;
+  recognition.interimResults  = false;
+  recognition.lang            = 'en-US';
+
+  let voiceActive = false;
+
+  function postCmd(action) {
+    if (window.ReactNativeWebView) {
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'VOICE_COMMAND', action }));
+    }
+  }
+
+  recognition.onresult = function(event) {
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const result = event.results[i];
+      if (!result.isFinal) continue;
+      if (result[0].confidence < 0.7) continue;
+      const t = result[0].transcript.toLowerCase().trim();
+      if (t.includes('show me how to move') || t.includes('show me how') || t.includes('how to move')) {
+        postCmd('OPEN_HELP');
+      } else if (t.includes('close') || t.includes('back to workout') || t.includes('hide')) {
+        postCmd('CLOSE_HELP');
+      }
+    }
+  };
+
+  // Auto-restart if recognition stops (silence timeout, etc.)
+  recognition.onend = function() {
+    if (voiceActive) {
+      try { recognition.start(); } catch (_) {}
+    }
+  };
+
+  recognition.onerror = function(e) {
+    // 'not-allowed' means mic permission denied — don't retry
+    if (e.error === 'not-allowed') { voiceActive = false; return; }
+    // For other errors (network, aborted), restart if still active
+    if (voiceActive) {
+      setTimeout(() => { try { recognition.start(); } catch (_) {} }, 1000);
+    }
+  };
+
+  // Start voice as soon as the camera initialises — wrap original startCamera
+  const _origStartCamera = window.startCamera;
+  window.startCamera = async function() {
+    if (_origStartCamera) await _origStartCamera();
+    if (!voiceActive) {
+      voiceActive = true;
+      try { recognition.start(); } catch (_) {}
+    }
+  };
+
+  // RN sends { type: 'STOP_VOICE' } on unmount to save battery
+  const _origOnMsg = window.onRNMessage;
+  window.onRNMessage = function(payload) {
+    try {
+      const msg = JSON.parse(payload);
+      if (msg.type === 'STOP_VOICE') {
+        voiceActive = false;
+        try { recognition.stop(); } catch (_) {}
+        return;
+      }
+    } catch (_) {}
+    if (_origOnMsg) _origOnMsg(payload);
+  };
+})();
+
 </script>
 </body>
 </html>
