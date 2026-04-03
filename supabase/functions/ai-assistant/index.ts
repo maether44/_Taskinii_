@@ -34,6 +34,36 @@ Deno.serve(async (req) => {
     const body = await req.json()
 
     // ══════════════════════════════════════════════════════════════
+    // MODE C — Speech-to-Text via Groq Whisper
+    // Body: { audioBase64: string, mimeType?: string }
+    // Returns: { transcript: string }
+    // ══════════════════════════════════════════════════════════════
+    if (body.audioBase64) {
+      const bytes  = Uint8Array.from(atob(body.audioBase64), c => c.charCodeAt(0))
+      const mime   = body.mimeType ?? 'audio/m4a'
+      const ext    = mime.includes('webm') ? 'webm' : mime.includes('wav') ? 'wav' : 'm4a'
+      const blob   = new Blob([bytes], { type: mime })
+      const form   = new FormData()
+      form.append('file', blob, `audio.${ext}`)
+      form.append('model', 'whisper-large-v3-turbo')
+      form.append('language', 'en')
+      form.append('response_format', 'json')
+
+      const sttRes = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+        method:  'POST',
+        headers: { 'Authorization': `Bearer ${Deno.env.get('GROQ_API_KEY')}` },
+        body:    form,
+      })
+      const sttData = await sttRes.json()
+      if (!sttRes.ok) throw new Error(`Whisper error: ${JSON.stringify(sttData?.error)}`)
+
+      return new Response(
+        JSON.stringify({ transcript: sttData.text ?? '' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // MODE A — Direct conversation proxy (YaraAssistant)
     // Body contains a `messages` array — forward straight to Groq.
     // ══════════════════════════════════════════════════════════════
@@ -66,7 +96,7 @@ Deno.serve(async (req) => {
     // ══════════════════════════════════════════════════════════════
     // MODE B — Intelligent RAG query
     // ══════════════════════════════════════════════════════════════
-    const { userId, query } = body
+    const { userId, query, voiceMode = false } = body
 
     if (!userId) throw new Error('userId is required')
     if (!query)  throw new Error('query is required')
@@ -132,7 +162,7 @@ Deno.serve(async (req) => {
     const aiHistory    = aiHistoryData.data   ?? null
 
     // ── LAYER 2: AUGMENT — build the context-rich prompt ──────────
-    const prompt = buildPrompt(profile, activity, nutrition, workouts, bodyMetrics, aiHistory, query)
+    const prompt = buildPrompt(profile, activity, nutrition, workouts, bodyMetrics, aiHistory, query, voiceMode)
 
     // ── LAYER 3: GENERATE ──────────────────────────────────────────
     const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -232,6 +262,7 @@ function buildPrompt(
   bodyMetrics: any,
   aiHistory:   any,
   query:       string,
+  voiceMode:   boolean = false,
 ): string {
   const tone = profile.assistant_tone ?? 'motivational'
 
@@ -298,8 +329,18 @@ ${aiHistory.slice(0, 3).map((h: any) => {
       ? `COACHING HISTORY: Not fetched (not relevant to this query).`
       : `COACHING HISTORY: No previous coaching sessions found.`
 
+  const voiceRules = voiceMode ? `
+VOICE MODE — CRITICAL RULES:
+- You are speaking aloud. Keep your ENTIRE response under 25 words.
+- No bullet points, no markdown, no lists. One or two short sentences only.
+- Be warm, direct, conversational — like a friend talking to you.
+- If the user says "log water", "add water", or mentions drinking: reply with spoken text AND append exactly: COMMAND:{"action":"log_water","amount":250}
+- If the user says "log sleep" or "I slept X hours": reply with spoken text AND append: COMMAND:{"action":"log_sleep","hours":<number>}
+- Never append a COMMAND unless the user explicitly asked to log something.` : ''
+
   return `You are Yara, a personal AI health and fitness coach inside the BodyQ app.
 Your coaching tone is: ${tone}
+${voiceRules}
 
 RULES YOU ALWAYS FOLLOW:
 - Always reference at least 2 specific numbers from the user's actual data

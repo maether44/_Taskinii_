@@ -12,6 +12,9 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Audio } from 'expo-av';
+import * as FileSystem from 'expo-file-system';
+import * as Speech from 'expo-speech';
 import { registerTourRef } from '../tour/tourRefs';
 import { useProfile } from '../hooks/useProfile';
 import { supabase } from '../lib/supabase';
@@ -93,6 +96,20 @@ export default function YaraAssistant() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [conversations,  setConversations]  = useState([]);
   const [activeConvId,   setActiveConvId]   = useState(null);
+
+  // ── Voice / Hands-Free mode ──────────────────────────────────
+  // listenState: 'idle' | 'listening' | 'processing' | 'speaking'
+  const [handsFreeMode, setHandsFreeMode] = useState(false);
+  const [listenState,   setListenState]   = useState('idle');
+  const [voiceError,    setVoiceError]    = useState(null);
+  const recordingRef     = useRef(null);
+  const recordTimeoutRef = useRef(null);
+  const voiceLoopRef     = useRef(false); // true while hands-free loop is active
+
+  // Lime pulse for listening state
+  const limePulse = useRef(new Animated.Value(1)).current;
+  // Speak vibrate for speaking state
+  const speakVibrate = useRef(new Animated.Value(1)).current;
 
   // ── User Insights (sidebar panel) ─────────────────────────────────────────
   // Stores the 4 AI-generated profile insight cards fetched from user_insights.
@@ -237,6 +254,209 @@ export default function YaraAssistant() {
   const glowOpacityMid   = fabScale.interpolate({ inputRange: [1, 1.08], outputRange: [0.28, 0.60] });
   const glowScaleOuter   = fabScale.interpolate({ inputRange: [1, 1.08], outputRange: [1, 1.18] });
 
+  // Listening glow — rapid lime pulse
+  useEffect(() => {
+    if (listenState === 'listening') {
+      const loop = Animated.loop(Animated.sequence([
+        Animated.timing(limePulse, { toValue: 1.35, duration: 500, useNativeDriver: true }),
+        Animated.timing(limePulse, { toValue: 1.00, duration: 500, useNativeDriver: true }),
+      ]));
+      loop.start();
+      return () => loop.stop();
+    } else {
+      limePulse.setValue(1);
+    }
+  }, [listenState]);
+
+  // Speaking vibrate — quick micro-scale on mascot
+  useEffect(() => {
+    if (listenState === 'speaking') {
+      const loop = Animated.loop(Animated.sequence([
+        Animated.timing(speakVibrate, { toValue: 1.06, duration: 120, useNativeDriver: true }),
+        Animated.timing(speakVibrate, { toValue: 0.96, duration: 120, useNativeDriver: true }),
+      ]));
+      loop.start();
+      return () => loop.stop();
+    } else {
+      speakVibrate.setValue(1);
+    }
+  }, [listenState]);
+
+  // ── Voice helpers ─────────────────────────────────────────────
+
+  const stopRecordingClean = async () => {
+    clearTimeout(recordTimeoutRef.current);
+    if (recordingRef.current) {
+      try {
+        const status = await recordingRef.current.getStatusAsync();
+        if (status.isRecording) await recordingRef.current.stopAndUnloadAsync();
+      } catch (_) {}
+      recordingRef.current = null;
+    }
+  };
+
+  const speakResponse = (text, onDone) => {
+    setListenState('speaking');
+    Speech.stop();
+    Speech.speak(text, {
+      language: 'en-US',
+      pitch:    1.15,
+      rate:     1.0,
+      onDone:   () => {
+        setListenState('idle');
+        onDone?.();
+      },
+      onStopped: () => setListenState('idle'),
+      onError:   () => setListenState('idle'),
+    });
+  };
+
+  const handleActionCommand = async (commandJson) => {
+    try {
+      const cmd = JSON.parse(commandJson);
+      if (!userId) return;
+      const TODAY = new Date().toISOString().split('T')[0];
+      if (cmd.action === 'log_water') {
+        const ml = cmd.amount ?? 250;
+        const { data: ex } = await supabase.from('daily_activity').select('id, water_ml').eq('user_id', userId).eq('date', TODAY).maybeSingle();
+        const newMl = (ex?.water_ml ?? 0) + ml;
+        if (ex) await supabase.from('daily_activity').update({ water_ml: newMl }).eq('id', ex.id);
+        else     await supabase.from('daily_activity').insert({ user_id: userId, date: TODAY, water_ml: newMl });
+      }
+      if (cmd.action === 'log_sleep') {
+        const hrs = cmd.hours ?? 7;
+        await supabase.from('daily_activity').upsert({ user_id: userId, date: TODAY, sleep_hours: hrs }, { onConflict: 'user_id,date' });
+      }
+    } catch (e) {
+      console.error('[Yara voice] action command error:', e.message);
+    }
+  };
+
+  const startListening = async () => {
+    setVoiceError(null);
+    try {
+      // Set audio mode for recording with ducking
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS:            true,
+        playsInSilentModeIOS:          true,
+        shouldDuckAndroid:             true,
+        playThroughEarpieceAndroid:    false,
+        staysActiveInBackground:       false,
+      });
+      const { granted } = await Audio.requestPermissionsAsync();
+      if (!granted) { setVoiceError('Microphone permission denied.'); return; }
+
+      const rec = new Audio.Recording();
+      await rec.prepareToRecordAsync({
+        android: { extension: '.m4a', outputFormat: 2, audioEncoder: 3, sampleRate: 16000, numberOfChannels: 1, bitRate: 128000 },
+        ios:     { extension: '.m4a', outputFormat: 'aac ', audioQuality: 127, sampleRate: 16000, numberOfChannels: 1, bitRate: 128000 },
+        web:     {},
+      });
+      await rec.startAsync();
+      recordingRef.current = rec;
+      setListenState('listening');
+
+      // Auto-stop after 8 seconds
+      recordTimeoutRef.current = setTimeout(() => stopAndTranscribe(), 8000);
+    } catch (e) {
+      console.error('[Yara voice] startListening error:', e.message);
+      setVoiceError('Could not start microphone.');
+      setListenState('idle');
+    }
+  };
+
+  const stopAndTranscribe = async () => {
+    clearTimeout(recordTimeoutRef.current);
+    if (listenState !== 'listening' || !recordingRef.current) return;
+    setListenState('processing');
+
+    try {
+      const rec = recordingRef.current;
+      recordingRef.current = null;
+      await rec.stopAndUnloadAsync();
+      const uri = rec.getURI();
+      if (!uri) throw new Error('No audio file');
+
+      // Read as base64
+      const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+
+      // Transcribe via Groq Whisper (through our edge function)
+      const { data: sttData, error: sttErr } = await supabase.functions.invoke('ai-assistant', {
+        body: { audioBase64: base64, mimeType: 'audio/m4a' },
+      });
+      if (sttErr) throw new Error(sttErr.message);
+      const transcript = sttData?.transcript?.trim();
+      if (!transcript) throw new Error('No transcript');
+
+      // Show transcript and send
+      setInput(transcript);
+      await sendVoice(transcript);
+    } catch (e) {
+      console.error('[Yara voice] transcribe error:', e.message);
+      setVoiceError('Could not understand. Try again.');
+      setListenState('idle');
+      if (voiceLoopRef.current) setTimeout(startListening, 1200);
+    }
+  };
+
+  const sendVoice = async (transcript) => {
+    if (!transcript || !userId) { setListenState('idle'); return; }
+    setTyping(true);
+    setInput('');
+
+    setAndPersist(prev => prev.map(c => {
+      if (c.id !== activeConvId) return c;
+      return {
+        ...c,
+        title:    c.title === 'New conversation' ? transcript.slice(0, 42) : c.title,
+        messages: [...c.messages, { from: 'user', text: transcript, time: fmtTime() }],
+      };
+    }));
+
+    try {
+      const { data, error } = await supabase.functions.invoke('ai-assistant', {
+        body: { userId, query: transcript, voiceMode: true },
+      });
+      if (error) throw new Error(error.message);
+      if (!data?.response) throw new Error('Empty response');
+
+      // Strip any COMMAND JSON from the spoken text
+      const commandMatch = data.response.match(/COMMAND:(\{.*\})/);
+      const spokenText   = data.response.replace(/COMMAND:\{.*\}/, '').trim();
+
+      if (commandMatch) await handleActionCommand(commandMatch[1]);
+
+      setAndPersist(prev => prev.map(c => c.id !== activeConvId ? c : {
+        ...c, messages: [...c.messages, { from: 'yara', text: spokenText, time: fmtTime() }],
+      }));
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+
+      speakResponse(spokenText, () => {
+        // Auto-restart loop if hands-free is still on
+        if (voiceLoopRef.current) setTimeout(startListening, 600);
+      });
+    } catch (e) {
+      console.error('[Yara voice] sendVoice error:', e.message);
+      setListenState('idle');
+      if (voiceLoopRef.current) setTimeout(startListening, 1200);
+    } finally {
+      setTyping(false);
+    }
+  };
+
+  const toggleHandsFree = async () => {
+    const next = !handsFreeMode;
+    setHandsFreeMode(next);
+    voiceLoopRef.current = next;
+    if (next) {
+      startListening();
+    } else {
+      await stopRecordingClean();
+      Speech.stop();
+      setListenState('idle');
+    }
+  };
+
   const openChat = () => {
     setOpen(true);
     Animated.parallel([
@@ -247,6 +467,12 @@ export default function YaraAssistant() {
 
   const closeChat = () => {
     if (sidebarOpen) closeSidebar();
+    // Stop mic + speech when closing
+    voiceLoopRef.current = false;
+    setHandsFreeMode(false);
+    setListenState('idle');
+    stopRecordingClean();
+    Speech.stop();
     Animated.parallel([
       Animated.timing(slideY,   { toValue: 500, duration: 230, useNativeDriver: true }),
       Animated.timing(fadeBack, { toValue: 0,   duration: 180, useNativeDriver: true }),
@@ -481,8 +707,24 @@ export default function YaraAssistant() {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={s.headerName}>Yara</Text>
-            <Text style={s.headerSub}>{profile ? 'Knows your profile ✓' : 'Personal Coach'}</Text>
+            <Text style={s.headerSub}>
+              {listenState === 'listening'  ? '🎙 Listening…'   :
+               listenState === 'processing' ? '⚙ Thinking…'     :
+               listenState === 'speaking'   ? '🔊 Speaking…'    :
+               profile ? 'Knows your profile ✓' : 'Personal Coach'}
+            </Text>
           </View>
+          {/* Hands-Free toggle */}
+          <TouchableOpacity
+            style={[s.handsFreeBtn, handsFreeMode && s.handsFreeBtnOn]}
+            onPress={toggleHandsFree}
+            activeOpacity={0.8}
+          >
+            <Text style={{ fontSize: 14 }}>{handsFreeMode ? '🎙' : '🎙'}</Text>
+            <Text style={[s.handsFreeTxt, handsFreeMode && { color: '#000' }]}>
+              {handsFreeMode ? 'ON' : 'OFF'}
+            </Text>
+          </TouchableOpacity>
           <TouchableOpacity style={s.closeBtn} onPress={closeChat}>
             <Text style={s.closeTxt}>✕</Text>
           </TouchableOpacity>
@@ -533,12 +775,31 @@ export default function YaraAssistant() {
           </ScrollView>
         )}
 
+        {voiceError && (
+          <View style={s.voiceErrorBar}>
+            <Text style={s.voiceErrorTxt}>{voiceError}</Text>
+          </View>
+        )}
         <View style={[s.inputBar, { paddingBottom: Math.max(14, insets.bottom + 8) }]}>
+          {/* Manual mic button — always available */}
+          <TouchableOpacity
+            style={[s.micBtn, listenState === 'listening' && s.micBtnActive]}
+            onPress={() => {
+              if (listenState === 'listening') stopAndTranscribe();
+              else startListening();
+            }}
+            disabled={listenState === 'processing' || listenState === 'speaking' || typing}
+            activeOpacity={0.8}
+          >
+            <Text style={{ fontSize: 16 }}>
+              {listenState === 'listening' ? '⏹' : '🎙'}
+            </Text>
+          </TouchableOpacity>
           <TextInput
             style={s.input}
             value={input}
             onChangeText={setInput}
-            placeholder="Ask Yara anything..."
+            placeholder="Ask Yara anything…"
             placeholderTextColor="#8B82AD"
             returnKeyType="send"
             onSubmitEditing={() => send()}
@@ -565,21 +826,25 @@ export default function YaraAssistant() {
           collapsable={false}
           style={[s.fabWrap, { transform: [{ translateY: bobAnim }, { scale: fabScale }] }]}
         >
-          {/* Outer glow halo */}
-          <Animated.View style={[s.glowOuter, { opacity: glowOpacityOuter, transform: [{ scale: glowScaleOuter }] }]} />
+          {/* Outer glow halo — lime when listening */}
+          <Animated.View style={[s.glowOuter, {
+            opacity: listenState === 'listening' ? limePulse.interpolate({ inputRange: [1, 1.35], outputRange: [0.5, 0.9] }) : glowOpacityOuter,
+            transform: [{ scale: listenState === 'listening' ? limePulse : glowScaleOuter }],
+            backgroundColor: listenState === 'listening' ? 'rgba(198,255,51,0.3)' : undefined,
+          }]} />
           {/* Mid glow halo */}
           <Animated.View style={[s.glowMid, { opacity: glowOpacityMid }]} />
           {/* Core glow */}
           <View style={s.glowCore} />
-          {/* Mascot image */}
+          {/* Mascot image — vibrates when speaking */}
           <TouchableOpacity style={s.mascotTouch} onPress={openChat} activeOpacity={0.88}>
-            <View style={s.mascotClip}>
+            <Animated.View style={[s.mascotClip, { transform: [{ scale: listenState === 'speaking' ? speakVibrate : 1 }] }]}>
               <Image
                 source={require('../assets/yara_spirit.png')}
                 style={s.mascotImg}
                 resizeMode="cover"
               />
-            </View>
+            </Animated.View>
           </TouchableOpacity>
         </Animated.View>
       )}
@@ -664,6 +929,19 @@ const s = StyleSheet.create({
   headerSub:        { color: '#8B82AD', fontSize: 11, marginTop: 2 },
   closeBtn:         { width: 34, height: 34, borderRadius: 17, backgroundColor: '#2D2850', alignItems: 'center', justifyContent: 'center' },
   closeTxt:         { color: '#8B82AD', fontSize: 15 },
+
+  // Hands-free toggle
+  handsFreeBtn:   { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#2D2850', borderWidth: 1, borderColor: '#3D3560', marginRight: 6 },
+  handsFreeBtnOn: { backgroundColor: '#C6FF33', borderColor: '#C6FF33' },
+  handsFreeTxt:   { color: '#8B82AD', fontSize: 10, fontWeight: '800' },
+
+  // Manual mic button in input bar
+  micBtn:       { width: 38, height: 38, borderRadius: 19, backgroundColor: '#2D2850', alignItems: 'center', justifyContent: 'center', marginRight: 4, borderWidth: 1, borderColor: '#3D3560' },
+  micBtnActive: { backgroundColor: 'rgba(198,255,51,0.2)', borderColor: '#C6FF33' },
+
+  // Voice error banner
+  voiceErrorBar: { backgroundColor: 'rgba(255,80,80,0.12)', paddingHorizontal: 16, paddingVertical: 6, borderTopWidth: 1, borderTopColor: 'rgba(255,80,80,0.2)' },
+  voiceErrorTxt: { color: '#FF6464', fontSize: 11, textAlign: 'center' },
 
   messages:        { flex: 1 },
   messagesContent: { padding: 16, gap: 12 },
