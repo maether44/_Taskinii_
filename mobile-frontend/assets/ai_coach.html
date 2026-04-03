@@ -1528,7 +1528,26 @@ document.addEventListener('visibilitychange', () => {
 // Runs in parallel with MediaPipe — lightweight, no frame processing.
 (function initVoiceCommands() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) return; // browser doesn't support it (Android WebView, old iOS)
+
+  // Tell RN whether SR is supported so it can show/hide the indicator
+  function postCmd(action) {
+    if (window.ReactNativeWebView) {
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'VOICE_COMMAND', action }));
+    }
+  }
+
+  // Expose a global so RN can trigger help overlay directly (mic button tap)
+  window.openHelpOverlay  = function() { postCmd('OPEN_HELP');  };
+  window.closeHelpOverlay = function() { postCmd('CLOSE_HELP'); };
+
+  if (!SR) {
+    // Android WebView and some browsers don't support SpeechRecognition.
+    // Notify RN so it hides the "LISTENING" indicator.
+    if (window.ReactNativeWebView) {
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'VOICE_COMMAND', action: 'SR_UNSUPPORTED' }));
+    }
+    return;
+  }
 
   const recognition = new SR();
   recognition.continuous      = true;
@@ -1537,21 +1556,16 @@ document.addEventListener('visibilitychange', () => {
 
   let voiceActive = false;
 
-  function postCmd(action) {
-    if (window.ReactNativeWebView) {
-      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'VOICE_COMMAND', action }));
-    }
-  }
-
   recognition.onresult = function(event) {
     for (let i = event.resultIndex; i < event.results.length; i++) {
       const result = event.results[i];
       if (!result.isFinal) continue;
-      if (result[0].confidence < 0.7) continue;
+      // Lower confidence threshold to 0.5 — mobile mics are noisier
+      if (result[0].confidence < 0.5) continue;
       const t = result[0].transcript.toLowerCase().trim();
-      if (t.includes('show me how to move') || t.includes('show me how') || t.includes('how to move')) {
+      if (t.includes('show me how to move') || t.includes('show me how') || t.includes('how to move') || t.includes('help')) {
         postCmd('OPEN_HELP');
-      } else if (t.includes('close') || t.includes('back to workout') || t.includes('hide')) {
+      } else if (t.includes('close') || t.includes('back to workout') || t.includes('hide') || t.includes('dismiss')) {
         postCmd('CLOSE_HELP');
       }
     }
@@ -1565,11 +1579,15 @@ document.addEventListener('visibilitychange', () => {
   };
 
   recognition.onerror = function(e) {
-    // 'not-allowed' means mic permission denied — don't retry
     if (e.error === 'not-allowed') { voiceActive = false; return; }
-    // For other errors (network, aborted), restart if still active
     if (voiceActive) {
       setTimeout(() => { try { recognition.start(); } catch (_) {} }, 1000);
+    }
+  };
+
+  recognition.onstart = function() {
+    if (window.ReactNativeWebView) {
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'VOICE_COMMAND', action: 'SR_STARTED' }));
     }
   };
 

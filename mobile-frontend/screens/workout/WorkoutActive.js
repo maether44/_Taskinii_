@@ -380,6 +380,8 @@ export default function WorkoutActive({ route, navigation }) {
   const [guideEverShown,  setGuideEverShown] = useState(false);
   // Voice-command triggered help overlay
   const [isHelpVisible,   setIsHelpVisible]  = useState(false);
+  // Whether SpeechRecognition is supported in this WebView
+  const [srSupported,     setSrSupported]    = useState(true);
 
   // ── Cleanup on unmount ──────────────────────────────────────
   useEffect(() => {
@@ -612,8 +614,10 @@ export default function WorkoutActive({ route, navigation }) {
       }
 
       if (msg.type === 'VOICE_COMMAND') {
-        if (msg.action === 'OPEN_HELP')  setIsHelpVisible(true);
-        if (msg.action === 'CLOSE_HELP') setIsHelpVisible(false);
+        if (msg.action === 'OPEN_HELP')       setIsHelpVisible(true);
+        if (msg.action === 'CLOSE_HELP')      setIsHelpVisible(false);
+        if (msg.action === 'SR_UNSUPPORTED')  setSrSupported(false);
+        if (msg.action === 'SR_STARTED')      setSrSupported(true);
       }
 
       if (msg.type === 'SYNC_STATUS') {
@@ -798,12 +802,12 @@ export default function WorkoutActive({ route, navigation }) {
             <Text style={s.liveTimer}>{formatTimer(timerSecs)}</Text>
           </BlurView>
 
-          {/* Top-right: Neon Lime mic button → shows hologram guide */}
+          {/* Top-right: Neon Lime mic button → opens HelpOverlay (tap fallback + voice) */}
           <TouchableOpacity
             style={s.micGuideBtn}
             onPress={() => {
-              showGuide();
-              speakYara('Watch the hologram for the correct form.');
+              setIsHelpVisible(true);
+              speakYara('Here are the steps for correct form.');
             }}
             activeOpacity={0.8}
           >
@@ -835,12 +839,14 @@ export default function WorkoutActive({ route, navigation }) {
             <Text style={s.micLabel}>YARA COACH</Text>
           </BlurView>
 
-          {/* Bottom-right: Level 2 voice listening indicator */}
-          <BlurView intensity={20} tint="dark" style={s.voiceTag}>
-            <Animated.View style={[s.voiceTagDot, { transform: [{ scale: micPulseAnim }] }]} />
-            <Ionicons name="mic" size={10} color="#C6FF33" />
-            <Text style={s.voiceTagTxt}>LISTENING</Text>
-          </BlurView>
+          {/* Bottom-right: Level 2 voice listening indicator (hidden if SR unsupported) */}
+          {srSupported && (
+            <BlurView intensity={20} tint="dark" style={s.voiceTag}>
+              <Animated.View style={[s.voiceTagDot, { transform: [{ scale: micPulseAnim }] }]} />
+              <Ionicons name="mic" size={10} color="#C6FF33" />
+              <Text style={s.voiceTagTxt}>LISTENING</Text>
+            </BlurView>
+          )}
         </>
       )}
 
