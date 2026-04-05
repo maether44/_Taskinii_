@@ -2,8 +2,8 @@ import { AppState, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL      = 'https://pxupvxhjrpemthzntrwe.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB4dXB2eGhqcnBlbXRoem50cndlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEwOTA3NDQsImV4cCI6MjA4NjY2Njc0NH0.yB2USWhCUK3K61BnBATK2mOZm6wGoRY4GY5F7dIRJ9s';
+export const SUPABASE_URL = 'https://pxupvxhjrpemthzntrwe.supabase.co';
+export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB4dXB2eGhqcnBlbXRoem50cndlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEwOTA3NDQsImV4cCI6MjA4NjY2Njc0NH0.yB2USWhCUK3K61BnBATK2mOZm6wGoRY4GY5F7dIRJ9s';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
@@ -23,4 +23,33 @@ if (Platform.OS !== 'web') {
       supabase.auth.stopAutoRefresh();
     }
   });
+}
+
+export async function invokeEdgePublic(functionName: string, body?: unknown) {
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/${functionName}`, {
+    method: 'POST',
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body ?? {}),
+  });
+
+  const payload = await response.json().catch(() => ({} as Record<string, unknown>));
+  if (!response.ok) {
+    const error = new Error(
+      String(
+        (payload as any)?.reason ||
+        (payload as any)?.error ||
+        (payload as any)?.message ||
+        `Edge function failed with ${response.status}`,
+      ),
+    ) as Error & { status?: number; payload?: unknown };
+    error.status = response.status;
+    error.payload = payload;
+    throw error;
+  }
+
+  return payload;
 }

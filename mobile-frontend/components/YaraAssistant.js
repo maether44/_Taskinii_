@@ -16,8 +16,9 @@ import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
 import * as Speech from 'expo-speech';
 import { registerTourRef } from '../tour/tourRefs';
+import { useNutrition } from '../hooks/useNutrition';
 import { useProfile } from '../hooks/useProfile';
-import { supabase } from '../lib/supabase';
+import { invokeEdgePublic, supabase } from '../config/supabase';
 
 const SIDEBAR_W      = 272;
 const STORAGE_KEY    = '@yara_conversations';
@@ -46,6 +47,84 @@ const fmtDate = (iso) => {
   if (d.toDateString() === yest.toDateString()) return 'Yesterday';
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
+
+async function getFunctionErrorDetail(error) {
+  if (!error) return '';
+  if (error?.context) {
+    try {
+      const payload = await error.context.json();
+      return payload?.reason || payload?.error || payload?.message || '';
+    } catch {
+      try {
+        return await error.context.text();
+      } catch {
+        return '';
+      }
+    }
+  }
+  return error?.message || '';
+}
+
+async function invokeYara(body) {
+  try {
+    const { data, error } = await supabase.functions.invoke('ai-assistant', { body });
+    if (error) {
+      const detail = await getFunctionErrorDetail(error);
+      throw new Error(detail || error.message);
+    }
+    if (!data) throw new Error('Empty response from assistant');
+    return data;
+  } catch (error) {
+    const message = error?.message || '';
+    if (/invalid jwt/i.test(message) || /non-2xx/i.test(message)) {
+      return invokeEdgePublic('ai-assistant', body);
+    }
+    throw error;
+  }
+}
+
+function buildClientNutritionContext({ profile, goals, eaten, protein, carbs, fat, waterMl, caloriesBurned, mealSections }) {
+  const recentMeals = (mealSections || [])
+    .filter((meal) => meal.logged)
+    .map((meal) => ({
+      date: new Date().toISOString().slice(0, 10),
+      meal_type: meal.id,
+      foods: meal.items.map((item) => item.name).join(', '),
+    }));
+
+  return {
+    profile: profile ? {
+      full_name: profile.full_name,
+      goal: profile.goal,
+      activity_level: profile.activity_level,
+      height_cm: profile.height_cm,
+      weight_kg: profile.weight_kg,
+      gender: profile.gender,
+      assistant_tone: profile.assistant_tone,
+      experience: profile.experience,
+      equipment: profile.equipment,
+      diet_pref: profile.diet_pref,
+      sleep_quality: profile.sleep_quality,
+      stress_level: profile.stress_level,
+    } : null,
+    nutrition: {
+      avg_calories: eaten || 0,
+      avg_protein_g: protein || 0,
+      avg_carbs_g: carbs || 0,
+      avg_fat_g: fat || 0,
+      logged_days: recentMeals.length ? 1 : 0,
+      daily_calorie_target: goals?.calorie_target || 2000,
+      protein_target: goals?.protein_target || 150,
+      carbs_target: goals?.carbs_target || 250,
+      fat_target: goals?.fat_target || 65,
+      recent_meals: recentMeals,
+    },
+    activity: {
+      avg_water_ml: waterMl || 0,
+      calories_burned: caloriesBurned || 0,
+    },
+  };
+}
 
 // Greeting is used in three places — single source of truth
 const getGreeting = (profile, name) => profile
@@ -88,6 +167,7 @@ function TypingDots() {
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function YaraAssistant() {
   const { profile, name, userId } = useProfile();
+  const { goals, eaten, protein, carbs, fat, waterMl, caloriesBurned, mealSections } = useNutrition();
   const insets = useSafeAreaInsets();
 
   const [open,        setOpen]        = useState(false);
@@ -116,6 +196,17 @@ export default function YaraAssistant() {
   const [userInsights,       setUserInsights]       = useState([]);
   const [insightsLoading,    setInsightsLoading]    = useState(false);
   const [insightsRefreshing, setInsightsRefreshing] = useState(false);
+  const clientContext = buildClientNutritionContext({
+    profile,
+    goals,
+    eaten,
+    protein,
+    carbs,
+    fat,
+    waterMl,
+    caloriesBurned,
+    mealSections,
+  });
 
   const activeConv = conversations.find(c => c.id === activeConvId);
   const messages   = activeConv?.messages ?? [];
@@ -381,10 +472,7 @@ export default function YaraAssistant() {
       const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
 
       // Transcribe via Groq Whisper (through our edge function)
-      const { data: sttData, error: sttErr } = await supabase.functions.invoke('ai-assistant', {
-        body: { audioBase64: base64, mimeType: 'audio/m4a' },
-      });
-      if (sttErr) throw new Error(sttErr.message);
+      const sttData = await invokeYara({ audioBase64: base64, mimeType: 'audio/m4a' });
       const transcript = sttData?.transcript?.trim();
       if (!transcript) throw new Error('No transcript');
 
@@ -414,10 +502,8 @@ export default function YaraAssistant() {
     }));
 
     try {
-      const { data, error } = await supabase.functions.invoke('ai-assistant', {
-        body: { userId, query: transcript, voiceMode: true },
-      });
-      if (error) throw new Error(error.message);
+      let data = await invokeYara({ userId, query: transcript, voiceMode: true, clientContext });
+      if (!data?.response) data = await invokeYara({ query: transcript, voiceMode: true, clientContext });
       if (!data?.response) throw new Error('Empty response');
 
       // Strip any COMMAND JSON from the spoken text
@@ -553,18 +639,8 @@ export default function YaraAssistant() {
     }));
 
     try {
-      const { data, error } = await supabase.functions.invoke('ai-assistant', {
-        body: { userId, query: msg },
-      });
-
-      if (error) {
-        let reason = error.message;
-        try {
-          const body = await error.context?.json?.();
-          if (body?.error) reason = body.error;
-        } catch {}
-        throw new Error(reason);
-      }
+      let data = await invokeYara({ userId, query: msg, clientContext });
+      if (!data?.response) data = await invokeYara({ query: msg, clientContext });
 
       if (!data?.response) throw new Error('Empty response from assistant');
 

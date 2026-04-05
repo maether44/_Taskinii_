@@ -15,13 +15,6 @@ export function useAppTour({ activeTab, onTabPress, showOnMount }) {
   const [stepIdx, setStepIdx] = useState(0);
   const [computed, setComputed] = useState(null);
 
-  console.log(
-    "🎯 useAppTour hook - showOnMount:",
-    showOnMount,
-    "visible:",
-    visible,
-  );
-
   const overlayOp = useRef(new Animated.Value(0)).current;
   const sL = useRef(new Animated.Value(0)).current;
   const sT = useRef(new Animated.Value(0)).current;
@@ -33,14 +26,10 @@ export function useAppTour({ activeTab, onTabPress, showOnMount }) {
   const glow = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // console.log("🎯 Tour useEffect triggered - showOnMount:", showOnMount);
     if (!showOnMount) return;
 
-    // console.log("🎯 Tour showOnMount triggered");
     hasTourBeenSeen().then((seen) => {
-    //   console.log("🎯 Tour already seen:", seen);
       if (!seen) {
-        // console.log("🎯 Showing tour in 800ms");
         setTimeout(() => setVisible(true), 800);
       }
     });
@@ -163,7 +152,10 @@ export function useAppTour({ activeTab, onTabPress, showOnMount }) {
     const spotCY = (spotT + spotB) / 2;
     const margin = 16;
 
-    let bx, by, arrowSide, arrowOffset;
+    let bx;
+    let by;
+    let arrowSide;
+    let arrowOffset;
 
     if (side === "bottom") {
       by = spotB + margin;

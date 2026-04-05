@@ -2,7 +2,6 @@ import React from "react";
 import { View } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createStackNavigator } from "@react-navigation/stack";
-import { useNavigationState } from "@react-navigation/native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 
 // Screens
@@ -16,7 +15,6 @@ import ExerciseInfo from "../screens/ExerciseInfo";
 import WorkoutActive from "../screens/workout/WorkoutActive";
 import WorkoutSummary from "../screens/workout/WorkoutSummary";
 import PostureAI from "../screens/PostureAI";
-import YaraAssistant from "./YaraAssistant";
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -42,20 +40,7 @@ function TrainingStack() {
   );
 }
 
-// Checks if WorkoutActive is the focused screen inside TrainingStack
-function useIsWorkoutActive() {
-  return useNavigationState((state) => {
-    if (!state) return false;
-    const trainTab = state.routes?.find((r) => r.name === 'Train');
-    if (!trainTab?.state) return false;
-    const focused = trainTab.state.routes?.[trainTab.state.index ?? 0];
-    return focused?.name === 'WorkoutActive';
-  });
-}
-
 export default function NavBar() {
-  const isWorkoutActive = useIsWorkoutActive();
-
   return (
     <View style={{ flex: 1 }}>
       <Tab.Navigator
@@ -86,8 +71,6 @@ export default function NavBar() {
         <Tab.Screen name="Profile" component={Profile}
           options={{ tabBarIcon: ({ color }) => <Ionicons name="person" size={24} color={color} /> }} />
       </Tab.Navigator>
-
-      {!isWorkoutActive && <YaraAssistant />}
     </View>
   );
 }

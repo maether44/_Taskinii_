@@ -1,12 +1,14 @@
-/**
- * components/FoodScanner/FoodResultSheet.js
- * Uses existing MacroBar, RingProgress, StatCard components.
- * Matches BodyQ color system: #0F0B1E / #7C5CFC / #C8F135
- */
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useEffect, useRef, useState } from "react";
-import { Animated, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useMemo } from "react";
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import MacroBar from "../shared/MacroBar";
 import RingProgress from "../shared/RingProgress";
 import StatCard from "../shared/StatCard";
@@ -14,303 +16,419 @@ import StatCard from "../shared/StatCard";
 const C = {
   bg: "#0F0B1E",
   card: "#161230",
-  border: "#1E1A35",
+  cardAlt: "#1B1637",
+  border: "#241E45",
   purple: "#7C5CFC",
   lime: "#C8F135",
   accent: "#9D85F5",
   text: "#FFFFFF",
-  sub: "#6B5F8A",
+  sub: "#8C80B1",
+  dim: "#6B5F8A",
   green: "#34C759",
-  red: "#FF3B30",
+  red: "#FF6B6B",
 };
 
-// Meal slot picker
 const MEAL_OPTIONS = [
-  { id: "breakfast", label: "Breakfast", icon: "☀️" },
-  { id: "lunch", label: "Lunch", icon: "🌤️" },
-  { id: "dinner", label: "Dinner", icon: "🌙" },
-  { id: "snack", label: "Snack", icon: "🍎" },
+  { id: "breakfast", label: "Breakfast", icon: "sunny-outline" },
+  { id: "lunch", label: "Lunch", icon: "partly-sunny-outline" },
+  { id: "dinner", label: "Dinner", icon: "moon-outline" },
+  { id: "snack", label: "Snack", icon: "cafe-outline" },
 ];
 
-function SuggRow({ text, delay }) {
-  const ty = useRef(new Animated.Value(14)).current;
-  const op = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(ty, { toValue: 0, duration: 350, delay, useNativeDriver: true }),
-      Animated.timing(op, { toValue: 1, duration: 350, delay, useNativeDriver: true }),
-    ]).start();
-  }, []);
-  return (
-    <Animated.View style={[s.suggRow, { transform: [{ translateY: ty }], opacity: op }]}>
-      <View style={s.suggDot} />
-      <Text style={s.suggTxt}>{text}</Text>
-    </Animated.View>
-  );
+function goalFitLabel(goalType, { calories, protein, carbs, fat }) {
+  const highProtein = protein >= 20;
+  const highFat = fat >= 18;
+  const highCarb = carbs >= 40;
+  const lightMeal = calories < 260;
+
+  if (goalType === "lose_fat") {
+    if (highProtein && !highFat && calories <= 420) return "Lean choice for a cut. This fits well as part of a controlled day.";
+    if (highFat || calories > 600) return "Tasty but heavy. Keep the rest of the day lighter if fat loss is your priority.";
+    return "Decent middle ground. Watch portion size and anchor it with protein.";
+  }
+
+  if (goalType === "gain_muscle") {
+    if (highProtein && calories >= 350) return "Strong muscle-building option with enough fuel to support training.";
+    if (!highProtein) return "Add more protein to make this more useful for growth and recovery.";
+    return "Good base meal. Add carbs around training if you need more performance fuel.";
+  }
+
+  if (highProtein && !highFat) return "Balanced pick for a solid everyday meal.";
+  if (highCarb && !highFat) return "Carb-forward choice that works especially well before or after activity.";
+  if (lightMeal) return "Light option. Useful when you want something quick without burning much of your calorie budget.";
+  return "Reasonable overall. The portion you choose will make the biggest difference.";
 }
 
-export default function FoodResultSheet({ result, onLog, onDismiss }) {
-  const [logged, setLogged] = useState(false);
-  const [selectedMeal, setSelectedMeal] = useState("snack");
-  const logScale = useRef(new Animated.Value(1)).current;
-
-  // Ensure result is defined and has required properties
+export default function FoodResultSheet({
+  result,
+  selectedMeal,
+  onMealChange,
+  quantity,
+  onQuantityChange,
+  onLog,
+  onBack,
+  saving = false,
+}) {
   const safeResult = result || {};
+  const servingSize = Math.max(1, Number(safeResult.servingSize) || 100);
+  const quantityValue = Math.max(1, Number(quantity) || servingSize);
+  const ratio = quantityValue / servingSize;
+
+  const scaled = useMemo(() => {
+    const calories = Math.round((Number(safeResult.calories) || 0) * ratio);
+    const protein = Math.round((Number(safeResult.protein) || 0) * ratio * 10) / 10;
+    const carbs = Math.round((Number(safeResult.carbs) || 0) * ratio * 10) / 10;
+    const fat = Math.round((Number(safeResult.fat) || 0) * ratio * 10) / 10;
+    const fiber = Math.round((Number(safeResult.fiber) || 0) * ratio * 10) / 10;
+    return { calories, protein, carbs, fat, fiber };
+  }, [ratio, safeResult]);
+
   const {
-    name = "Unknown food", brand = "",
-    calories = 0, protein = 0, carbs = 0, fat = 0, fiber = 0,
-    servingSize = 100, servingUnit = "g", healthScore = 50,
-    suggestions = [],
-    confidence = 0.9,
+    name = "Scanned food",
+    brand = "",
+    servingUnit = "g",
+    healthScore = 50,
+    confidence = 0.8,
     source = "barcode",
+    suggestions = [],
     goalType = "general_health",
-    goalCalories = 2000, goalProtein = 150, goalCarbs = 250, goalFat = 65,
-    currentCalories = 0, currentProtein = 0, currentCarbs = 0, currentFat = 0,
+    goalCalories = 2000,
+    goalProtein = 150,
+    goalCarbs = 250,
+    goalFat = 65,
+    currentCalories = 0,
+    currentProtein = 0,
+    currentCarbs = 0,
+    currentFat = 0,
   } = safeResult;
-  
-  // Ensure suggestions is always an array
-  const safeSuggestions = Array.isArray(suggestions) ? suggestions : [];
-  
-  // Debug logging - remove once confirmed working
-  if (!Array.isArray(suggestions)) {
-    console.warn('⚠️ FoodResultSheet: suggestions is not an array', { suggestions, type: typeof suggestions });
-  }
 
-  const calAfter = currentCalories + calories;
-  const calPct = Math.min(calAfter / goalCalories, 1);
-  const over = calAfter > goalCalories;
-  const remaining = goalCalories - calAfter;
-  const scoreColor = healthScore > 70 ? C.green : healthScore > 45 ? C.lime : C.red;
-
+  const calAfter = currentCalories + scaled.calories;
+  const calProgress = Math.min(calAfter / Math.max(1, goalCalories), 1);
+  const scoreColor = healthScore >= 75 ? C.green : healthScore >= 50 ? C.lime : C.red;
   const confidencePct = Math.round(Math.max(0, Math.min(1, confidence || 0)) * 100);
-
-  function goalFitLabel() {
-    // Very lightweight heuristic based on macros + goal
-    const highProtein = protein >= 20;
-    const highFat = fat >= 18;
-    const highCarb = carbs >= 40;
-    const mediumCal = calories >= 250 && calories <= 500;
-    const lowCal = calories < 250;
-
-    if (goalType === "lose_fat") {
-      if (lowCal && highProtein && !highFat) return "Great for fat loss (high protein, lighter calories).";
-      if (highFat || calories > 550) return "Heavier choice — enjoy occasionally if you’re cutting.";
-      return "Fine in moderation — balance it with lighter meals.";
-    }
-
-    if (goalType === "gain_muscle") {
-      if (highProtein && (mediumCal || calories > 400)) return "Solid for muscle gain and recovery.";
-      if (!highProtein) return "Add a lean protein source to better support muscle gain.";
-      return "Good fuel — pair with carbs around your workouts.";
-    }
-
-    // General health / maintenance
-    if (highProtein && !highFat && !highCarb) return "Balanced option for everyday health.";
-    if (highCarb && !highFat) return "Carb-focused — ideal around training or active days.";
-    if (highFat && calories > 450) return "Energy-dense — keep portions mindful for balance.";
-    return "Reasonable choice — keep an eye on total daily calories.";
-  }
-
-  const fitText = goalFitLabel();
-
-  const onLogPress = () => {
-    Animated.sequence([
-      Animated.spring(logScale, { toValue: 0.93, useNativeDriver: true }),
-      Animated.spring(logScale, { toValue: 1, useNativeDriver: true }),
-    ]).start(() => {
-      setLogged(true);
-      onLog && onLog(selectedMeal);
-    });
-  };
+  const mealLabel = MEAL_OPTIONS.find((option) => option.id === selectedMeal)?.label || "Meal";
+  const fitText = goalFitLabel(goalType, scaled);
+  const quickQuantities = [Math.round(servingSize * 0.5), servingSize, Math.round(servingSize * 1.5), Math.round(servingSize * 2)]
+    .map((value) => Math.max(1, Math.round(value)))
+    .filter((value, index, array) => array.indexOf(value) === index);
 
   return (
-    <View style={s.sheet}>
-
-      {/* Food name + health score */}
-      <View style={s.topRow}>
+    <View style={s.root}>
+      <View style={s.header}>
+        <TouchableOpacity style={s.headerBtn} onPress={onBack} activeOpacity={0.8}>
+          <Ionicons name="chevron-back" size={20} color="#fff" />
+        </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={s.foodName} numberOfLines={2}>{name}</Text>
-          {!!brand && <Text style={s.brand}>{brand}</Text>}
-          <View style={s.servingRow}>
-            <Ionicons name="restaurant-outline" size={12} color={C.accent} />
-            <Text style={s.servingTxt}>{servingSize}{servingUnit} per serving</Text>
-          </View>
+          <Text style={s.headerTitle}>Scanned result</Text>
+          <Text style={s.headerSub}>Review it, pick a meal, then log it</Text>
         </View>
-        <View style={s.scoreColumn}>
-          <View style={[s.scoreBadge, { borderColor: scoreColor }]}>
-            <Text style={[s.scoreNum, { color: scoreColor }]}>{healthScore}</Text>
-            <Text style={s.scoreLabel}>score</Text>
-          </View>
-          <View style={s.metaPills}>
-            <View style={s.metaPill}>
-              <Text style={s.metaPillTxt}>
-                {source === "photo_ai" || source === "demo" ? "AI vision" : source === "estimate" ? "Estimated" : "Barcode DB"}
-              </Text>
+      </View>
+
+      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+        <LinearGradient colors={["#1E1842", "#130F29"]} style={s.heroCard}>
+          <View style={s.heroTop}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.foodName}>{name}</Text>
+              {!!brand && <Text style={s.brand}>{brand}</Text>}
+              <View style={s.metaRow}>
+                <View style={s.metaPill}>
+                  <Text style={s.metaTxt}>
+                    {source === "photo_ai" ? "AI photo" : "Barcode"}
+                  </Text>
+                </View>
+                <View style={s.metaPill}>
+                  <Text style={s.metaTxt}>{confidencePct}% confidence</Text>
+                </View>
+              </View>
             </View>
-            <View style={s.metaPill}>
-              <Text style={s.metaPillTxt}>{confidencePct}% match</Text>
+
+            <View style={[s.scoreBadge, { borderColor: scoreColor }]}>
+              <Text style={[s.scoreNum, { color: scoreColor }]}>{healthScore}</Text>
+              <Text style={s.scoreLabel}>score</Text>
             </View>
           </View>
-        </View>
-      </View>
 
-      {/* Calorie ring + stat cards */}
-      <View style={s.calorieRow}>
-        <RingProgress size={100} stroke={9} progress={calPct} color={over ? C.red : C.lime}>
-          <View style={{ alignItems: "center" }}>
-            <Text style={s.ringCal}>{calories}</Text>
-            <Text style={s.ringUnit}>kcal</Text>
+          <View style={s.heroBottom}>
+            <RingProgress size={110} stroke={10} progress={calProgress} color={calAfter > goalCalories ? C.red : C.lime}>
+              <View style={{ alignItems: "center" }}>
+                <Text style={s.ringNum}>{scaled.calories}</Text>
+                <Text style={s.ringLbl}>kcal</Text>
+              </View>
+            </RingProgress>
+
+            <View style={s.heroStats}>
+              <StatCard
+                icon="🍽️"
+                label="Logging to"
+                value={mealLabel}
+                sub="adds as part of this meal"
+                color={C.purple}
+                style={{ width: "100%" }}
+              />
+              <StatCard
+                icon="🎯"
+                label="After this"
+                value={`${calAfter}`}
+                sub={`of ${goalCalories} kcal`}
+                color={calAfter > goalCalories ? C.red : C.lime}
+                style={{ width: "100%" }}
+              />
+            </View>
           </View>
-        </RingProgress>
-        <View style={{ flex: 1, gap: 8 }}>
-          <StatCard
-            icon="🔥" label="After meal"
-            value={`${calAfter}`} sub="kcal today"
-            color={over ? C.red : C.purple}
-            style={{ width: "100%" }}
-          />
-          <StatCard
-            icon={over ? "⚠️" : "✅"}
-            label={over ? "Over goal" : "Remaining"}
-            value={`${Math.abs(remaining)}`} sub="kcal"
-            color={over ? C.red : C.green}
-            style={{ width: "100%" }}
-          />
-        </View>
-      </View>
+        </LinearGradient>
 
-      {/* Macros */}
-      <Text style={s.sectionHead}>Macronutrients</Text>
-      <View style={s.macroWrap}>
-        <MacroBar label="Protein" eaten={currentProtein + protein} goal={goalProtein} color={C.purple} />
-        <MacroBar label="Carbs" eaten={currentCarbs + carbs} goal={goalCarbs} color={C.accent} />
-        <MacroBar label="Fat" eaten={currentFat + fat} goal={goalFat} color={C.lime} />
-        {fiber > 0 && <MacroBar label="Fiber" eaten={fiber} goal={30} color={C.green} />}
-      </View>
+        <View style={s.card}>
+          <Text style={s.sectionLabel}>Portion</Text>
+          <Text style={s.sectionTitle}>Adjust how much you actually ate</Text>
+          <Text style={s.sectionSub}>Serving detected: {servingSize}{servingUnit}</Text>
 
-      {/* Goal fit explainer */}
-      {!!fitText && (
-        <View style={s.goalFitCard}>
-          <Text style={s.goalFitTitle}>Fit for your goal</Text>
-          <Text style={s.goalFitText}>{fitText}</Text>
-        </View>
-      )}
-
-      {/* This serving */}
-      <Text style={s.sectionHead}>This Serving</Text>
-      <View style={s.servingGrid}>
-        <StatCard icon="💪" label="Protein" value={`${protein}g`} color={C.purple} style={{ flex: 1 }} />
-        <StatCard icon="🌾" label="Carbs" value={`${carbs}g`} color={C.accent} style={{ flex: 1 }} />
-        <StatCard icon="🥑" label="Fat" value={`${fat}g`} color={C.lime} style={{ flex: 1 }} />
-      </View>
-
-      {/* Meal slot picker */}
-      <Text style={s.sectionHead}>Log to meal</Text>
-      <View style={s.mealPicker}>
-        {MEAL_OPTIONS.map(m => (
-          <TouchableOpacity
-            key={m.id}
-            style={[s.mealChip, selectedMeal === m.id && s.mealChipActive]}
-            onPress={() => setSelectedMeal(m.id)}
-          >
-            <Text style={s.mealChipIcon}>{m.icon}</Text>
-            <Text style={[s.mealChipTxt, selectedMeal === m.id && s.mealChipTxtActive]}>
-              {m.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* AI Suggestions */}
-      {safeSuggestions && safeSuggestions.length > 0 && (
-        <>
-          <View style={s.suggHeader}>
-            <Text style={{ fontSize: 14 }}>🤖</Text>
-            <Text style={s.sectionHead}>AI Suggestions</Text>
+          <View style={s.portionControl}>
+            <TouchableOpacity style={s.portionBtn} onPress={() => onQuantityChange(Math.max(1, quantityValue - 25))}>
+              <Ionicons name="remove" size={20} color={C.text} />
+            </TouchableOpacity>
+            <View style={s.portionCenter}>
+              <TextInput
+                style={s.portionInput}
+                value={String(quantityValue)}
+                keyboardType="numeric"
+                onChangeText={(value) => onQuantityChange(Math.max(1, Number(value.replace(/[^\d]/g, "")) || 1))}
+              />
+              <Text style={s.portionUnit}>{servingUnit}</Text>
+            </View>
+            <TouchableOpacity style={s.portionBtn} onPress={() => onQuantityChange(quantityValue + 25)}>
+              <Ionicons name="add" size={20} color={C.text} />
+            </TouchableOpacity>
           </View>
-          {safeSuggestions.map((sug, i) => <SuggRow key={i} text={sug} delay={i * 80} />)}
-        </>
-      )}
 
-      {/* Log button */}
-      <Animated.View style={{ transform: [{ scale: logScale }], marginTop: 24 }}>
-        <TouchableOpacity onPress={onLogPress} disabled={logged} activeOpacity={0.85}>
-          <LinearGradient
-            colors={logged ? [C.card, C.card] : [C.purple, C.accent]}
-            start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-            style={s.logBtn}
-          >
-            <Ionicons
-              name={logged ? "checkmark-circle" : "add-circle-outline"}
-              size={19} color={logged ? C.lime : "#fff"}
-            />
-            <Text style={[s.logTxt, { color: logged ? C.lime : "#fff" }]}>
-              {logged ? "Added to diary!" : `Log to ${MEAL_OPTIONS.find(m => m.id === selectedMeal)?.label}`}
-            </Text>
+          <View style={s.quickRow}>
+            {quickQuantities.map((value) => (
+              <TouchableOpacity
+                key={value}
+                style={[s.quickChip, value === quantityValue && s.quickChipActive]}
+                onPress={() => onQuantityChange(value)}
+              >
+                <Text style={[s.quickChipTxt, value === quantityValue && s.quickChipTxtActive]}>
+                  {value}{servingUnit}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        <View style={s.card}>
+          <Text style={s.sectionLabel}>Meal slot</Text>
+          <Text style={s.sectionTitle}>Where should this item go today?</Text>
+          <View style={s.mealGrid}>
+            {MEAL_OPTIONS.map((meal) => {
+              const active = selectedMeal === meal.id;
+              return (
+                <TouchableOpacity
+                  key={meal.id}
+                  style={[s.mealChip, active && s.mealChipActive]}
+                  onPress={() => onMealChange(meal.id)}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name={meal.icon} size={16} color={active ? "#101010" : C.accent} />
+                  <Text style={[s.mealChipTxt, active && s.mealChipTxtActive]}>{meal.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        <View style={s.card}>
+          <Text style={s.sectionLabel}>Nutrition</Text>
+          <Text style={s.sectionTitle}>This portion in your day</Text>
+          <View style={s.macroWrap}>
+            <MacroBar label="Protein" eaten={currentProtein + scaled.protein} goal={goalProtein} color={C.purple} />
+            <MacroBar label="Carbs" eaten={currentCarbs + scaled.carbs} goal={goalCarbs} color={C.accent} />
+            <MacroBar label="Fat" eaten={currentFat + scaled.fat} goal={goalFat} color={C.lime} />
+          </View>
+
+          <View style={s.statRow}>
+            <StatCard icon="💪" label="Protein" value={`${scaled.protein}g`} color={C.purple} style={{ flex: 1 }} />
+            <StatCard icon="🌾" label="Carbs" value={`${scaled.carbs}g`} color={C.accent} style={{ flex: 1 }} />
+            <StatCard icon="🥑" label="Fat" value={`${scaled.fat}g`} color={C.lime} style={{ flex: 1 }} />
+          </View>
+          {scaled.fiber > 0 && (
+            <View style={s.fiberRow}>
+              <Ionicons name="leaf-outline" size={14} color={C.lime} />
+              <Text style={s.fiberTxt}>Fiber: {scaled.fiber}g</Text>
+            </View>
+          )}
+        </View>
+
+        <View style={s.card}>
+          <Text style={s.sectionLabel}>Coach note</Text>
+          <Text style={s.sectionTitle}>How it fits your goal</Text>
+          <Text style={s.fitText}>{fitText}</Text>
+          {!!suggestions?.length && (
+            <View style={s.tipList}>
+              {suggestions.slice(0, 3).map((tip, index) => (
+                <View key={`${tip}-${index}`} style={s.tipRow}>
+                  <View style={s.tipDot} />
+                  <Text style={s.tipTxt}>{tip}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
+        <TouchableOpacity
+          style={[s.logBtn, saving && { opacity: 0.7 }]}
+          onPress={onLog}
+          disabled={saving}
+          activeOpacity={0.85}
+        >
+          <LinearGradient colors={[C.purple, C.accent]} style={s.logGradient}>
+            <Ionicons name={saving ? "sync-outline" : "add-circle-outline"} size={19} color="#fff" />
+            <Text style={s.logTxt}>{saving ? "Saving..." : `Add to ${mealLabel}`}</Text>
           </LinearGradient>
         </TouchableOpacity>
-      </Animated.View>
-
-      <TouchableOpacity onPress={onDismiss} style={s.scanAgain}>
-        <Text style={s.scanAgainTxt}>Scan another item</Text>
-      </TouchableOpacity>
-
+      </ScrollView>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  sheet: { paddingHorizontal: 20, paddingTop: 8 },
-  topRow: { flexDirection: "row", alignItems: "flex-start", gap: 14, marginBottom: 20 },
-  foodName: { color: C.text, fontSize: 20, fontWeight: "800", letterSpacing: -0.3, lineHeight: 26 },
-  brand: { color: C.accent, fontSize: 12, marginTop: 3 },
-  servingRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 },
-  servingTxt: { color: C.sub, fontSize: 11 },
-  scoreBadge: { width: 54, height: 54, borderRadius: 14, borderWidth: 2, backgroundColor: C.card, alignItems: "center", justifyContent: "center" },
-  scoreNum: { fontSize: 18, fontWeight: "900" },
-  scoreLabel: { color: C.sub, fontSize: 9, fontWeight: "700", letterSpacing: 0.4 },
-  scoreColumn: { alignItems: "center", gap: 6 },
-  calorieRow: { flexDirection: "row", alignItems: "center", gap: 16, marginBottom: 24 },
-  ringCal: { color: C.text, fontSize: 18, fontWeight: "900", lineHeight: 20 },
-  ringUnit: { color: C.sub, fontSize: 10, fontWeight: "600" },
-  sectionHead: { color: C.text, fontSize: 14, fontWeight: "700", marginBottom: 12, letterSpacing: 0.2 },
-  macroWrap: { backgroundColor: C.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: C.border, marginBottom: 20 },
-  servingGrid: { flexDirection: "row", gap: 8, marginBottom: 20 },
-  mealPicker: { flexDirection: "row", gap: 8, marginBottom: 20 },
-  mealChip: { flex: 1, alignItems: "center", paddingVertical: 10, backgroundColor: C.card, borderRadius: 12, borderWidth: 1, borderColor: C.border },
-  mealChipActive: { backgroundColor: C.purple, borderColor: C.purple },
-  mealChipIcon: { fontSize: 16, marginBottom: 3 },
-  mealChipTxt: { color: C.sub, fontSize: 10, fontWeight: "600" },
-  mealChipTxtActive: { color: "#fff" },
-  metaPills: { flexDirection: "row", gap: 6 },
-  metaPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: "#211C3D", borderWidth: 1, borderColor: "#3A315F" },
-  metaPillTxt: { color: C.sub, fontSize: 9, fontWeight: "700", letterSpacing: 0.4 },
-  suggHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 },
-  suggRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: C.card, borderRadius: 12, padding: 13, marginBottom: 7, borderWidth: 1, borderColor: C.purple + "22" },
-  suggDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.purple, marginTop: 5 },
-  suggTxt: { color: C.accent, fontSize: 13, lineHeight: 20, flex: 1 },
-  logBtn: { borderRadius: 14, height: 52, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1, borderColor: C.border },
-  logTxt: { fontSize: 15, fontWeight: "800" },
-  scanAgain: { alignItems: "center", paddingVertical: 16 },
-  scanAgainTxt: { color: C.sub, fontSize: 13, fontWeight: "600" },
-  goalFitCard: { backgroundColor: C.card, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: C.border, marginBottom: 18 },
-  goalFitTitle: { color: C.sub, fontSize: 11, fontWeight: "800", letterSpacing: 1, marginBottom: 4 },
-  goalFitText: { color: C.accent, fontSize: 13, lineHeight: 20 },
-  advancedCard: { backgroundColor: C.card, borderRadius: 20, padding: 20, borderWidth: 1.5, borderColor: "#322B59", shadowColor: "#2D264A", shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.14, shadowRadius: 18, elevation: 6, marginBottom: 22 },
-  gradientBorderWrap: { borderRadius: 18, padding: 2.5, backgroundColor: "transparent", marginBottom: 18 },
-  gradientCardInner: { backgroundColor: C.card, borderRadius: 16, padding: 16 },
-  macroPill: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 18, backgroundColor: "#241D38", borderWidth: 1, borderColor: "#463D73", marginRight: 8, flexDirection: "row", alignItems: "center", shadowColor: "#1F1635", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 5, elevation: 1.5 },
-  macroPillIcon: { marginRight: 4, fontSize: 13 },
-  macroPillTxt: { color: "#EDE9FF", fontWeight: "700", fontSize: 13, letterSpacing: 0.3 },
-  progressBarBG: { height: 9, borderRadius: 8, backgroundColor: "#17122E", width: "100%", marginVertical: 7, overflow: "hidden" },
-  progressBarFG: { height: "100%", borderRadius: 8, position: "absolute", left: 0, top: 0 },
-  tagSuccess: { backgroundColor: "#2ED57333", borderColor: "#63FF7344", borderWidth: 1 },
-  tagWarning: { backgroundColor: "#FFC04822", borderColor: "#FFC04888", borderWidth: 1 },
-  tagDanger: { backgroundColor: "#FF3B3033", borderColor: "#FF3B30", borderWidth: 1.2 },
-  divider: { height: 1, backgroundColor: "#271F48", marginVertical: 14, opacity: 0.4 },
-  bigNumber: { color: C.purple, fontSize: 32, lineHeight: 38, fontWeight: "900", letterSpacing: -1.2, textAlign: "center" },
-  microStat: { color: C.sub, fontSize: 10, fontWeight: "700", letterSpacing: 0.4, textTransform: "uppercase", textAlign: "center", marginTop: 3 },
-  achieveBadge: { flexDirection: "row", alignItems: "center", alignSelf: "center", marginTop: 12, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: "#9D85F511", borderColor: "#9D85F5BB", borderWidth: 1 },
-  achieveIcon: { fontSize: 14, marginRight: 4, color: "#9D85F5" },
-  achieveText: { color: "#8F7EE6", fontSize: 12, fontWeight: "bold", letterSpacing: 0.2 },
+  root: { flex: 1, backgroundColor: C.bg },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+  },
+  headerBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: C.cardAlt,
+    borderWidth: 1,
+    borderColor: C.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: { color: C.text, fontSize: 18, fontWeight: "800" },
+  headerSub: { color: C.sub, fontSize: 12, marginTop: 2 },
+  scroll: { padding: 18, paddingBottom: 28 },
+  heroCard: {
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#31285C",
+    padding: 18,
+    marginBottom: 14,
+  },
+  heroTop: { flexDirection: "row", gap: 14, alignItems: "flex-start" },
+  foodName: { color: C.text, fontSize: 24, fontWeight: "800", lineHeight: 30 },
+  brand: { color: C.accent, fontSize: 13, marginTop: 4 },
+  metaRow: { flexDirection: "row", gap: 8, marginTop: 12, flexWrap: "wrap" },
+  metaPill: { backgroundColor: "#231D46", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: "#382D68" },
+  metaTxt: { color: C.sub, fontSize: 11, fontWeight: "700" },
+  scoreBadge: {
+    width: 64,
+    height: 64,
+    borderRadius: 18,
+    backgroundColor: C.card,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  scoreNum: { fontSize: 22, fontWeight: "900" },
+  scoreLabel: { color: C.sub, fontSize: 10, fontWeight: "700" },
+  heroBottom: { flexDirection: "row", gap: 14, alignItems: "center", marginTop: 18 },
+  ringNum: { color: C.text, fontSize: 20, fontWeight: "900" },
+  ringLbl: { color: C.sub, fontSize: 11, marginTop: 1 },
+  heroStats: { flex: 1, gap: 10 },
+  card: {
+    backgroundColor: C.card,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: C.border,
+    padding: 18,
+    marginBottom: 14,
+  },
+  sectionLabel: { color: C.sub, fontSize: 11, fontWeight: "800", letterSpacing: 1.1, marginBottom: 6, textTransform: "uppercase" },
+  sectionTitle: { color: C.text, fontSize: 18, fontWeight: "700" },
+  sectionSub: { color: C.dim, fontSize: 13, marginTop: 4 },
+  portionControl: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 18,
+    marginBottom: 14,
+  },
+  portionBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: C.cardAlt,
+    borderWidth: 1,
+    borderColor: C.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  portionCenter: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "center",
+    minWidth: 120,
+  },
+  portionInput: {
+    color: C.text,
+    fontSize: 34,
+    fontWeight: "900",
+    minWidth: 80,
+    textAlign: "center",
+  },
+  portionUnit: { color: C.sub, fontSize: 16, marginLeft: 4 },
+  quickRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  quickChip: {
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: C.cardAlt,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  quickChipActive: { backgroundColor: C.purple, borderColor: C.purple },
+  quickChipTxt: { color: C.sub, fontSize: 12, fontWeight: "700" },
+  quickChipTxtActive: { color: "#fff" },
+  mealGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 16 },
+  mealChip: {
+    width: "48%",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderRadius: 16,
+    backgroundColor: C.cardAlt,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  mealChipActive: { backgroundColor: C.lime, borderColor: C.lime },
+  mealChipTxt: { color: C.text, fontSize: 14, fontWeight: "700" },
+  mealChipTxtActive: { color: "#101010" },
+  macroWrap: { marginTop: 16 },
+  statRow: { flexDirection: "row", gap: 8, marginTop: 14 },
+  fiberRow: { flexDirection: "row", gap: 8, alignItems: "center", marginTop: 12 },
+  fiberTxt: { color: C.lime, fontSize: 13, fontWeight: "700" },
+  fitText: { color: C.accent, fontSize: 14, lineHeight: 21, marginTop: 10 },
+  tipList: { gap: 10, marginTop: 14 },
+  tipRow: { flexDirection: "row", gap: 10 },
+  tipDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.purple, marginTop: 6 },
+  tipTxt: { flex: 1, color: C.sub, fontSize: 13, lineHeight: 20 },
+  logBtn: { borderRadius: 18, overflow: "hidden", marginTop: 6 },
+  logGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingVertical: 17,
+  },
+  logTxt: { color: "#fff", fontSize: 16, fontWeight: "800" },
 });
