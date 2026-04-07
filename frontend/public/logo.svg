@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 36" fill="none">
+  <!-- BodyQ icon: stylised Q with a bolt -->
+  <circle cx="18" cy="18" r="14" fill="#7C5CFC" opacity="0.15"/>
+  <circle cx="18" cy="18" r="14" stroke="#7C5CFC" stroke-width="2" fill="none"/>
+  <polygon points="18,8 14,20 17,20 16,28 22,16 19,16" fill="#C8F135"/>
+  <!-- Wordmark -->
+  <text x="40" y="25" font-family="Syne, sans-serif" font-weight="800" font-size="22" fill="#FFFFFF" letter-spacing="0.02em">BodyQ</text>
+</svg>
