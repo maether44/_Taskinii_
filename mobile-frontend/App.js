@@ -15,6 +15,9 @@ import { registerRootComponent } from "expo";
 import { supabase } from "./lib/supabase";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 
+// ✅ Custom splash screen
+import CustomSplashScreen from "./components/CustomSplashScreen";
+
 // Screens - Auth & Onboarding
 import SignIn from "./auth/SignIn";
 import SignUp from "./auth/SignUp";
@@ -23,7 +26,7 @@ import OnBoardingGoal from "./screens/OnBoardingGoal";
 // Navigation Hub
 import NavBar from "./components/NavBar";
 
-// Sub-Screens (These pop up over the tabs)
+// Sub-Screens
 import MealLogger from "./screens/nutrition/MealLogger";
 import FoodDetail from "./screens/nutrition/FoodDetail";
 import SleepLog from "./screens/sleep/SleepLog";
@@ -66,10 +69,7 @@ function Navigation() {
         <Stack.Screen name="OnBoarding" component={OnBoardingGoal} />
       ) : (
         <>
-          {/* 1. This handles Home, Training, Fuel, Insights, and Profile */}
           <Stack.Screen name="MainApp" component={NavBar} />
-
-          {/* 2. These are the sub-pages you need access to from anywhere */}
           <Stack.Screen name="MealLogger" component={MealLogger} />
           <Stack.Screen name="FoodDetail" component={FoodDetail} />
           <Stack.Screen name="SleepLog" component={SleepLog} />
@@ -83,6 +83,7 @@ function Navigation() {
 
 export default function App() {
   const [appIsReady, setAppIsReady] = useState(false);
+  const [splashDone, setSplashDone] = useState(false); // ✅ NEW
   const [activeTab, setActiveTab] = useState("Home");
   const [activeRoute, setActiveRoute] = useState(null);
 
@@ -111,8 +112,20 @@ export default function App() {
     if (appIsReady) await SplashScreen.hideAsync();
   }, [appIsReady]);
 
+  // Fonts still loading — show nothing
   if (!appIsReady) return null;
 
+  // ✅ Fonts ready → show custom splash
+  if (!splashDone) {
+    return (
+      <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
+        <StatusBar style="light" />
+        <CustomSplashScreen onDone={() => setSplashDone(true)} />
+      </View>
+    );
+  }
+
+  // ✅ Splash finished → show the real app
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
@@ -124,7 +137,7 @@ export default function App() {
             >
               <Navigation />
             </NavigationContainer>
-            {activeRoute !== 'WorkoutActive' && <YaraAssistant />}
+            {activeRoute !== "WorkoutActive" && <YaraAssistant />}
             <AppTour activeTab={activeTab} onTabPress={setActiveTab} showOnMount={true} />
           </View>
         </AuthProvider>
