@@ -8,53 +8,38 @@ import {
   Easing,
   Dimensions,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 
 const { width: W, height: H } = Dimensions.get("window");
 
 export default function CustomSplashScreen({ onDone }) {
-  // Mascot
   const mascotY       = useRef(new Animated.Value(-80)).current;
   const mascotScale   = useRef(new Animated.Value(0.7)).current;
   const mascotOpacity = useRef(new Animated.Value(0)).current;
-
-  // Shadow under mascot
-  const shadowScaleX  = useRef(new Animated.Value(0.3)).current;
-  const shadowOpacity = useRef(new Animated.Value(0)).current;
-
-  // Card
-  const cardOpacity = useRef(new Animated.Value(0)).current;
-  const cardY       = useRef(new Animated.Value(14)).current;
-
-  // Glow pulse
-  const glowScale = useRef(new Animated.Value(1)).current;
-
-  // Progress
+  const cardOpacity   = useRef(new Animated.Value(0)).current;
+  const cardY         = useRef(new Animated.Value(14)).current;
+  const glowPulse     = useRef(new Animated.Value(1)).current;
   const [pct, setPct] = useState(0);
 
   useEffect(() => {
-    // Purple glow breathes
+    // Glow breathes
     Animated.loop(
       Animated.sequence([
-        Animated.timing(glowScale, { toValue: 1.1, duration: 2500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(glowScale, { toValue: 1.0, duration: 2500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(glowPulse, { toValue: 1.12, duration: 2500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(glowPulse, { toValue: 1.0,  duration: 2500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
       ])
     ).start();
 
-    // t=100ms: mascot drops and bounces in
+    // Mascot drops in
     setTimeout(() => {
       Animated.parallel([
         Animated.timing(mascotOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
         Animated.spring(mascotY,     { toValue: 0, friction: 5, tension: 70, useNativeDriver: true }),
         Animated.spring(mascotScale, { toValue: 1, friction: 5, tension: 70, useNativeDriver: true }),
       ]).start();
-
-      Animated.parallel([
-        Animated.timing(shadowOpacity, { toValue: 1, duration: 600, delay: 200, useNativeDriver: true }),
-        Animated.spring(shadowScaleX,  { toValue: 1, friction: 6, tension: 60, useNativeDriver: true }),
-      ]).start();
     }, 100);
 
-    // t=1000ms: card slides up
+    // Card slides up
     setTimeout(() => {
       Animated.parallel([
         Animated.timing(cardOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
@@ -62,21 +47,16 @@ export default function CustomSplashScreen({ onDone }) {
       ]).start();
     }, 1000);
 
-    // t=1200ms: progress bar animates
+    // Progress bar
     setTimeout(() => {
       const DURATION = 2800;
       let startTime = null;
       let rafId;
-
       function animate(ts) {
         if (!startTime) startTime = ts;
-        const elapsed = ts - startTime;
-        const t = Math.min(elapsed / DURATION, 1);
-        // ease out cubic
+        const t = Math.min((ts - startTime) / DURATION, 1);
         const ease = 1 - Math.pow(1 - t, 3);
-        const p = Math.round(ease * 100);
-        setPct(p);
-
+        setPct(Math.round(ease * 100));
         if (t < 1) {
           rafId = requestAnimationFrame(animate);
         } else {
@@ -84,7 +64,6 @@ export default function CustomSplashScreen({ onDone }) {
           setTimeout(() => onDone?.(), 600);
         }
       }
-
       rafId = requestAnimationFrame(animate);
       return () => cancelAnimationFrame(rafId);
     }, 1200);
@@ -92,10 +71,12 @@ export default function CustomSplashScreen({ onDone }) {
 
   return (
     <View style={s.root}>
-      {/* Purple glow top */}
-      <Animated.View style={[s.glowPurple, { transform: [{ scale: glowScale }] }]} />
-      {/* Lime glow bottom */}
-      <Animated.View style={[s.glowLime, { transform: [{ scale: glowScale }] }]} />
+
+      {/* ── Purple atmospheric glow ABOVE logo ── */}
+      <Animated.View style={[s.glowTop, { transform: [{ scale: glowPulse }] }]} />
+
+      {/* ── Lime atmospheric glow BELOW logo ── */}
+      <Animated.View style={[s.glowBottom, { transform: [{ scale: glowPulse }] }]} />
 
       <View style={s.scene}>
 
@@ -111,13 +92,7 @@ export default function CustomSplashScreen({ onDone }) {
           />
         </Animated.View>
 
-        {/* Lime ground shadow */}
-        <Animated.View style={[s.groundShadow, {
-          opacity: shadowOpacity,
-          transform: [{ scaleX: shadowScaleX }],
-        }]} />
-
-        {/* Card — just header + bar */}
+        {/* Card */}
         <Animated.View style={[s.card, {
           opacity: cardOpacity,
           transform: [{ translateY: cardY }],
@@ -132,9 +107,16 @@ export default function CustomSplashScreen({ onDone }) {
             </View>
           </View>
 
-          {/* Progress bar */}
+          {/* Purple → lime gradient bar */}
           <View style={s.barTrack}>
-            <View style={[s.barFill, { width: `${pct}%` }]} />
+            <View style={[s.barFillWrap, { width: `${pct}%` }]}>
+              <LinearGradient
+                colors={["#6c3fd4", "#c8ff1e"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={s.barGradient}
+              />
+            </View>
           </View>
         </Animated.View>
 
@@ -155,37 +137,49 @@ const s = StyleSheet.create({
     justifyContent: "center",
     overflow: "hidden",
   },
-  glowPurple: {
+
+  // Purple halo — sits above/behind the logo
+  glowTop: {
     position: "absolute",
-    width: 300, height: 300, borderRadius: 150,
-    top: H * 0.05, left: W * 0.5 - 150,
-    shadowColor: "#6c3fd4",
+    width: 340,
+    height: 340,
+    borderRadius: 170,
+    backgroundColor: "transparent",
+    top: H * 0.18,
+    left: W * 0.5 - 170,
+    shadowColor: "#7c3aed",
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5, shadowRadius: 90,
+    shadowOpacity: 0.9,
+    shadowRadius: 80,
+    elevation: 0,
   },
-  glowLime: {
+
+  // Lime halo — sits below the logo, above the card
+  glowBottom: {
     position: "absolute",
-    width: 200, height: 200, borderRadius: 100,
-    bottom: -30, left: W * 0.5 - 100,
+    width: 260,
+    height: 60,
+    borderRadius: 130,
+    backgroundColor: "transparent",
+    top: H * 0.52,
+    left: W * 0.5 - 130,
     shadowColor: "#c8ff1e",
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.2, shadowRadius: 60,
+    shadowOpacity: 0.7,
+    shadowRadius: 40,
+    elevation: 0,
   },
+
   scene: {
     zIndex: 10,
     alignItems: "center",
     width: "100%",
     paddingHorizontal: 28,
   },
-  mascotWrap: { marginBottom: 2 },
-  mascotImg:  { width: 270, height: 270 },
-  groundShadow: {
-    width: 140, height: 14, borderRadius: 999,
-    backgroundColor: "rgba(200,255,30,0.18)",
-    marginTop: -6, marginBottom: 32,
-  },
 
-  // Card
+  mascotWrap: { marginBottom: 40 },
+  mascotImg:  { width: 264, height: 264 },
+
   card: {
     width: "100%",
     backgroundColor: "#16112a",
@@ -193,7 +187,6 @@ const s = StyleSheet.create({
     borderColor: "rgba(108,63,212,0.22)",
     borderRadius: 22,
     padding: 20,
-    paddingBottom: 20,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.5,
@@ -206,10 +199,7 @@ const s = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 16,
   },
-  headLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
+  headLeft: { flexDirection: "row", alignItems: "center" },
   pulseDot: {
     width: 7, height: 7, borderRadius: 999,
     backgroundColor: "#c8ff1e",
@@ -247,15 +237,13 @@ const s = StyleSheet.create({
     borderRadius: 999,
     overflow: "hidden",
   },
-  barFill: {
+  barFillWrap: {
     height: "100%",
     borderRadius: 999,
-    backgroundColor: "#c8ff1e",
-    shadowColor: "#c8ff1e",
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 6,
+    overflow: "hidden",
   },
+  barGradient: { flex: 1 },
+
   version: {
     position: "absolute",
     bottom: 20,
