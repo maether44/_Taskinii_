@@ -1,0 +1,400 @@
+/* ============================================================
+   BODYQ GLOBAL STYLES
+   All brand tokens, keyframes, and base resets live here.
+   Tailwind is used only for layout/spacing utilities.
+   Colors and typography are always via CSS custom properties.
+   ============================================================ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ----------------------------------------------------------
+   BRAND COLOR TOKENS
+   ---------------------------------------------------------- */
+:root {
+  /* ── Core Brand ───────────────────────────────── */
+  --bq-black:         #000000;
+  --bq-deep:          #0F0B1E;
+
+  --bq-purple:        #7C5CFC;
+  --bq-purple-dark:   #4A28D4;
+  --bq-purple-15:     rgba(124,92,252,0.15);
+  --bq-purple-08:     rgba(124,92,252,0.08);
+  --bq-purple-35:     rgba(124,92,252,0.35);
+  --bq-purple-dim:    rgba(124,92,252,0.15); /* alias */
+
+  --bq-lime:          #C8F135;
+  --bq-lime-hover:    #D4FF4A;
+  --bq-lime-bright:   #D4FF4A; /* alias */
+  --bq-lime-12:       rgba(200,241,53,0.12);
+  --bq-lime-dim:      rgba(200,241,53,0.12); /* alias */
+
+  --bq-white:         #FFFFFF;
+  --bq-text-1:        #FFFFFF;
+  --bq-text-2:        rgba(255,255,255,0.65);
+  --bq-text-3:        rgba(255,255,255,0.35);
+
+  /* ── Surface Hierarchy ────────────────────────── */
+  --bq-surface:       #0F0B1E;
+  --bq-surface-1:     #0F0B1E;
+  --bq-surface-2:     #16102A;
+  --bq-surface-3:     #1E1735;
+  --bq-surface-4:     #261D40;
+  --bq-bg:            #000000;
+
+  /* ── Borders ──────────────────────────────────── */
+  --bq-border:        rgba(255,255,255,0.06);
+  --bq-border-hover:  rgba(124,92,252,0.40);
+  --bq-border-active: #7C5CFC;
+  --bq-border-lime:   #C8F135;
+  --bq-divider:       rgba(255,255,255,0.06);
+
+  /* ── Semantic ─────────────────────────────────── */
+  --bq-success:       #22C55E;
+  --bq-warning:       #F59E0B;
+  --bq-danger:        #EF4444;
+  --bq-info:          #38BDF8;
+  --bq-muted:         #6B6280;
+
+  /* ── Chart palette ────────────────────────────── */
+  --chart-purple:     #7C5CFC;
+  --chart-lime:       #C8F135;
+  --chart-blue:       #38BDF8;
+  --chart-green:      #22C55E;
+  --chart-amber:      #F59E0B;
+  --chart-red:        #EF4444;
+  --chart-teal:       #2DD4BF;
+
+  /* ── Gradients ────────────────────────────────── */
+  --bq-gradient-purple: linear-gradient(180deg, #7C5CFC 0%, #0F0B1E 100%);
+  --bq-gradient-cta:    linear-gradient(135deg, #7C5CFC 0%, #4A28D4 100%);
+  --bq-glow-purple:     radial-gradient(ellipse at 50% 0%, rgba(124,92,252,0.35) 0%, transparent 70%);
+
+  /* ── Shadcn token mapping ─────────────────────── */
+  --background:           #000000;
+  --foreground:           #FFFFFF;
+  --card:                 #16102A;
+  --card-foreground:      #FFFFFF;
+  --primary:              #7C5CFC;
+  --primary-foreground:   #FFFFFF;
+  --secondary:            #1E1735;
+  --secondary-foreground: rgba(255,255,255,0.65);
+  --muted:                #0F0B1E;
+  --muted-foreground:     rgba(255,255,255,0.35);
+  --accent:               #C8F135;
+  --accent-foreground:    #000000;
+  --destructive:          #EF4444;
+  --destructive-foreground: #FFFFFF;
+  --input:                #1E1735;
+  --ring:                 #7C5CFC;
+  --radius:               8px;
+}
+
+/* ----------------------------------------------------------
+   BASE RESET
+   ---------------------------------------------------------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-color: var(--bq-black);
+  color: var(--bq-white);
+  font-family: var(--font-inter), 'Inter', system-ui, sans-serif;
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* Skip-to-content link for keyboard accessibility */
+.skip-to-content {
+  position: absolute;
+  top: -100%;
+  left: 1rem;
+  z-index: 9999;
+  padding: 0.75rem 1.5rem;
+  background: var(--bq-lime);
+  color: var(--bq-black);
+  font-weight: 700;
+  border-radius: 0 0 12px 12px;
+  text-decoration: none;
+  font-size: 14px;
+  transition: top 0.2s;
+}
+.skip-to-content:focus {
+  top: 0;
+  outline: 3px solid var(--bq-purple);
+}
+
+/* ----------------------------------------------------------
+   TYPOGRAPHY HELPERS
+   ---------------------------------------------------------- */
+.font-display {
+  font-family: var(--font-syne), 'Syne', sans-serif;
+}
+
+.eyebrow {
+  font-family: var(--font-inter), 'Inter', sans-serif;
+  font-weight: 500;
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--bq-lime);
+}
+
+/* ----------------------------------------------------------
+   @KEYFRAMES
+   ---------------------------------------------------------- */
+
+/* Float — used by phone mockup in hero */
+@keyframes float {
+  0%, 100% {
+    transform: perspective(1000px) rotateY(-12deg) rotateX(4deg) translateY(0px);
+  }
+  50% {
+    transform: perspective(1000px) rotateY(-12deg) rotateX(4deg) translateY(-14px);
+  }
+}
+
+/* Pulse-glow — idle CTA button glow after 3s */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 0px rgba(200, 241, 53, 0), 0 4px 24px rgba(200, 241, 53, 0.15);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(200, 241, 53, 0.5), 0 4px 24px rgba(200, 241, 53, 0.3);
+  }
+}
+
+/* Marquee — infinite scroll left */
+@keyframes marquee-left {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+/* Marquee — infinite scroll right */
+@keyframes marquee-right {
+  0% {
+    transform: translateX(-50%);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+/* Mesh gradient bg drift — hero ambient animation */
+@keyframes mesh-drift {
+  0% {
+    background-position: 0% 0%;
+  }
+  50% {
+    background-position: 100% 100%;
+  }
+  100% {
+    background-position: 0% 0%;
+  }
+}
+
+/* Chevron bounce — hero scroll hint */
+@keyframes chevron-bounce {
+  0%, 100% {
+    transform: translateY(0) translateX(-50%);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translateY(8px) translateX(-50%);
+    opacity: 1;
+  }
+}
+
+/* Floating particles in CTA banner */
+@keyframes particle-float-1 {
+  0%, 100% { transform: translate(0, 0); }
+  33% { transform: translate(20px, -30px); }
+  66% { transform: translate(-15px, 20px); }
+}
+@keyframes particle-float-2 {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(-25px, 15px); }
+  75% { transform: translate(30px, -20px); }
+}
+@keyframes particle-float-3 {
+  0%, 100% { transform: translate(0, 0); }
+  40% { transform: translate(15px, 25px); }
+  80% { transform: translate(-20px, -10px); }
+}
+@keyframes particle-float-4 {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(35px, -15px); }
+}
+@keyframes particle-float-5 {
+  0%, 100% { transform: translate(0, 0); }
+  60% { transform: translate(-30px, 35px); }
+}
+
+/* Stat pill entrance */
+@keyframes pill-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ----------------------------------------------------------
+   GLASS CARD UTILITY
+   ---------------------------------------------------------- */
+.glass-card {
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: rgba(124, 92, 252, 0.08);
+  border: 1px solid var(--bq-border);
+  border-radius: 20px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+}
+
+/* ----------------------------------------------------------
+   SCROLLBAR STYLING
+   ---------------------------------------------------------- */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bq-deep);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--bq-purple);
+  border-radius: 999px;
+}
+
+/* ----------------------------------------------------------
+   DASHBOARD COLOR TOKENS
+   Separate from marketing site tokens — admin interface only.
+   ---------------------------------------------------------- */
+:root {
+  --bq-bg:           #000000;
+  --bq-surface-1:    #0F0B1E;
+  --bq-surface-2:    #16102A;
+  --bq-surface-3:    #1E1735;
+  --bq-purple-dim:   rgba(124,92,252,0.15);
+  --bq-lime-dim:     rgba(200,241,53,0.12);
+  --bq-success:      #22C55E;
+  --bq-warning:      #F59E0B;
+  --bq-danger:       #EF4444;
+  --bq-info:         #38BDF8;
+  --bq-text-1:       #FFFFFF;
+  --bq-text-2:       rgba(255,255,255,0.65);
+  --bq-text-3:       rgba(255,255,255,0.35);
+  --bq-border-hover: rgba(124,92,252,0.4);
+  --chart-purple:    #7C5CFC;
+  --chart-lime:      #C8F135;
+  --chart-blue:      #38BDF8;
+  --chart-green:     #22C55E;
+  --chart-amber:     #F59E0B;
+  --chart-red:       #EF4444;
+  --chart-teal:      #2DD4BF;
+}
+
+/* Dashboard-specific scrollbar */
+.dash-scroll::-webkit-scrollbar { width: 4px; height: 4px; }
+.dash-scroll::-webkit-scrollbar-track { background: var(--bq-surface-1); }
+.dash-scroll::-webkit-scrollbar-thumb { background: var(--bq-surface-3); border-radius: 999px; }
+.dash-scroll::-webkit-scrollbar-thumb:hover { background: var(--bq-purple); }
+
+/* data-dashboard scrollbars */
+[data-dashboard] ::-webkit-scrollbar { width: 4px; height: 4px; }
+[data-dashboard] ::-webkit-scrollbar-track { background: var(--bq-surface-1); border-radius: 999px; }
+[data-dashboard] ::-webkit-scrollbar-thumb { background: var(--bq-surface-3); border-radius: 999px; }
+[data-dashboard] ::-webkit-scrollbar-thumb:hover { background: var(--bq-purple); }
+
+/* Shimmer skeleton animation */
+@keyframes bq-shimmer {
+  0%   { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+@keyframes shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position: 600px 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--bq-surface-2) 0%, var(--bq-surface-3) 50%, var(--bq-surface-2) 100%);
+  background-size: 200% 100%;
+  animation: bq-shimmer 1.5s linear infinite;
+  border-radius: 8px;
+}
+
+/* Live pulse dot */
+@keyframes bq-pulse {
+  0%,100% { transform: scale(1); opacity: 1; }
+  50%      { transform: scale(1.5); opacity: 0.4; }
+}
+
+/* Ambient glow */
+.bq-glow {
+  position: relative;
+  overflow: hidden;
+}
+.bq-glow::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(ellipse at 50% -20%, rgba(124,92,252,0.30) 0%, transparent 65%);
+  pointer-events: none;
+  z-index: 0;
+}
+.bq-glow > * { position: relative; z-index: 1; }
+
+/* Toast slide-in */
+@keyframes toast-in {
+  from { transform: translateX(120%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+@keyframes toast-out {
+  from { transform: translateX(0);    opacity: 1; }
+  to   { transform: translateX(120%); opacity: 0; }
+}
+
+/* ----------------------------------------------------------
+   REDUCED MOTION — disable all animations
+   ---------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ----------------------------------------------------------
+   FOCUS RING — accessibility
+   ---------------------------------------------------------- */
+:focus-visible {
+  outline: 2px solid var(--bq-lime);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
