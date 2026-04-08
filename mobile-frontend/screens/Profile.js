@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import * as ImagePicker from 'expo-image-picker';
@@ -45,20 +46,18 @@ const EDITABLE_GOALS = [
 
 const EDITABLE_GENDERS = ['male', 'female', 'other'];
 
-const XP = { level:7, current:340, goal:500 };
-const BADGES = [
-  { id:'first_workout', icon:'💪', label:'First Workout', xp:50,  earned:true  },
-  { id:'week_streak',   icon:'🔥', label:'7-Day Streak',  xp:100, earned:true  },
-  { id:'hydrated',      icon:'💧', label:'Stay Hydrated', xp:30,  earned:true  },
-  { id:'early_bird',    icon:'🌅', label:'Early Bird',    xp:50,  earned:false },
-  { id:'iron_will',     icon:'🏋️', label:'Iron Will',     xp:200, earned:false },
-  { id:'clean_eater',   icon:'🥗', label:'Clean Eater',   xp:75,  earned:false },
-];
-const PERSONAL_RECORDS = [
-  { exercise:'Bench Press', weight:'80 kg',  date:'2 weeks ago' },
-  { exercise:'Squat',       weight:'100 kg', date:'1 week ago'  },
-  { exercise:'Deadlift',    weight:'120 kg', date:'3 days ago'  },
-];
+function getEncouragement(level) {
+  const messages = [
+    "Welcome to BodyQ! Start your fitness journey today.",
+    "Great start! Keep up the momentum.",
+    "You're building habits! Consistency is key.",
+    "Halfway there! Your body is transforming.",
+    "Amazing progress! You're a fitness enthusiast now.",
+    "Elite level! You're inspiring others.",
+    "Legend status! You've mastered the game.",
+  ];
+  return messages[Math.min(level - 1, messages.length - 1)] || "Keep pushing your limits!";
+}
 
 function calcAgeFromISO(isoDate) {
   if (!isoDate) return null;
@@ -99,6 +98,10 @@ export default function Profile({ navigate, replayTour }) {
   const [editVisible, setEditVisible] = useState(false);
   const [notifWorkout, setNotifWorkout] = useState(true);
   const [notifWater,   setNotifWater  ] = useState(true);
+  const [xpInfo, setXpInfo] = useState({ level: 1, xp_current: 0, xp_total: 0, xp_needed: 100 });
+  const [achievements, setAchievements] = useState([]);
+  const [achievementPopup, setAchievementPopup] = useState(null);
+  const [showAllAchievements, setShowAllAchievements] = useState(false);
   const [notifMeal,    setNotifMeal   ] = useState(false);
   const [editForm, setEditForm] = useState({
     gender: 'male',
@@ -109,59 +112,95 @@ export default function Profile({ navigate, replayTour }) {
     activity_level: 'moderate',
   });
 
-  useEffect(() => {
+  const loadProfileData = useCallback(async () => {
     if (!authUser?.id) return;
-    (async () => {
-      try {
-        const localAvatarUri = await getLocalAvatarForUser(authUser.id).catch(() => null);
-        const [{ data: cal }, profileResult] = await Promise.all([
-          supabase
-            .from('calorie_targets')
-            .select('daily_calories, protein_target')
-            .eq('user_id', authUser.id)
-            .order('effective_from', { ascending: false })
-            .limit(1)
-            .maybeSingle(),
-          supabase
-            .from('profiles')
-            .select('full_name, date_of_birth, gender, height_cm, weight_kg, goal, activity_level, target_weight_kg, avatar_url')
-            .eq('id', authUser.id)
-            .single(),
-        ]);
+    setLoadingProfile(true);
 
-        let prof = profileResult?.data;
+    try {
+      const localAvatarUri = await getLocalAvatarForUser(authUser.id).catch(() => null);
+      const [{ data: cal }, profileResult] = await Promise.all([
+        supabase
+          .from('calorie_targets')
+          .select('daily_calories, protein_target')
+          .eq('user_id', authUser.id)
+          .order('effective_from', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from('profiles')
+          .select('full_name, date_of_birth, gender, height_cm, weight_kg, goal, activity_level, target_weight_kg, avatar_url')
+          .eq('id', authUser.id)
+          .single(),
+      ]);
 
-        if (profileResult?.error && /avatar_url/i.test(profileResult.error.message || '')) {
-          const { data: fallbackProf, error: fallbackError } = await supabase
-            .from('profiles')
-            .select('full_name, date_of_birth, gender, height_cm, weight_kg, goal, activity_level, target_weight_kg')
-            .eq('id', authUser.id)
-            .single();
+      let prof = profileResult?.data;
 
-          if (fallbackError) throw fallbackError;
-          prof = fallbackProf;
-        } else if (profileResult?.error) {
-          throw profileResult.error;
-        }
+      if (profileResult?.error && /avatar_url/i.test(profileResult.error.message || '')) {
+        const { data: fallbackProf, error: fallbackError } = await supabase
+          .from('profiles')
+          .select('full_name, date_of_birth, gender, height_cm, weight_kg, goal, activity_level, target_weight_kg, xp_current, level')
+          .eq('id', authUser.id)
+          .single();
 
-        setProfile(prof ? {
-          ...prof,
-          goal: normalizeGoal(prof.goal),
-          avatar_path: prof.avatar_url || null,
-          avatar_url: localAvatarUri || profileAvatarUri || null,
-        } : null);
-        if (cal) {
-          setCalorieTarget(cal.daily_calories);
-          setProteinTarget(cal.protein_target);
-        }
-      } catch (error) {
-        console.error('Profile screen load error:', error);
-        Alert.alert('Profile load issue', 'We could not load your latest profile details right now.');
-      } finally {
-        setLoadingProfile(false);
+        if (fallbackError) throw fallbackError;
+        prof = fallbackProf;
+      } else if (profileResult?.error) {
+        throw profileResult.error;
       }
-    })();
-  }, [authUser?.id]);
+
+      setProfile(prof ? {
+        ...prof,
+        goal: normalizeGoal(prof.goal),
+        avatar_path: prof.avatar_url || null,
+        avatar_url: localAvatarUri || profileAvatarUri || null,
+      } : null);
+      if (cal) {
+        setCalorieTarget(cal.daily_calories);
+        setProteinTarget(cal.protein_target);
+      }
+
+      // Load XP info
+      try {
+        const { data: xpData, error: xpError } = await supabase.rpc('get_user_level_info', { p_user_id: authUser.id });
+        if (!xpError && xpData) {
+          setXpInfo(xpData);
+        } else {
+          setXpInfo({ level: 1, xp_current: 0, xp_total: 0, xp_needed: 100 });
+        }
+      } catch (e) {
+        console.error('XP load error:', e);
+        setXpInfo({ level: 1, xp_current: 0, xp_total: 0, xp_needed: 100 });
+      }
+
+      // Load achievements
+      try {
+        const { data: achData, error: achError } = await supabase.rpc('get_all_achievements', { p_user_id: authUser.id });
+        if (!achError && achData?.achievements) {
+          setAchievements(achData.achievements);
+        } else {
+          setAchievements([]);
+        }
+      } catch (e) {
+        console.error('Achievements load error:', e);
+        setAchievements([]);
+      }
+
+    } catch (error) {
+      console.error('Profile screen load error:', error);
+      Alert.alert('Profile load issue', 'We could not load your latest profile details right now.');
+    } finally {
+      setLoadingProfile(false);
+    }
+  }, [authUser?.id, profileAvatarUri]);
+
+  useEffect(() => {
+    loadProfileData();
+  }, [loadProfileData]);
+
+  useFocusEffect(useCallback(() => {
+    if (!authUser?.id) return;
+    loadProfileData();
+  }, [authUser?.id, loadProfileData]));
 
   if (loadingProfile) {
     return (
@@ -207,8 +246,6 @@ export default function Profile({ navigate, replayTour }) {
   const goalDescription = goal === 'gain_weight'
     ? '400 kcal surplus to support healthy weight gain'
     : goalNote;
-  const earnedBadges = BADGES.filter(b => b.earned);
-  const xpPct = XP.current / XP.goal;
   const avatarUri = profile?.avatar_url || null;
 
   const openEditModal = () => {
@@ -317,6 +354,7 @@ export default function Profile({ navigate, replayTour }) {
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
+      base64: true,
     });
 
     if (result.canceled || !result.assets?.[0]?.uri) return;
@@ -324,7 +362,11 @@ export default function Profile({ navigate, replayTour }) {
     setUploadingPhoto(true);
     try {
       const asset = result.assets[0];
-      const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
+      let base64 = asset.base64;
+      if (!base64) {
+        // Fallback: read the file manually
+        base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
+      }
       const mimeType = asset.mimeType || 'image/jpeg';
       const dataUri = `data:${mimeType};base64,${base64}`;
       const extension = (mimeType.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
@@ -335,7 +377,8 @@ export default function Profile({ navigate, replayTour }) {
 
       setProfile((prev) => ({ ...prev, avatar_url: dataUri, avatar_path: path }));
 
-      const response = await fetch(asset.uri);
+      // Convert base64 to blob for upload
+      const response = await fetch(dataUri);
       const blob = await response.blob();
 
       const { error: uploadError } = await supabase
@@ -406,15 +449,16 @@ export default function Profile({ navigate, replayTour }) {
         <View style={s.card}>
           <View style={s.xpRow}>
             <View>
-              <Text style={s.cardLabel}>LEVEL {XP.level}</Text>
-              <Text style={s.xpCount}>{XP.current} / {XP.goal} XP</Text>
+              <Text style={s.cardLabel}>LEVEL {xpInfo.level}</Text>
+              <Text style={s.xpCount}>{xpInfo.xp_current} / {xpInfo.xp_needed} XP</Text>
             </View>
             <Text style={s.xpEmoji}>⭐</Text>
           </View>
           <View style={s.xpBarBg}>
-            <View style={[s.xpBarFill, { width: `${xpPct * 100}%` }]} />
+            <View style={[s.xpBarFill, { width: `${(xpInfo.xp_current / xpInfo.xp_needed) * 100}%` }]} />
           </View>
-          <Text style={s.xpNext}>{XP.goal - XP.current} XP to Level {XP.level + 1}</Text>
+          <Text style={s.xpNext}>{xpInfo.xp_needed - xpInfo.xp_current} XP to Level {xpInfo.level + 1}</Text>
+          <Text style={s.encouragement}>{getEncouragement(xpInfo.level)}</Text>
         </View>
 
         <View style={s.card}>
@@ -444,32 +488,30 @@ export default function Profile({ navigate, replayTour }) {
         </View>
 
         <View style={s.card}>
-          <Text style={s.cardLabel}>PERSONAL RECORDS</Text>
-          {PERSONAL_RECORDS.map((pr, i) => (
-            <View key={i} style={[s.prRow, i < PERSONAL_RECORDS.length - 1 && s.prRowBorder]}>
-              <Text style={s.prExercise}>{pr.exercise}</Text>
-              <View style={s.prRight}>
-                <Text style={s.prValue}>{pr.weight}</Text>
-                <Text style={s.prDate}>{pr.date}</Text>
-              </View>
-            </View>
-          ))}
-        </View>
-
-        <View style={s.card}>
           <View style={s.cardTitleRow}>
             <Text style={s.cardLabel}>ACHIEVEMENTS</Text>
-            <Text style={s.cardSub}>{earnedBadges.length}/{BADGES.length} earned</Text>
+            <Text style={s.cardSub}>{achievements.filter(a => a.earned).length}/{achievements.length} earned</Text>
           </View>
           <View style={s.badgesGrid}>
-            {BADGES.map(b => (
-              <View key={b.id} style={[s.badge, !b.earned && s.badgeLocked]}>
-                <Text style={s.badgeIcon}>{b.earned ? b.icon : '🔒'}</Text>
-                <Text style={[s.badgeLabel, !b.earned && { opacity:0.4 }]}>{b.label}</Text>
-                <Text style={[s.badgeXP,    !b.earned && { opacity:0.4 }]}>+{b.xp} XP</Text>
+            {(showAllAchievements ? achievements : achievements.slice(0, 6)).map(a => (
+              <View key={a.id} style={[s.badge, !a.earned && s.badgeLocked]}>
+                <Text style={s.badgeIcon}>{a.earned ? a.icon : '🔒'}</Text>
+                <Text style={[s.badgeLabel, !a.earned && { opacity:0.4 }]}>{a.name}</Text>
+                <Text style={[s.badgeXP, !a.earned && { opacity:0.4 }]}>+{a.xp_reward} XP</Text>
               </View>
             ))}
           </View>
+          {achievements.length > 6 && (
+            <TouchableOpacity
+              style={s.seeMoreBtn}
+              onPress={() => setShowAllAchievements(!showAllAchievements)}
+              activeOpacity={0.8}
+            >
+              <Text style={s.seeMoreTxt}>
+                {showAllAchievements ? 'Show Less' : `See ${achievements.length - 6} More`}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={s.card}>
@@ -650,6 +692,33 @@ export default function Profile({ navigate, replayTour }) {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+
+      {/* Achievement Popup */}
+      <Modal
+        visible={!!achievementPopup}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setAchievementPopup(null)}
+      >
+        <View style={s.popupOverlay}>
+          <View style={s.popupContainer}>
+            <View style={s.popupGlow} />
+            <View style={s.popupContent}>
+              <Text style={s.popupIcon}>{achievementPopup?.icon}</Text>
+              <Text style={s.popupTitle}>Achievement Unlocked!</Text>
+              <Text style={s.popupName}>{achievementPopup?.name}</Text>
+              <Text style={s.popupDesc}>{achievementPopup?.description}</Text>
+              <Text style={s.popupXP}>+{achievementPopup?.xp_reward} XP</Text>
+              <Pressable
+                style={s.popupBtn}
+                onPress={() => setAchievementPopup(null)}
+              >
+                <Text style={s.popupBtnText}>Awesome!</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -683,6 +752,7 @@ const s = StyleSheet.create({
   xpBarBg:   { height:8, backgroundColor:C.border, borderRadius:4, overflow:'hidden', marginBottom:8 },
   xpBarFill: { height:8, backgroundColor:C.lime, borderRadius:4 },
   xpNext:    { color:C.sub, fontSize:11 },
+  encouragement: { color:C.accent, fontSize:12, fontWeight:'600', marginTop:8, textAlign:'center' },
   statRow:   { flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingVertical:11, borderBottomWidth:1, borderBottomColor:C.border },
   statLabel: { color:C.sub, fontSize:13 },
   statValue: { color:C.text, fontSize:13, fontWeight:'600' },
@@ -702,6 +772,19 @@ const s = StyleSheet.create({
   badgeIcon:  { fontSize:22 },
   badgeLabel: { color:C.sub, fontSize:9, fontWeight:'600', textAlign:'center' },
   badgeXP:    { color:C.lime, fontSize:9, fontWeight:'700' },
+  seeMoreBtn: { alignSelf:'center', backgroundColor:C.purple+'20', borderRadius:12, paddingVertical:8, paddingHorizontal:16, marginTop:12, borderWidth:1, borderColor:C.purple+'40' },
+  seeMoreTxt: { color:C.accent, fontSize:12, fontWeight:'700' },
+  popupOverlay: { flex:1, backgroundColor:'rgba(0,0,0,0.7)', justifyContent:'center', alignItems:'center' },
+  popupContainer: { position:'relative', alignItems:'center' },
+  popupGlow: { position:'absolute', width:300, height:300, borderRadius:150, backgroundColor:C.lime, opacity:0.3, top:-50 },
+  popupContent: { backgroundColor:C.card, borderRadius:20, padding:24, alignItems:'center', borderWidth:2, borderColor:C.lime, minWidth:280 },
+  popupIcon: { fontSize:48, marginBottom:16 },
+  popupTitle: { color:C.lime, fontSize:18, fontWeight:'800', marginBottom:8 },
+  popupName: { color:C.text, fontSize:20, fontWeight:'700', textAlign:'center', marginBottom:8 },
+  popupDesc: { color:C.sub, fontSize:14, textAlign:'center', marginBottom:16, lineHeight:20 },
+  popupXP: { color:C.lime, fontSize:16, fontWeight:'800', marginBottom:20 },
+  popupBtn: { backgroundColor:C.lime, borderRadius:12, paddingVertical:12, paddingHorizontal:24 },
+  popupBtnText: { color:C.card, fontSize:16, fontWeight:'700' },
   settingRow:       { flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingVertical:14 },
   settingRowBorder: { borderBottomWidth:1, borderBottomColor:C.border },
   settingLabel:     { color:C.text, fontSize:14 },

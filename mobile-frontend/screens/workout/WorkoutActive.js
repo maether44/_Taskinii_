@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
-  View, StyleSheet, TouchableOpacity, Text,
+  View, StyleSheet, TouchableOpacity, Text, Alert,
   StatusBar, Animated, Platform, Dimensions, ScrollView,
 } from 'react-native';
 import Reanimated, {
@@ -668,6 +668,43 @@ export default function WorkoutActive({ route, navigation }) {
               }
             } catch (e) {
               console.error('[BodyQ] daily_activity:', e.message);
+            }
+
+            // Award XP for completing workout
+            try {
+              const { data: xpResult, error: xpError } = await supabase.rpc('award_xp', {
+                p_user_id: user.id,
+                p_amount: 50,
+                p_source: 'workout',
+                p_description: `Completed ${msg.exercise || displayName} workout`
+              });
+              if (xpError) console.error('[BodyQ] award_xp:', xpError);
+              else console.log('[BodyQ] XP awarded:', xpResult);
+            } catch (e) {
+              console.error('[BodyQ] award_xp exception:', e);
+            }
+
+            // Check for achievements
+            try {
+              const { data: achievementsResult, error: achError } = await supabase.rpc('check_achievements', {
+                p_user_id: user.id
+              });
+              if (achError) console.error('[BodyQ] check_achievements:', achError);
+              else if (achievementsResult?.awarded?.length > 0) {
+                console.log('[BodyQ] Achievements awarded:', achievementsResult.awarded);
+                // Show achievement popup (for now, just log - we'll enhance this)
+                const newAchievements = achievementsResult.awarded;
+                if (newAchievements.length > 0) {
+                  const achievement = newAchievements[0]; // Show first new achievement
+                  Alert.alert(
+                    '🏆 Achievement Unlocked!',
+                    `${achievement.achievement || achievement.name}\n${achievement.description || ''}\n+${achievement.xp_reward || 0} XP`,
+                    [{ text: 'Awesome!' }]
+                  );
+                }
+              }
+            } catch (e) {
+              console.error('[BodyQ] check_achievements exception:', e);
             }
 
             // ── Update muscle fatigue ───────────────────────────

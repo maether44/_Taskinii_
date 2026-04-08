@@ -213,6 +213,35 @@ export function useNutrition() {
 
       const { error } = await supabase.from("food_logs").insert(inserts);
       if (error) throw error;
+
+      // Award XP for logging meals
+      try {
+        const xpAmount = inserts.length * 10; // 10 XP per food item
+        const { data: xpResult, error: xpError } = await supabase.rpc('award_xp', {
+          p_user_id: userId,
+          p_amount: xpAmount,
+          p_source: 'meal',
+          p_description: `Logged ${inserts.length} food item(s)`
+        });
+        if (xpError) console.error('[BodyQ] award_xp meal:', xpError);
+      } catch (e) {
+        console.error('[BodyQ] award_xp meal exception:', e);
+      }
+
+      // Check for achievements
+      try {
+        const { data: achievementsResult, error: achError } = await supabase.rpc('check_achievements', {
+          p_user_id: userId
+        });
+        if (achError) console.error('[BodyQ] check_achievements:', achError);
+        else if (achievementsResult?.awarded?.length > 0) {
+          console.log('[BodyQ] Achievements awarded:', achievementsResult.awarded);
+          // Note: Achievement popup would be shown in Profile screen
+        }
+      } catch (e) {
+        console.error('[BodyQ] check_achievements exception:', e);
+      }
+
       await loadTodayData();
       return true;
     } catch (error) {
