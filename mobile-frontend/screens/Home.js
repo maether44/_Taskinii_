@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -11,6 +11,8 @@ import { useShakySteps } from '../hooks/useShakySteps';
 import WaterTracker from '../components/home/WaterTracker'; // Your interactive cup component
 import { COLORS } from '../constants/colors';
 import { supabase } from '../lib/supabase';
+import { getLocalAvatarForUser } from '../lib/avatar';
+import { useAuth } from '../context/AuthContext';
 
 // ─── Level 5 Bento Components ───────────────────────────────────────────────
 
@@ -25,10 +27,12 @@ const BentoCard = ({ children, style, delay = 0 }) => (
 
 export default function Home({ navigation }) {
   const { isLoading, error, user, stats, logWater, logSleep, refresh, yaraInsight, muscleFatigue } = useDashboard();
+  const { profileAvatarUri } = useAuth();
   const { steps: liveSteps } = useShakySteps(user?.id);
   const totalSteps = (stats?.steps || 0) + liveSteps;
   const [displayCal, setDisplayCal] = useState(0);
   const [lastSession, setLastSession] = useState(null);
+  const [headerAvatarUri, setHeaderAvatarUri] = useState(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -36,6 +40,8 @@ export default function Home({ navigation }) {
       (async () => {
         const { data: { user: u } } = await supabase.auth.getUser();
         if (!u) return;
+        const localAvatar = await getLocalAvatarForUser(u.id).catch(() => null);
+        setHeaderAvatarUri(localAvatar);
         const { data } = await supabase
           .from('workout_sessions')
           .select('notes, calories_burned, started_at')
@@ -93,7 +99,11 @@ export default function Home({ navigation }) {
             <Text style={styles.subGreeting}>Let's hit your {user.goal?.replace('_', ' ')} goal.</Text>
           </View>
           <Pressable style={styles.avatar} onPress={() => navigation.navigate('Profile')}>
-            <Text style={styles.avatarTxt}>{user.name?.charAt(0)}</Text>
+            {profileAvatarUri || headerAvatarUri || user.avatar_url ? (
+              <Image source={{ uri: profileAvatarUri || headerAvatarUri || user.avatar_url }} style={styles.avatarImg} />
+            ) : (
+              <Text style={styles.avatarTxt}>{user.name?.charAt(0)}</Text>
+            )}
           </Pressable>
         </View>
         
@@ -268,6 +278,7 @@ const styles = StyleSheet.create({
   greeting: { color: '#FFF', fontSize: 24, fontWeight: '900' },
   subGreeting: { color: '#6B5F8A', fontSize: 14, marginTop: 4 },
   avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#7C5CFC', alignItems: 'center', justifyContent: 'center', borderWeight: 2, borderColor: '#C8F135' },
+  avatarImg: { width: '100%', height: '100%', borderRadius: 22 },
   avatarTxt: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
 
   cardBase: { backgroundColor: '#161230', borderRadius: 24, padding: 20, borderWidth: 1, borderColor: '#1E1A35', marginBottom: 12 },

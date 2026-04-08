@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { getProfile } from "../services/profileService";
+import { getLocalAvatarForUser } from "../lib/avatar";
 
 const AuthContext = createContext();
 
@@ -9,16 +10,20 @@ export function AuthProvider({ children }) {
   const [isNewUser, setIsNewUser] = useState();
   const [loading, setLoading] = useState(true);
   const [shouldShowTour, setShouldShowTour] = useState(false);
+  const [profileAvatarUri, setProfileAvatarUri] = useState(null);
 
   const resolveUser = async (sessionUser) => {
     if (!sessionUser) {
       setUser(null);
+      setProfileAvatarUri(null);
       // setIsNewUser(false);
       setLoading(false);
       return;
     }
 
     setUser(sessionUser);
+    const localAvatarUri = await getLocalAvatarForUser(sessionUser.id).catch(() => null);
+    setProfileAvatarUri(localAvatarUri);
 
     try {
       const profile = await getProfile(sessionUser.id);
@@ -56,6 +61,7 @@ export function AuthProvider({ children }) {
   const signOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
+    setProfileAvatarUri(null);
     // commented that line because user is not new just signed out
     // setIsNewUser(false);
   };
@@ -70,6 +76,8 @@ export function AuthProvider({ children }) {
         signOut,
         shouldShowTour,
         setShouldShowTour,
+        profileAvatarUri,
+        setProfileAvatarUri,
       }}
     >
       {children}

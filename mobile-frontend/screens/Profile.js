@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
+import { ActivityIndicator, Alert, Image, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { calcMacroTargets, normalizeGoal } from '../lib/calculations';
+import { AVATAR_BUCKET, buildAvatarPath, cacheAvatarLocally, getLocalAvatarForUser, saveLocalAvatarForUser } from '../lib/avatar';
 
 const C = {
   bg:'#0F0B1E', card:'#161230', border:'#1E1A35',
@@ -86,12 +89,13 @@ function Row({ label, value, color }) {
 }
 
 export default function Profile({ navigate, replayTour }) {
-  const { signOut, user: authUser } = useAuth();
+  const { signOut, user: authUser, profileAvatarUri, setProfileAvatarUri } = useAuth();
   const [profile, setProfile] = useState(null);
   const [calorieTarget, setCalorieTarget] = useState(null);
   const [proteinTarget, setProteinTarget] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [editVisible, setEditVisible] = useState(false);
   const [notifWorkout, setNotifWorkout] = useState(true);
   const [notifWater,   setNotifWater  ] = useState(true);
@@ -109,12 +113,8 @@ export default function Profile({ navigate, replayTour }) {
     if (!authUser?.id) return;
     (async () => {
       try {
-        const [{ data: prof }, { data: cal }] = await Promise.all([
-          supabase
-            .from('profiles')
-            .select('full_name, date_of_birth, gender, height_cm, weight_kg, goal, activity_level, target_weight_kg')
-            .eq('id', authUser.id)
-            .single(),
+        const localAvatarUri = await getLocalAvatarForUser(authUser.id).catch(() => null);
+        const [{ data: cal }, profileResult] = await Promise.all([
           supabase
             .from('calorie_targets')
             .select('daily_calories, protein_target')
@@ -122,12 +122,41 @@ export default function Profile({ navigate, replayTour }) {
             .order('effective_from', { ascending: false })
             .limit(1)
             .maybeSingle(),
+          supabase
+            .from('profiles')
+            .select('full_name, date_of_birth, gender, height_cm, weight_kg, goal, activity_level, target_weight_kg, avatar_url')
+            .eq('id', authUser.id)
+            .single(),
         ]);
-        setProfile(prof ? { ...prof, goal: normalizeGoal(prof.goal) } : null);
+
+        let prof = profileResult?.data;
+
+        if (profileResult?.error && /avatar_url/i.test(profileResult.error.message || '')) {
+          const { data: fallbackProf, error: fallbackError } = await supabase
+            .from('profiles')
+            .select('full_name, date_of_birth, gender, height_cm, weight_kg, goal, activity_level, target_weight_kg')
+            .eq('id', authUser.id)
+            .single();
+
+          if (fallbackError) throw fallbackError;
+          prof = fallbackProf;
+        } else if (profileResult?.error) {
+          throw profileResult.error;
+        }
+
+        setProfile(prof ? {
+          ...prof,
+          goal: normalizeGoal(prof.goal),
+          avatar_path: prof.avatar_url || null,
+          avatar_url: localAvatarUri || profileAvatarUri || null,
+        } : null);
         if (cal) {
           setCalorieTarget(cal.daily_calories);
           setProteinTarget(cal.protein_target);
         }
+      } catch (error) {
+        console.error('Profile screen load error:', error);
+        Alert.alert('Profile load issue', 'We could not load your latest profile details right now.');
       } finally {
         setLoadingProfile(false);
       }
@@ -180,6 +209,7 @@ export default function Profile({ navigate, replayTour }) {
     : goalNote;
   const earnedBadges = BADGES.filter(b => b.earned);
   const xpPct = XP.current / XP.goal;
+  const avatarUri = profile?.avatar_url || null;
 
   const openEditModal = () => {
     setEditForm({
@@ -273,6 +303,70 @@ export default function Profile({ navigate, replayTour }) {
     }
   };
 
+  const pickProfilePhoto = async () => {
+    if (!authUser?.id || uploadingPhoto) return;
+
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Please allow photo library access to change your profile picture.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (result.canceled || !result.assets?.[0]?.uri) return;
+
+    setUploadingPhoto(true);
+    try {
+      const asset = result.assets[0];
+      const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
+      const mimeType = asset.mimeType || 'image/jpeg';
+      const dataUri = `data:${mimeType};base64,${base64}`;
+      const extension = (mimeType.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
+      const path = buildAvatarPath(authUser.id, extension);
+
+      await saveLocalAvatarForUser(authUser.id, dataUri);
+      setProfileAvatarUri(dataUri);
+
+      setProfile((prev) => ({ ...prev, avatar_url: dataUri, avatar_path: path }));
+
+      const response = await fetch(asset.uri);
+      const blob = await response.blob();
+
+      const { error: uploadError } = await supabase
+        .storage
+        .from(AVATAR_BUCKET)
+        .upload(path, blob, {
+          contentType: asset.mimeType || 'image/jpeg',
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          avatar_url: path,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', authUser.id);
+
+      if (profileError) throw profileError;
+
+      setProfileAvatarUri(dataUri);
+      setProfile((prev) => ({ ...prev, avatar_url: dataUri, avatar_path: path }));
+      Alert.alert('Photo updated', 'Your profile picture has been changed.');
+    } catch (error) {
+      Alert.alert('Upload failed', error?.message || 'Could not update your profile photo.');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
   return (
     <View style={s.root}>
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
@@ -280,15 +374,32 @@ export default function Profile({ navigate, replayTour }) {
         <View style={s.header}><Text style={s.title}>Profile</Text></View>
 
         <View style={s.profileCard}>
-          <View style={s.avatarCircle}>
-            <Text style={s.avatarText}>{name[0]?.toUpperCase()}</Text>
-          </View>
+          <TouchableOpacity style={s.avatarWrap} onPress={pickProfilePhoto} activeOpacity={0.85}>
+            <View style={s.avatarCircle}>
+              {avatarUri ? (
+                <Image source={{ uri: avatarUri }} style={s.avatarImage} />
+              ) : (
+                <Text style={s.avatarText}>{name[0]?.toUpperCase()}</Text>
+              )}
+              {uploadingPhoto && (
+                <View style={s.avatarOverlay}>
+                  <ActivityIndicator color="#fff" />
+                </View>
+              )}
+            </View>
+            <View style={s.avatarEditBadge}>
+              <Text style={s.avatarEditBadgeTxt}>{uploadingPhoto ? '...' : 'Edit'}</Text>
+            </View>
+          </TouchableOpacity>
           <View style={s.profileInfo}>
             <Text style={s.profileName}>{name}</Text>
             <Text style={s.profileEmail}>{email}</Text>
             <View style={s.goalChip}>
               <Text style={s.goalChipTxt}>{GOAL_LABELS[goal] || goal}</Text>
             </View>
+            <TouchableOpacity onPress={pickProfilePhoto} activeOpacity={0.8}>
+              <Text style={s.changePhotoTxt}>{uploadingPhoto ? 'Uploading photo...' : 'Change profile photo'}</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -549,13 +660,19 @@ const s = StyleSheet.create({
   header: { marginBottom:20 },
   title:  { color:C.text, fontSize:26, fontWeight:'800', letterSpacing:-0.5 },
   profileCard:  { backgroundColor:C.card, borderRadius:20, padding:18, marginBottom:14, borderWidth:1, borderColor:C.border, flexDirection:'row', alignItems:'center', gap:16 },
-  avatarCircle: { width:64, height:64, borderRadius:32, backgroundColor:C.purple, alignItems:'center', justifyContent:'center', borderWidth:2, borderColor:C.accent },
-  avatarText:   { color:'#fff', fontSize:28, fontWeight:'900' },
+  avatarWrap:   { position:'relative', alignItems:'center' },
+  avatarCircle: { width:92, height:92, borderRadius:46, backgroundColor:C.purple, alignItems:'center', justifyContent:'center', borderWidth:3, borderColor:C.accent, overflow:'hidden' },
+  avatarImage:  { width:'100%', height:'100%' },
+  avatarText:   { color:'#fff', fontSize:38, fontWeight:'900' },
+  avatarOverlay:{ ...StyleSheet.absoluteFillObject, backgroundColor:'rgba(15,11,30,0.58)', alignItems:'center', justifyContent:'center' },
+  avatarEditBadge:{ position:'absolute', bottom:-6, backgroundColor:C.lime, borderRadius:999, paddingHorizontal:10, paddingVertical:4, borderWidth:2, borderColor:C.card },
+  avatarEditBadgeTxt:{ color:'#161230', fontSize:11, fontWeight:'800' },
   profileInfo:  { flex:1 },
   profileName:  { color:C.text, fontSize:20, fontWeight:'800' },
   profileEmail: { color:C.sub, fontSize:13, marginTop:2 },
   goalChip:     { alignSelf:'flex-start', backgroundColor:C.purple+'25', borderRadius:10, paddingHorizontal:10, paddingVertical:4, marginTop:8, borderWidth:1, borderColor:C.purple+'50' },
   goalChipTxt:  { color:C.accent, fontSize:11, fontWeight:'700' },
+  changePhotoTxt:{ color:C.lime, fontSize:12, fontWeight:'700', marginTop:10 },
   card:         { backgroundColor:C.card, borderRadius:20, padding:18, marginBottom:14, borderWidth:1, borderColor:C.border },
   cardLabel:    { color:C.sub, fontSize:10, fontWeight:'800', letterSpacing:1.2, marginBottom:14 },
   cardTitleRow: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:14 },

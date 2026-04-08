@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { getHomeSnapshot } from '../services/dashboardService';
 import { getMuscleFatigue, RECOVERY_MAP } from '../services/workoutService';
+import { getLocalAvatarForUser, resolveAvatarUrl } from '../lib/avatar';
 
 export function useDashboard() {
   const [data,         setData]         = useState(null);
@@ -23,7 +24,7 @@ export function useDashboard() {
 
       const TODAY = new Date().toISOString().split('T')[0];
 
-      const [result, fatigue, activityRow] = await Promise.all([
+      const [result, fatigue, activityRow, profileRow] = await Promise.all([
         getHomeSnapshot(user.id),
         getMuscleFatigue(user.id),
         supabase
@@ -32,12 +33,31 @@ export function useDashboard() {
           .eq('user_id', user.id)
           .eq('date', TODAY)
           .maybeSingle(),
+        supabase
+          .from('profiles')
+          .select('full_name, goal, avatar_url')
+          .eq('id', user.id)
+          .maybeSingle(),
       ]);
+
+      const localAvatarUrl = await getLocalAvatarForUser(user.id).catch(() => null);
+      const resolvedAvatarUrl = profileRow?.data?.avatar_url
+        ? await resolveAvatarUrl(profileRow.data.avatar_url).catch(() => null)
+        : null;
 
       if (!result) {
         setError('No data received');
       } else {
-        setData(result);
+        setData({
+          ...result,
+          user: {
+            ...(result.user || {}),
+            id: user.id,
+            name: profileRow?.data?.full_name || result.user?.name || 'User',
+            goal: profileRow?.data?.goal || result.user?.goal || 'maintain',
+            avatar_url: localAvatarUrl || resolvedAvatarUrl,
+          },
+        });
       }
 
       setMuscleFatigue(fatigue);
@@ -61,7 +81,7 @@ export function useDashboard() {
   return {
     isLoading,
     error,
-    user: data?.user || { name: 'User', goal: 'maintain' },
+    user: data?.user || { name: 'User', goal: 'maintain', avatar_url: null },
     stats: {
       calories: {
         eaten:   data?.calories?.eaten || 0,
