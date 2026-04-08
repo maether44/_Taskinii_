@@ -5,6 +5,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../config/supabase';
+import { normalizeGoal } from '../lib/calculations';
 
 const ACTIVITY_MULTIPLIERS = {
     sedentary: 1.2,
@@ -44,7 +45,8 @@ export function useProfile() {
                 .select('*')
                 .eq('id', userId)
                 .single();
-            setProfile(prof);
+            const normalizedProfile = prof ? { ...prof, goal: normalizeGoal(prof.goal) } : null;
+            setProfile(normalizedProfile);
 
             // 2. Latest calorie targets
             const { data: tgt } = await supabase
@@ -53,15 +55,21 @@ export function useProfile() {
                 .eq('user_id', userId)
                 .order('created_at', { ascending: false })
                 .limit(1)
-                .single();
+                .maybeSingle();
 
             if (tgt) {
                 setTargets(tgt);
-            } else if (prof) {
+            } else if (normalizedProfile) {
                 // Auto-create targets from profile data
-                const bmr = calcBMR(prof);
-                const tdee = Math.round(bmr * (ACTIVITY_MULTIPLIERS[prof.activity_level] ?? 1.55));
-                const adj = prof.goal === 'lose_fat' ? -500 : prof.goal === 'gain_muscle' ? 300 : 0;
+                const bmr = calcBMR(normalizedProfile);
+                const tdee = Math.round(bmr * (ACTIVITY_MULTIPLIERS[normalizedProfile.activity_level] ?? 1.55));
+                const adj = normalizedProfile.goal === 'lose_fat'
+                    ? -500
+                    : normalizedProfile.goal === 'gain_muscle'
+                        ? 300
+                        : normalizedProfile.goal === 'gain_weight'
+                            ? 400
+                            : 0;
                 const cal = Math.max(1200, tdee + adj);
                 const auto = {
                     user_id: userId,

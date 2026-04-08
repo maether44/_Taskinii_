@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS calorie_targets (
   user_id          UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   daily_calories   INT  NOT NULL,
   protein_target   INT  NOT NULL,
+  carbs_target     INT,
+  fat_target       INT,
   effective_from   DATE NOT NULL DEFAULT CURRENT_DATE,
   created_at       TIMESTAMPTZ DEFAULT NOW()
 );

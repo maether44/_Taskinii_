@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-import { ActivityIndicator, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import { calcMacroTargets, normalizeGoal } from '../lib/calculations';
 
 const C = {
   bg:'#0F0B1E', card:'#161230', border:'#1E1A35',
@@ -30,6 +31,16 @@ const ACTIVITY_LABELS = {
 const ACTIVITY_MULT = {
   sedentary: 1.2, light: 1.375, moderate: 1.55, active: 1.725, very_active: 1.9,
 };
+
+const EDITABLE_GOALS = [
+  { id: 'lose_fat', label: 'Lose Fat' },
+  { id: 'gain_muscle', label: 'Build Muscle' },
+  { id: 'gain_weight', label: 'Gain Weight' },
+  { id: 'maintain', label: 'Stay Fit' },
+  { id: 'build_habits', label: 'Build Habits' },
+];
+
+const EDITABLE_GENDERS = ['male', 'female', 'other'];
 
 const XP = { level:7, current:340, goal:500 };
 const BADGES = [
@@ -80,9 +91,19 @@ export default function Profile({ navigate, replayTour }) {
   const [calorieTarget, setCalorieTarget] = useState(null);
   const [proteinTarget, setProteinTarget] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [editVisible, setEditVisible] = useState(false);
   const [notifWorkout, setNotifWorkout] = useState(true);
   const [notifWater,   setNotifWater  ] = useState(true);
   const [notifMeal,    setNotifMeal   ] = useState(false);
+  const [editForm, setEditForm] = useState({
+    gender: 'male',
+    height_cm: '',
+    weight_kg: '',
+    target_weight_kg: '',
+    goal: 'maintain',
+    activity_level: 'moderate',
+  });
 
   useEffect(() => {
     if (!authUser?.id) return;
@@ -102,7 +123,7 @@ export default function Profile({ navigate, replayTour }) {
             .limit(1)
             .maybeSingle(),
         ]);
-        setProfile(prof);
+        setProfile(prof ? { ...prof, goal: normalizeGoal(prof.goal) } : null);
         if (cal) {
           setCalorieTarget(cal.daily_calories);
           setProteinTarget(cal.protein_target);
@@ -129,25 +150,128 @@ export default function Profile({ navigate, replayTour }) {
   const weightKg     = profile?.weight_kg;
   const goalWeightKg = profile?.target_weight_kg;
   const activityLevel= profile?.activity_level || 'moderate';
-  const goal         = profile?.goal || 'maintain';
+  const goal         = normalizeGoal(profile?.goal) || 'maintain';
 
   const bmr      = calcBMRDirect(gender, weightKg, heightCm, age);
   const tdee     = bmr ? Math.round(bmr * (ACTIVITY_MULT[activityLevel] || 1.55)) : 0;
-  const calTarget = calorieTarget || (goal === 'lose_fat' || goal === 'fat_loss' ? tdee - 400 : goal === 'gain_muscle' ? tdee + 200 : tdee);
+  const calTarget = calorieTarget || (
+    goal === 'lose_fat'
+      ? tdee - 400
+      : goal === 'gain_muscle'
+        ? tdee + 200
+        : goal === 'gain_weight'
+          ? tdee + 400
+          : tdee
+  );
   const protein  = proteinTarget || (weightKg ? Math.round(weightKg * 2) : 0);
 
   const bmiVal    = heightCm && weightKg ? (weightKg / ((heightCm / 100) ** 2)).toFixed(1) : null;
   const bmiNum    = bmiVal ? parseFloat(bmiVal) : null;
   const bmiStatus = !bmiNum ? '—' : bmiNum < 18.5 ? 'Underweight' : bmiNum < 25 ? 'Normal' : bmiNum < 30 ? 'Overweight' : 'Obese';
   const bmiColor  = bmiNum >= 18.5 && bmiNum < 25 ? C.green : C.orange;
-  const goalNote  = goal === 'lose_fat' || goal === 'fat_loss'
+  const goalNote  = goal === 'lose_fat'
     ? '400 kcal deficit for steady fat loss (~0.4 kg/week)'
-    : goal === 'gain_muscle' || goal === 'muscle_gain'
+    : goal === 'gain_muscle'
     ? '200 kcal surplus for lean muscle building'
     : 'Maintenance calories — staying fit and healthy';
 
+  const goalDescription = goal === 'gain_weight'
+    ? '400 kcal surplus to support healthy weight gain'
+    : goalNote;
   const earnedBadges = BADGES.filter(b => b.earned);
   const xpPct = XP.current / XP.goal;
+
+  const openEditModal = () => {
+    setEditForm({
+      gender: gender || 'male',
+      height_cm: heightCm ? String(heightCm) : '',
+      weight_kg: weightKg ? String(weightKg) : '',
+      target_weight_kg: goalWeightKg ? String(goalWeightKg) : '',
+      goal: goal || 'maintain',
+      activity_level: activityLevel || 'moderate',
+    });
+    setEditVisible(true);
+  };
+
+  const updateEditField = (key, value) => {
+    setEditForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const saveProfileChanges = async () => {
+    if (!authUser?.id) return;
+
+    const nextGoal = normalizeGoal(editForm.goal) || 'maintain';
+    const nextHeight = parseFloat(editForm.height_cm);
+    const nextWeight = parseFloat(editForm.weight_kg);
+    const nextTargetWeight = editForm.target_weight_kg ? parseFloat(editForm.target_weight_kg) : null;
+    const nextAge = calcAgeFromISO(profile?.date_of_birth);
+
+    if (!nextHeight || !nextWeight) {
+      Alert.alert('Missing info', 'Height and weight are required.');
+      return;
+    }
+
+    setSavingProfile(true);
+    try {
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          gender: editForm.gender,
+          height_cm: nextHeight,
+          weight_kg: nextWeight,
+          target_weight_kg: nextTargetWeight,
+          goal: nextGoal,
+          activity_level: editForm.activity_level,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', authUser.id);
+
+      if (profileError) throw profileError;
+
+      const nextBmr = calcBMRDirect(editForm.gender, nextWeight, nextHeight, nextAge);
+      const nextTdee = nextBmr ? Math.round(nextBmr * (ACTIVITY_MULT[editForm.activity_level] || 1.55)) : 0;
+      const nextCalories = nextGoal === 'lose_fat'
+        ? nextTdee - 400
+        : nextGoal === 'gain_muscle'
+          ? nextTdee + 200
+          : nextGoal === 'gain_weight'
+            ? nextTdee + 400
+            : nextTdee;
+      const macros = calcMacroTargets(nextCalories, nextGoal);
+      const nextProtein = Math.round(nextWeight * 2);
+
+      const { error: targetsError } = await supabase
+        .from('calorie_targets')
+        .insert({
+          user_id: authUser.id,
+          daily_calories: nextCalories,
+          protein_target: nextProtein || macros.protein_target,
+          carbs_target: macros.carbs_target,
+          fat_target: macros.fat_target,
+          effective_from: new Date().toISOString().split('T')[0],
+        });
+
+      if (targetsError) throw targetsError;
+
+      setProfile((prev) => ({
+        ...prev,
+        gender: editForm.gender,
+        height_cm: nextHeight,
+        weight_kg: nextWeight,
+        target_weight_kg: nextTargetWeight,
+        goal: nextGoal,
+        activity_level: editForm.activity_level,
+      }));
+      setCalorieTarget(nextCalories);
+      setProteinTarget(nextProtein || macros.protein_target);
+      setEditVisible(false);
+      Alert.alert('Saved', 'Your profile has been updated.');
+    } catch (error) {
+      Alert.alert('Save failed', error?.message || 'Could not update your profile.');
+    } finally {
+      setSavingProfile(false);
+    }
+  };
 
   return (
     <View style={s.root}>
@@ -191,7 +315,7 @@ export default function Profile({ navigate, replayTour }) {
           <Row label="Target Weight" value={goalWeightKg ? `${goalWeightKg} kg` : null} color={C.lime} />
           <Row label="BMI"           value={bmiVal ? `${bmiVal} (${bmiStatus})` : null} color={bmiColor} />
           <Row label="Activity"      value={ACTIVITY_LABELS[activityLevel] || activityLevel} />
-          <TouchableOpacity style={s.editBtn}>
+          <TouchableOpacity style={s.editBtn} onPress={openEditModal}>
             <Text style={s.editBtnTxt}>Edit Body Stats</Text>
           </TouchableOpacity>
         </View>
@@ -204,7 +328,7 @@ export default function Profile({ navigate, replayTour }) {
           <Row label="Protein goal"          value={protein ? `${protein}g` : null} color={C.accent} />
           <Row label="Water target"          value="2.5L / day" color="#0A84FF" />
           <View style={s.targetNote}>
-            <Text style={s.targetNoteTxt}>{goalNote}</Text>
+            <Text style={s.targetNoteTxt}>{goalDescription}</Text>
           </View>
         </View>
 
@@ -266,6 +390,155 @@ export default function Profile({ navigate, replayTour }) {
 
         <View style={{ height:28 }} />
       </ScrollView>
+
+      <Modal
+        visible={editVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => !savingProfile && setEditVisible(false)}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+          <View style={s.modalBackdrop}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              style={s.modalKeyboardWrap}
+            >
+              <TouchableWithoutFeedback>
+                <View style={s.modalCard}>
+                  <View style={s.modalHandle} />
+                  <ScrollView
+                    contentContainerStyle={s.modalScrollContent}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                  >
+                    <Text style={s.modalTitle}>Edit Profile</Text>
+
+                    <Text style={s.modalLabel}>Goal</Text>
+                    <View style={s.chipWrap}>
+                      {EDITABLE_GOALS.map((option) => (
+                        <Pressable
+                          key={option.id}
+                          style={[
+                            s.chip,
+                            editForm.goal === option.id && s.chipActive,
+                          ]}
+                          onPress={() => updateEditField('goal', option.id)}
+                        >
+                          <Text style={[
+                            s.chipText,
+                            editForm.goal === option.id && s.chipTextActive,
+                          ]}>
+                            {option.label}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+
+                    <Text style={s.modalLabel}>Gender</Text>
+                    <View style={s.chipWrap}>
+                      {EDITABLE_GENDERS.map((option) => (
+                        <Pressable
+                          key={option}
+                          style={[
+                            s.chip,
+                            editForm.gender === option && s.chipActive,
+                          ]}
+                          onPress={() => updateEditField('gender', option)}
+                        >
+                          <Text style={[
+                            s.chipText,
+                            editForm.gender === option && s.chipTextActive,
+                          ]}>
+                            {option.charAt(0).toUpperCase() + option.slice(1)}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+
+                    <Text style={s.modalLabel}>Height (cm)</Text>
+                    <TextInput
+                      style={s.modalInput}
+                      value={editForm.height_cm}
+                      onChangeText={(value) => updateEditField('height_cm', value)}
+                      keyboardType="numeric"
+                      returnKeyType="done"
+                      blurOnSubmit
+                      onSubmitEditing={Keyboard.dismiss}
+                      placeholder="175"
+                      placeholderTextColor={C.sub}
+                    />
+
+                    <Text style={s.modalLabel}>Weight (kg)</Text>
+                    <TextInput
+                      style={s.modalInput}
+                      value={editForm.weight_kg}
+                      onChangeText={(value) => updateEditField('weight_kg', value)}
+                      keyboardType="numeric"
+                      returnKeyType="done"
+                      blurOnSubmit
+                      onSubmitEditing={Keyboard.dismiss}
+                      placeholder="75"
+                      placeholderTextColor={C.sub}
+                    />
+
+                    <Text style={s.modalLabel}>Target Weight (kg)</Text>
+                    <TextInput
+                      style={s.modalInput}
+                      value={editForm.target_weight_kg}
+                      onChangeText={(value) => updateEditField('target_weight_kg', value)}
+                      keyboardType="numeric"
+                      returnKeyType="done"
+                      blurOnSubmit
+                      onSubmitEditing={Keyboard.dismiss}
+                      placeholder="Optional"
+                      placeholderTextColor={C.sub}
+                    />
+
+                    <Text style={s.modalLabel}>Activity Level</Text>
+                    <View style={s.chipWrap}>
+                      {Object.entries(ACTIVITY_LABELS).map(([id, label]) => (
+                        <Pressable
+                          key={id}
+                          style={[
+                            s.chip,
+                            editForm.activity_level === id && s.chipActive,
+                          ]}
+                          onPress={() => updateEditField('activity_level', id)}
+                        >
+                          <Text style={[
+                            s.chipText,
+                            editForm.activity_level === id && s.chipTextActive,
+                          ]}>
+                            {label}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </ScrollView>
+
+                  <View style={s.modalActions}>
+                    <Pressable
+                      style={[s.modalBtn, s.modalBtnSecondary]}
+                      onPress={() => !savingProfile && setEditVisible(false)}
+                    >
+                      <Text style={s.modalBtnSecondaryText}>Cancel</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[s.modalBtn, s.modalBtnPrimary, savingProfile && s.modalBtnDisabled]}
+                      onPress={saveProfileChanges}
+                      disabled={savingProfile}
+                    >
+                      <Text style={s.modalBtnPrimaryText}>
+                        {savingProfile ? 'Saving...' : 'Save'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              </TouchableWithoutFeedback>
+            </KeyboardAvoidingView>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </View>
   );
 }
@@ -319,4 +592,24 @@ const s = StyleSheet.create({
   tourBtnTxt: { color:'#fff', fontWeight:'800', fontSize:15 },
   signOutBtn: { backgroundColor:C.card, borderRadius:16, paddingVertical:16, alignItems:'center', borderWidth:1, borderColor:C.border, marginTop:6 },
   signOutTxt: { color:'#FF3B30', fontSize:14, fontWeight:'700' },
+  modalBackdrop: { flex:1, backgroundColor:'rgba(0,0,0,0.6)', justifyContent:'flex-end' },
+  modalKeyboardWrap: { justifyContent:'flex-end' },
+  modalCard: { backgroundColor:C.card, borderTopLeftRadius:24, borderTopRightRadius:24, paddingTop:10, paddingHorizontal:20, paddingBottom:20, maxHeight:'88%', borderTopWidth:1, borderColor:C.border },
+  modalHandle: { alignSelf:'center', width:44, height:5, borderRadius:999, backgroundColor:C.sub, opacity:0.45, marginBottom:14 },
+  modalScrollContent: { paddingBottom:12 },
+  modalTitle: { color:C.text, fontSize:20, fontWeight:'800', marginBottom:16 },
+  modalLabel: { color:C.sub, fontSize:13, fontWeight:'700', marginBottom:8, marginTop:8 },
+  modalInput: { backgroundColor:C.bg, color:C.text, borderWidth:1, borderColor:C.border, borderRadius:14, paddingHorizontal:14, paddingVertical:12, fontSize:15 },
+  chipWrap: { flexDirection:'row', flexWrap:'wrap', gap:8, marginBottom:6 },
+  chip: { backgroundColor:C.bg, borderWidth:1, borderColor:C.border, borderRadius:999, paddingHorizontal:12, paddingVertical:9 },
+  chipActive: { backgroundColor:C.purple+'20', borderColor:C.purple },
+  chipText: { color:C.sub, fontSize:13, fontWeight:'600' },
+  chipTextActive: { color:C.text },
+  modalActions: { flexDirection:'row', gap:10, marginTop:20 },
+  modalBtn: { flex:1, borderRadius:14, paddingVertical:14, alignItems:'center' },
+  modalBtnPrimary: { backgroundColor:C.purple },
+  modalBtnSecondary: { backgroundColor:C.bg, borderWidth:1, borderColor:C.border },
+  modalBtnPrimaryText: { color:'#fff', fontSize:15, fontWeight:'800' },
+  modalBtnSecondaryText: { color:C.text, fontSize:15, fontWeight:'700' },
+  modalBtnDisabled: { opacity:0.7 },
 });

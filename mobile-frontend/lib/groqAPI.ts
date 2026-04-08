@@ -26,9 +26,13 @@ function buildPrompt(answers) {
   const injList = injuries?.filter((x) => x !== "none").join(", ") || "none";
   const focusList = focus?.join(", ") || "balanced";
   const goalLabel = {
+    lose_fat: "lose body fat",
     fat_loss: "lose body fat",
+    gain_muscle: "build muscle",
     muscle: "build muscle",
     maintain: "stay healthy",
+    gain_weight: "gain weight",
+    build_habits: "build healthy habits",
     athletic: "athletic performance",
   }[goal];
 
@@ -143,7 +147,16 @@ Rules:
 
   if (!profile) return base;
 
-  const goalMap = { fat_loss:'lose body fat', muscle:'build muscle', maintain:'stay healthy', athletic:'improve athletic performance' };
+  const goalMap = {
+    lose_fat: 'lose body fat',
+    fat_loss: 'lose body fat',
+    gain_muscle: 'build muscle',
+    muscle: 'build muscle',
+    gain_weight: 'gain weight',
+    build_habits: 'build healthy habits',
+    maintain: 'stay healthy',
+    athletic: 'improve athletic performance',
+  };
   const injList = profile.injuries?.filter(x => x !== 'none').join(', ') || 'none';
 
   return base + `
