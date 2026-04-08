@@ -217,7 +217,7 @@ VOICE MODE:
 - If the user explicitly asks to log sleep, append exactly: COMMAND:{"action":"log_sleep","hours":<number>}`
     : ''
 
-  return `You are Yara, a personal AI health and fitness coach inside the BodyQ app.
+  return `You are Aria, a personal AI health and fitness coach inside the BodyQ app.
 Your coaching tone is: ${tone}
 ${voiceRules}
 

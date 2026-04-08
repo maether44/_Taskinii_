@@ -250,6 +250,16 @@ USER PROFILE — memorise this, never ask for it again:
 Use this to give precise, personalised advice every time.`;
 }
 
+// callAriaCoach — identical to callYaraCoach but under the Aria brand name.
+// useAriaChat.ts and AriaAssistant.js import this.
+export async function callAriaCoach(
+  history: { role: string; content: string }[],
+  profile: any,
+  targets: any,
+): Promise<string> {
+  return callYaraCoach(history, profile, targets);
+}
+
 export async function callYaraCoach(
   history: { role: string; content: string }[],
   profile: any,

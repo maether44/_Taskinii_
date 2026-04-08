@@ -87,6 +87,7 @@ function Row({ label, value, color }) {
 
 export default function Profile({ navigate, replayTour }) {
   const { signOut, user: authUser } = useAuth();
+  const { isMuted, setMutedState } = useAriaVoice();
   const [profile, setProfile] = useState(null);
   const [calorieTarget, setCalorieTarget] = useState(null);
   const [proteinTarget, setProteinTarget] = useState(null);
@@ -368,7 +369,7 @@ export default function Profile({ navigate, replayTour }) {
             { label:'Water Reminders',    value:notifWater,   set:setNotifWater   },
             { label:'Meal Log Reminders', value:notifMeal,    set:setNotifMeal    },
           ].map((n, i) => (
-            <View key={i} style={[s.settingRow, i < 2 && s.settingRowBorder]}>
+            <View key={i} style={[s.settingRow, s.settingRowBorder]}>
               <Text style={s.settingLabel}>{n.label}</Text>
               <Switch
                 value={n.value}
@@ -378,6 +379,25 @@ export default function Profile({ navigate, replayTour }) {
               />
             </View>
           ))}
+        </View>
+
+        {/* ── Aria Voice Settings ───────────────────────────── */}
+        <View style={s.card}>
+          <Text style={s.cardLabel}>ARIA VOICE ASSISTANT</Text>
+          <View style={s.settingRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.settingLabel}>Mute Aria</Text>
+              <Text style={[s.settingLabel, { fontSize: 11, color: C.sub, fontWeight: '400', marginTop: 2 }]}>
+                {isMuted ? 'Aria is sleeping — tap to wake her' : 'Aria is always listening for her name'}
+              </Text>
+            </View>
+            <Switch
+              value={isMuted}
+              onValueChange={(val) => setMutedState(val)}
+              trackColor={{ false: C.lime + '60', true: C.border }}
+              thumbColor={isMuted ? C.sub : C.lime}
+            />
+          </View>
         </View>
 
         <TouchableOpacity style={s.tourBtn} onPress={replayTour}>

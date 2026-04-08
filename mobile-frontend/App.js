@@ -14,6 +14,8 @@ import { registerRootComponent } from "expo";
 // Context & Supabase
 import { supabase } from "./lib/supabase";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { AriaVoiceProvider, AriaVoiceOrb, AriaScreenBorder, AriaSiriGlow, AriaEarDot, AriaDebugOverlay, AriaEvents } from "./context/AriaVoiceContext";
+import { navigationRef } from "./lib/navigationRef";
 
 // ✅ Custom splash screen
 import CustomSplashScreen from "./components/CustomSplashScreen";
@@ -34,8 +36,15 @@ import FoodScannerScreen from "./components/food-scanner/FoodScannerScreen";
 import WorkoutSummary from "./screens/workout/WorkoutSummary";
 
 // Global Components
-import YaraAssistant from "./components/YaraAssistant";
+import AriaAssistant from "./components/AriaAssistant";
 import AppTour from "./components/onBoarding/AppTour";
+import { useAriaVoice } from "./context/AriaVoiceContext";
+
+// AriaGatedAssistant — must be inside AriaVoiceProvider to read isAriaVisible
+function AriaGatedAssistant({ activeRoute }) {
+  if (activeRoute === 'WorkoutActive') return null;
+  return <AriaAssistant />;
+}
 
 SplashScreen.preventAutoHideAsync();
 const Stack = createStackNavigator();
@@ -112,7 +121,15 @@ export default function App() {
     if (appIsReady) await SplashScreen.hideAsync();
   }, [appIsReady]);
 
-  // Fonts still loading — show nothing
+  // Route navigation commands emitted by AriaVoiceContext
+  useEffect(() => {
+    const off = AriaEvents.on('navigate', ({ screen, params }) => {
+      if (navigationRef.isReady()) {
+        navigationRef.navigate(screen, params);
+      }
+    });
+    return off;
+  }, []);
   if (!appIsReady) return null;
 
   // ✅ Fonts ready → show custom splash
@@ -130,16 +147,26 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AuthProvider>
-          <View style={styles.container} onLayout={onLayoutRootView}>
-            <StatusBar style="light" />
-            <NavigationContainer
-              onStateChange={(state) => setActiveRoute(getActiveRouteName(state))}
-            >
-              <Navigation />
-            </NavigationContainer>
-            {activeRoute !== "WorkoutActive" && <YaraAssistant />}
-            <AppTour activeTab={activeTab} onTabPress={setActiveTab} showOnMount={true} />
-          </View>
+          {/* AriaVoiceProvider runs the global passive listening loop.
+              Must be inside AuthProvider so its Supabase calls have a session. */}
+          <AriaVoiceProvider>
+            <View style={styles.container} onLayout={onLayoutRootView}>
+              <StatusBar style="light" />
+              <NavigationContainer
+                ref={navigationRef}
+                onStateChange={(state) => setActiveRoute(getActiveRouteName(state))}
+              >
+                <Navigation />
+              </NavigationContainer>
+              <AriaGatedAssistant activeRoute={activeRoute} />
+              <AppTour activeTab={activeTab} onTabPress={setActiveTab} showOnMount={true} />
+              {activeRoute !== 'WorkoutActive' && <AriaVoiceOrb />}
+              <AriaScreenBorder />
+              <AriaSiriGlow />
+              <AriaEarDot />
+              <AriaDebugOverlay />
+            </View>
+          </AriaVoiceProvider>
         </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

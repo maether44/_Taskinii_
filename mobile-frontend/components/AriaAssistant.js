@@ -1,8 +1,9 @@
 /**
- * YaraAssistant.js
+ * AriaAssistant.js
  * Floating AI coach with Claude-style conversation history sidebar.
  * Sidebar: persistent on wide screens (>600px), slide-in overlay on mobile.
  * Storage: AsyncStorage — conversations persist across sessions.
+ * Voice: integrates with AriaVoiceContext for pause/resume of global passive loop.
  */
 import {
   ActivityIndicator, Animated, Dimensions, Easing, Image, KeyboardAvoidingView, Platform,
@@ -12,18 +13,15 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Audio } from 'expo-av';
-import * as FileSystem from 'expo-file-system';
-import * as Speech from 'expo-speech';
 import { registerTourRef } from '../tour/tourRefs';
-import { useNutrition } from '../hooks/useNutrition';
 import { useProfile } from '../hooks/useProfile';
-import { invokeEdgePublic, supabase } from '../config/supabase';
+import { supabase } from '../lib/supabase';
+import { useAriaVoice } from '../context/AriaVoiceContext';
 
-const SIDEBAR_W      = 272;
-const STORAGE_KEY    = '@yara_conversations';
-const MAX_CONVS      = 50;
-const IS_WIDE        = Dimensions.get('window').width > 600;
+const SIDEBAR_W   = 272;
+const STORAGE_KEY = '@aria_conversations';
+const MAX_CONVS   = 50;
+const IS_WIDE     = Dimensions.get('window').width > 600;
 
 const SUGGESTIONS = [
   "What should I eat today?",
@@ -39,7 +37,7 @@ const fmtTime = () =>
   new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
 
 const fmtDate = (iso) => {
-  const d = new Date(iso);
+  const d   = new Date(iso);
   const now = new Date();
   if (d.toDateString() === now.toDateString()) return 'Today';
   const yest = new Date(now);
@@ -48,94 +46,15 @@ const fmtDate = (iso) => {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
-async function getFunctionErrorDetail(error) {
-  if (!error) return '';
-  if (error?.context) {
-    try {
-      const payload = await error.context.json();
-      return payload?.reason || payload?.error || payload?.message || '';
-    } catch {
-      try {
-        return await error.context.text();
-      } catch {
-        return '';
-      }
-    }
-  }
-  return error?.message || '';
-}
-
-async function invokeYara(body) {
-  try {
-    const { data, error } = await supabase.functions.invoke('ai-assistant', { body });
-    if (error) {
-      const detail = await getFunctionErrorDetail(error);
-      throw new Error(detail || error.message);
-    }
-    if (!data) throw new Error('Empty response from assistant');
-    return data;
-  } catch (error) {
-    const message = error?.message || '';
-    if (/invalid jwt/i.test(message) || /non-2xx/i.test(message)) {
-      return invokeEdgePublic('ai-assistant', body);
-    }
-    throw error;
-  }
-}
-
-function buildClientNutritionContext({ profile, goals, eaten, protein, carbs, fat, waterMl, caloriesBurned, mealSections }) {
-  const recentMeals = (mealSections || [])
-    .filter((meal) => meal.logged)
-    .map((meal) => ({
-      date: new Date().toISOString().slice(0, 10),
-      meal_type: meal.id,
-      foods: meal.items.map((item) => item.name).join(', '),
-    }));
-
-  return {
-    profile: profile ? {
-      full_name: profile.full_name,
-      goal: profile.goal,
-      activity_level: profile.activity_level,
-      height_cm: profile.height_cm,
-      weight_kg: profile.weight_kg,
-      gender: profile.gender,
-      assistant_tone: profile.assistant_tone,
-      experience: profile.experience,
-      equipment: profile.equipment,
-      diet_pref: profile.diet_pref,
-      sleep_quality: profile.sleep_quality,
-      stress_level: profile.stress_level,
-    } : null,
-    nutrition: {
-      avg_calories: eaten || 0,
-      avg_protein_g: protein || 0,
-      avg_carbs_g: carbs || 0,
-      avg_fat_g: fat || 0,
-      logged_days: recentMeals.length ? 1 : 0,
-      daily_calorie_target: goals?.calorie_target || 2000,
-      protein_target: goals?.protein_target || 150,
-      carbs_target: goals?.carbs_target || 250,
-      fat_target: goals?.fat_target || 65,
-      recent_meals: recentMeals,
-    },
-    activity: {
-      avg_water_ml: waterMl || 0,
-      calories_burned: caloriesBurned || 0,
-    },
-  };
-}
-
-// Greeting is used in three places — single source of truth
 const getGreeting = (profile, name) => profile
-  ? `Hey ${name}! I'm Yara, your personal coach inside BodyQ. I already know your profile — goal, targets, all of it. What's on your mind today?`
-  : "Hey! I'm Yara — your personal coach. Ask me anything about training, nutrition, or recovery.";
+  ? `Hey ${name}! I'm Aria, your personal AI coach inside BodyQ. I already know your profile — goal, targets, all of it. What's on your mind today?`
+  : "Hey! I'm Aria — your personal AI coach. Ask me anything about training, nutrition, or recovery.";
 
 const makeConv = (greeting) => ({
   id: uid(),
   title: 'New conversation',
   createdAt: new Date().toISOString(),
-  messages: [{ from: 'yara', text: greeting, time: fmtTime() }],
+  messages: [{ from: 'aria', text: greeting, time: fmtTime() }],
 });
 
 // ─── Typing indicator ─────────────────────────────────────────────────────────
@@ -165,48 +84,22 @@ function TypingDots() {
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function YaraAssistant() {
+export default function AriaAssistant() {
   const { profile, name, userId } = useProfile();
-  const { goals, eaten, protein, carbs, fat, waterMl, caloriesBurned, mealSections } = useNutrition();
-  const insets = useSafeAreaInsets();
+  const insets  = useSafeAreaInsets();
+  const { resumePassive } = useAriaVoice();
 
-  const [open,        setOpen]        = useState(false);
-  const [input,       setInput]       = useState('');
-  const [typing,      setTyping]      = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [conversations,  setConversations]  = useState([]);
-  const [activeConvId,   setActiveConvId]   = useState(null);
+  const [open,          setOpen]          = useState(false);
+  const [input,         setInput]         = useState('');
+  const [typing,        setTyping]        = useState(false);
+  const [sidebarOpen,   setSidebarOpen]   = useState(false);
+  const [conversations, setConversations] = useState([]);
+  const [activeConvId,  setActiveConvId]  = useState(null);
 
-  // ── Voice / Hands-Free mode ──────────────────────────────────
-  // listenState: 'idle' | 'listening' | 'processing' | 'speaking'
-  const [handsFreeMode, setHandsFreeMode] = useState(false);
-  const [listenState,   setListenState]   = useState('idle');
-  const [voiceError,    setVoiceError]    = useState(null);
-  const recordingRef     = useRef(null);
-  const recordTimeoutRef = useRef(null);
-  const voiceLoopRef     = useRef(false); // true while hands-free loop is active
-
-  // Lime pulse for listening state
-  const limePulse = useRef(new Animated.Value(1)).current;
-  // Speak vibrate for speaking state
-  const speakVibrate = useRef(new Animated.Value(1)).current;
-
-  // ── User Insights (sidebar panel) ─────────────────────────────────────────
-  // Stores the 4 AI-generated profile insight cards fetched from user_insights.
+  // ── Sidebar insights ────────────────────────────────────────────────────────
   const [userInsights,       setUserInsights]       = useState([]);
   const [insightsLoading,    setInsightsLoading]    = useState(false);
   const [insightsRefreshing, setInsightsRefreshing] = useState(false);
-  const clientContext = buildClientNutritionContext({
-    profile,
-    goals,
-    eaten,
-    protein,
-    carbs,
-    fat,
-    waterMl,
-    caloriesBurned,
-    mealSections,
-  });
 
   const activeConv = conversations.find(c => c.id === activeConvId);
   const messages   = activeConv?.messages ?? [];
@@ -219,16 +112,15 @@ export default function YaraAssistant() {
   const fabScale    = useRef(new Animated.Value(1)).current;
   const bobAnim     = useRef(new Animated.Value(0)).current;
 
-  // Persist to AsyncStorage — errors logged, never silently lost
+  // ── Persistence helpers ──────────────────────────────────────────────────────
   const persist = async (convs) => {
     try {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(convs));
     } catch (e) {
-      console.error('YaraAssistant: failed to persist conversations', e);
+      console.error('AriaAssistant: persist error', e);
     }
   };
 
-  // Update state and persist atomically
   const setAndPersist = (updater) => {
     setConversations(prev => {
       const next = updater(prev);
@@ -237,9 +129,7 @@ export default function YaraAssistant() {
     });
   };
 
-  // ── Fetch user insights from Supabase ────────────────────────────────────
-  // Reads the latest 4 rows from user_insights for the logged-in user.
-  // Called on mount (once userId resolves) and after a successful refresh.
+  // ── Insights ─────────────────────────────────────────────────────────────────
   const fetchUserInsights = async (uid) => {
     if (!uid) return;
     setInsightsLoading(true);
@@ -252,16 +142,12 @@ export default function YaraAssistant() {
         .limit(4);
       if (!error && data) setUserInsights(data);
     } catch (e) {
-      console.error('YaraAssistant: fetchUserInsights error', e);
+      console.error('AriaAssistant: fetchUserInsights error', e);
     } finally {
       setInsightsLoading(false);
     }
   };
 
-  // ── Refresh insights for the current user ────────────────────────────────
-  // Calls the generate-user-insights Edge Function for this user, which
-  // replaces their existing rows and returns the fresh cards directly so
-  // we can update state without a second round-trip.
   const refreshInsights = async () => {
     if (!userId || insightsRefreshing) return;
     setInsightsRefreshing(true);
@@ -272,15 +158,12 @@ export default function YaraAssistant() {
       if (error) throw error;
       if (data?.insights?.length) setUserInsights(data.insights);
     } catch (e) {
-      console.error('YaraAssistant: refreshInsights error', e);
+      console.error('AriaAssistant: refreshInsights error', e);
     } finally {
       setInsightsRefreshing(false);
     }
   };
 
-  // ── Admin: refresh insights for ALL users ────────────────────────────────
-  // Only rendered when profile.is_admin === true.  Requires ADMIN_SECRET to
-  // be set as a Supabase secret (Settings → Edge Functions → Secrets).
   const refreshAllInsights = async () => {
     if (insightsRefreshing) return;
     const adminKey = process.env.EXPO_PUBLIC_ADMIN_SECRET ?? '';
@@ -291,21 +174,19 @@ export default function YaraAssistant() {
       });
       if (error) throw error;
       console.log('Admin bulk refresh result:', data);
-      // Reload the current user's own insights after the bulk run
       await fetchUserInsights(userId);
     } catch (e) {
-      console.error('YaraAssistant: refreshAllInsights error', e);
+      console.error('AriaAssistant: refreshAllInsights error', e);
     } finally {
       setInsightsRefreshing(false);
     }
   };
 
-  // Fetch insights once the userId becomes available (resolves after profile loads)
   useEffect(() => {
     if (userId) fetchUserInsights(userId);
   }, [userId]);
 
-  // Load saved conversations once on mount; create greeting conv if none exist
+  // ── Load saved conversations ──────────────────────────────────────────────────
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY)
       .then(raw => {
@@ -317,7 +198,6 @@ export default function YaraAssistant() {
             return;
           }
         }
-        // No history — bootstrap with greeting (profile not yet loaded at this point)
         const conv = makeConv(getGreeting(null, 'there'));
         setConversations([conv]);
         setActiveConvId(conv.id);
@@ -326,7 +206,7 @@ export default function YaraAssistant() {
       .catch(() => {});
   }, []);
 
-  // FAB breathe + bob
+  // ── FAB breathe + bob ────────────────────────────────────────────────────────
   useEffect(() => {
     const breathe = Animated.loop(Animated.sequence([
       Animated.timing(fabScale, { toValue: 1.08, duration: 1800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
@@ -345,204 +225,7 @@ export default function YaraAssistant() {
   const glowOpacityMid   = fabScale.interpolate({ inputRange: [1, 1.08], outputRange: [0.28, 0.60] });
   const glowScaleOuter   = fabScale.interpolate({ inputRange: [1, 1.08], outputRange: [1, 1.18] });
 
-  // Listening glow — rapid lime pulse
-  useEffect(() => {
-    if (listenState === 'listening') {
-      const loop = Animated.loop(Animated.sequence([
-        Animated.timing(limePulse, { toValue: 1.35, duration: 500, useNativeDriver: true }),
-        Animated.timing(limePulse, { toValue: 1.00, duration: 500, useNativeDriver: true }),
-      ]));
-      loop.start();
-      return () => loop.stop();
-    } else {
-      limePulse.setValue(1);
-    }
-  }, [listenState]);
-
-  // Speaking vibrate — quick micro-scale on mascot
-  useEffect(() => {
-    if (listenState === 'speaking') {
-      const loop = Animated.loop(Animated.sequence([
-        Animated.timing(speakVibrate, { toValue: 1.06, duration: 120, useNativeDriver: true }),
-        Animated.timing(speakVibrate, { toValue: 0.96, duration: 120, useNativeDriver: true }),
-      ]));
-      loop.start();
-      return () => loop.stop();
-    } else {
-      speakVibrate.setValue(1);
-    }
-  }, [listenState]);
-
-  // ── Voice helpers ─────────────────────────────────────────────
-
-  const stopRecordingClean = async () => {
-    clearTimeout(recordTimeoutRef.current);
-    if (recordingRef.current) {
-      try {
-        const status = await recordingRef.current.getStatusAsync();
-        if (status.isRecording) await recordingRef.current.stopAndUnloadAsync();
-      } catch (_) {}
-      recordingRef.current = null;
-    }
-  };
-
-  const speakResponse = (text, onDone) => {
-    setListenState('speaking');
-    Speech.stop();
-    Speech.speak(text, {
-      language: 'en-US',
-      pitch:    1.15,
-      rate:     1.0,
-      onDone:   () => {
-        setListenState('idle');
-        onDone?.();
-      },
-      onStopped: () => setListenState('idle'),
-      onError:   () => setListenState('idle'),
-    });
-  };
-
-  const handleActionCommand = async (commandJson) => {
-    try {
-      const cmd = JSON.parse(commandJson);
-      if (!userId) return;
-      const TODAY = new Date().toISOString().split('T')[0];
-      if (cmd.action === 'log_water') {
-        const ml = cmd.amount ?? 250;
-        const { data: ex } = await supabase.from('daily_activity').select('id, water_ml').eq('user_id', userId).eq('date', TODAY).maybeSingle();
-        const newMl = (ex?.water_ml ?? 0) + ml;
-        if (ex) await supabase.from('daily_activity').update({ water_ml: newMl }).eq('id', ex.id);
-        else     await supabase.from('daily_activity').insert({ user_id: userId, date: TODAY, water_ml: newMl });
-      }
-      if (cmd.action === 'log_sleep') {
-        const hrs = cmd.hours ?? 7;
-        await supabase.from('daily_activity').upsert({ user_id: userId, date: TODAY, sleep_hours: hrs }, { onConflict: 'user_id,date' });
-      }
-    } catch (e) {
-      console.error('[Yara voice] action command error:', e.message);
-    }
-  };
-
-  const startListening = async () => {
-    setVoiceError(null);
-    try {
-      // Set audio mode for recording with ducking
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS:            true,
-        playsInSilentModeIOS:          true,
-        shouldDuckAndroid:             true,
-        playThroughEarpieceAndroid:    false,
-        staysActiveInBackground:       false,
-      });
-      const { granted } = await Audio.requestPermissionsAsync();
-      if (!granted) { setVoiceError('Microphone permission denied.'); return; }
-
-      const rec = new Audio.Recording();
-      await rec.prepareToRecordAsync({
-        android: { extension: '.m4a', outputFormat: 2, audioEncoder: 3, sampleRate: 16000, numberOfChannels: 1, bitRate: 128000 },
-        ios:     { extension: '.m4a', outputFormat: 'aac ', audioQuality: 127, sampleRate: 16000, numberOfChannels: 1, bitRate: 128000 },
-        web:     {},
-      });
-      await rec.startAsync();
-      recordingRef.current = rec;
-      setListenState('listening');
-
-      // Auto-stop after 8 seconds
-      recordTimeoutRef.current = setTimeout(() => stopAndTranscribe(), 8000);
-    } catch (e) {
-      console.error('[Yara voice] startListening error:', e.message);
-      setVoiceError('Could not start microphone.');
-      setListenState('idle');
-    }
-  };
-
-  const stopAndTranscribe = async () => {
-    clearTimeout(recordTimeoutRef.current);
-    if (listenState !== 'listening' || !recordingRef.current) return;
-    setListenState('processing');
-
-    try {
-      const rec = recordingRef.current;
-      recordingRef.current = null;
-      await rec.stopAndUnloadAsync();
-      const uri = rec.getURI();
-      if (!uri) throw new Error('No audio file');
-
-      // Read as base64
-      const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
-
-      // Transcribe via Groq Whisper (through our edge function)
-      const sttData = await invokeYara({ audioBase64: base64, mimeType: 'audio/m4a' });
-      const transcript = sttData?.transcript?.trim();
-      if (!transcript) throw new Error('No transcript');
-
-      // Show transcript and send
-      setInput(transcript);
-      await sendVoice(transcript);
-    } catch (e) {
-      console.error('[Yara voice] transcribe error:', e.message);
-      setVoiceError('Could not understand. Try again.');
-      setListenState('idle');
-      if (voiceLoopRef.current) setTimeout(startListening, 1200);
-    }
-  };
-
-  const sendVoice = async (transcript) => {
-    if (!transcript || !userId) { setListenState('idle'); return; }
-    setTyping(true);
-    setInput('');
-
-    setAndPersist(prev => prev.map(c => {
-      if (c.id !== activeConvId) return c;
-      return {
-        ...c,
-        title:    c.title === 'New conversation' ? transcript.slice(0, 42) : c.title,
-        messages: [...c.messages, { from: 'user', text: transcript, time: fmtTime() }],
-      };
-    }));
-
-    try {
-      let data = await invokeYara({ userId, query: transcript, voiceMode: true, clientContext });
-      if (!data?.response) data = await invokeYara({ query: transcript, voiceMode: true, clientContext });
-      if (!data?.response) throw new Error('Empty response');
-
-      // Strip any COMMAND JSON from the spoken text
-      const commandMatch = data.response.match(/COMMAND:(\{.*\})/);
-      const spokenText   = data.response.replace(/COMMAND:\{.*\}/, '').trim();
-
-      if (commandMatch) await handleActionCommand(commandMatch[1]);
-
-      setAndPersist(prev => prev.map(c => c.id !== activeConvId ? c : {
-        ...c, messages: [...c.messages, { from: 'yara', text: spokenText, time: fmtTime() }],
-      }));
-      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
-
-      speakResponse(spokenText, () => {
-        // Auto-restart loop if hands-free is still on
-        if (voiceLoopRef.current) setTimeout(startListening, 600);
-      });
-    } catch (e) {
-      console.error('[Yara voice] sendVoice error:', e.message);
-      setListenState('idle');
-      if (voiceLoopRef.current) setTimeout(startListening, 1200);
-    } finally {
-      setTyping(false);
-    }
-  };
-
-  const toggleHandsFree = async () => {
-    const next = !handsFreeMode;
-    setHandsFreeMode(next);
-    voiceLoopRef.current = next;
-    if (next) {
-      startListening();
-    } else {
-      await stopRecordingClean();
-      Speech.stop();
-      setListenState('idle');
-    }
-  };
-
+  // ── Chat open / close ────────────────────────────────────────────────────────
   const openChat = () => {
     setOpen(true);
     Animated.parallel([
@@ -553,12 +236,7 @@ export default function YaraAssistant() {
 
   const closeChat = () => {
     if (sidebarOpen) closeSidebar();
-    // Stop mic + speech when closing
-    voiceLoopRef.current = false;
-    setHandsFreeMode(false);
-    setListenState('idle');
-    stopRecordingClean();
-    Speech.stop();
+    resumePassive();
     Animated.parallel([
       Animated.timing(slideY,   { toValue: 500, duration: 230, useNativeDriver: true }),
       Animated.timing(fadeBack, { toValue: 0,   duration: 180, useNativeDriver: true }),
@@ -582,7 +260,6 @@ export default function YaraAssistant() {
 
   const newChat = () => {
     const conv = makeConv(getGreeting(profile, name));
-    // Cap at MAX_CONVS to prevent unbounded growth
     setAndPersist(prev => [conv, ...prev].slice(0, MAX_CONVS));
     setActiveConvId(conv.id);
     if (!IS_WIDE) closeSidebar();
@@ -595,7 +272,6 @@ export default function YaraAssistant() {
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 80);
   };
 
-  // Reads conversations directly from closure — safe since this is a user action, not concurrent
   const deleteConversation = (id) => {
     const next = conversations.filter(c => c.id !== id);
     if (next.length === 0) {
@@ -618,7 +294,7 @@ export default function YaraAssistant() {
       setAndPersist(prev => prev.map(c => c.id !== activeConvId ? c : {
         ...c,
         messages: [...c.messages, {
-          from: 'yara',
+          from: 'aria',
           text: "Still loading your profile — give it a second and try again!",
           time: fmtTime(),
         }],
@@ -633,26 +309,40 @@ export default function YaraAssistant() {
       if (c.id !== activeConvId) return c;
       return {
         ...c,
-        title: c.title === 'New conversation' ? msg.slice(0, 42) : c.title,
+        title:    c.title === 'New conversation' ? msg.slice(0, 42) : c.title,
         messages: [...c.messages, { from: 'user', text: msg, time: fmtTime() }],
       };
     }));
 
     try {
-      let data = await invokeYara({ userId, query: msg, clientContext });
-      if (!data?.response) data = await invokeYara({ query: msg, clientContext });
+      const { data, error } = await supabase.functions.invoke('ai-assistant', {
+        body: { userId, query: msg },
+      });
+
+      if (error) {
+        let reason = error.message;
+        try {
+          const body = await error.context?.json?.();
+          if (body?.error) reason = body.error;
+        } catch {}
+        throw new Error(reason);
+      }
 
       if (!data?.response) throw new Error('Empty response from assistant');
 
       setAndPersist(prev => prev.map(c => c.id !== activeConvId ? c : {
         ...c,
-        messages: [...c.messages, { from: 'yara', text: data.response, time: fmtTime() }],
+        messages: [...c.messages, { from: 'aria', text: data.response, time: fmtTime() }],
       }));
     } catch (err) {
-      console.error('Yara error:', err.message);
+      console.error('Aria error:', err.message);
       setAndPersist(prev => prev.map(c => c.id !== activeConvId ? c : {
         ...c,
-        messages: [...c.messages, { from: 'yara', text: "Connection issue — try again!", time: fmtTime() }],
+        messages: [...c.messages, {
+          from: 'aria',
+          text: "Connection issue — try again!",
+          time: fmtTime(),
+        }],
       }));
     } finally {
       setTyping(false);
@@ -660,13 +350,14 @@ export default function YaraAssistant() {
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
   };
 
+  // ── Render helpers ────────────────────────────────────────────────────────────
   function renderSidebar() {
     return (
       <View style={[s.sidebar, { paddingTop: insets.top }]}>
         <View style={s.sidebarHead}>
           <View style={s.sidebarBrand}>
-            <Text style={{ fontSize: 18 }}>👩‍⚕️</Text>
-            <Text style={s.sidebarBrandTxt}>Yara</Text>
+            <Text style={{ fontSize: 18 }}>🤖</Text>
+            <Text style={s.sidebarBrandTxt}>Aria</Text>
           </View>
           <TouchableOpacity style={s.newChatBtn} onPress={newChat} activeOpacity={0.8}>
             <Text style={s.newChatTxt}>＋ New</Text>
@@ -697,10 +388,8 @@ export default function YaraAssistant() {
             </TouchableOpacity>
           ))}
 
-          {/* ── My Insights panel ───────────────────────────────────────── */}
           <View style={s.insightsDivider} />
 
-          {/* Section header row: label + refresh spinner / button */}
           <View style={s.insightsSectionHead}>
             <Text style={s.sidebarSectionLabel}>MY INSIGHTS</Text>
             <TouchableOpacity
@@ -716,7 +405,6 @@ export default function YaraAssistant() {
             </TouchableOpacity>
           </View>
 
-          {/* Loading skeleton — 2 placeholder bars while fetching */}
           {insightsLoading && (
             <View style={{ paddingHorizontal: 8, gap: 6 }}>
               {[1, 2].map(i => (
@@ -728,7 +416,6 @@ export default function YaraAssistant() {
             </View>
           )}
 
-          {/* Empty state — prompt user to generate their first insights */}
           {!insightsLoading && userInsights.length === 0 && (
             <TouchableOpacity style={s.insightsEmptyCard} onPress={refreshInsights} activeOpacity={0.8}>
               <Text style={{ fontSize: 22, marginBottom: 6 }}>✨</Text>
@@ -737,7 +424,6 @@ export default function YaraAssistant() {
             </TouchableOpacity>
           )}
 
-          {/* Insight cards — one per returned row (up to 4) */}
           {!insightsLoading && userInsights.map((ins, i) => (
             <View key={i} style={[s.insightCard, { borderLeftColor: ins.color }]}>
               <View style={s.insightCardHead}>
@@ -748,7 +434,6 @@ export default function YaraAssistant() {
             </View>
           ))}
 
-          {/* Admin bulk-refresh button — only visible to admin users */}
           {profile?.is_admin === true && (
             <TouchableOpacity
               style={[s.adminRefreshBtn, insightsRefreshing && { opacity: 0.5 }]}
@@ -778,29 +463,15 @@ export default function YaraAssistant() {
             </TouchableOpacity>
           )}
           <View style={s.headerAvatarWrap}>
-            <Text style={{ fontSize: 24 }}>👩‍⚕️</Text>
+            <Text style={{ fontSize: 24 }}>🤖</Text>
             <View style={s.headerOnlineDot} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={s.headerName}>Yara</Text>
+            <Text style={s.headerName}>Aria</Text>
             <Text style={s.headerSub}>
-              {listenState === 'listening'  ? '🎙 Listening…'   :
-               listenState === 'processing' ? '⚙ Thinking…'     :
-               listenState === 'speaking'   ? '🔊 Speaking…'    :
-               profile ? 'Knows your profile ✓' : 'Personal Coach'}
+              {profile ? 'Knows your profile ✓' : 'Personal AI Coach'}
             </Text>
           </View>
-          {/* Hands-Free toggle */}
-          <TouchableOpacity
-            style={[s.handsFreeBtn, handsFreeMode && s.handsFreeBtnOn]}
-            onPress={toggleHandsFree}
-            activeOpacity={0.8}
-          >
-            <Text style={{ fontSize: 14 }}>{handsFreeMode ? '🎙' : '🎙'}</Text>
-            <Text style={[s.handsFreeTxt, handsFreeMode && { color: '#000' }]}>
-              {handsFreeMode ? 'ON' : 'OFF'}
-            </Text>
-          </TouchableOpacity>
           <TouchableOpacity style={s.closeBtn} onPress={closeChat}>
             <Text style={s.closeTxt}>✕</Text>
           </TouchableOpacity>
@@ -814,12 +485,12 @@ export default function YaraAssistant() {
         >
           {messages.map((m, i) => (
             <View key={i} style={[s.msgRow, m.from === 'user' && s.msgRowUser]}>
-              {m.from === 'yara' && (
-                <View style={s.msgAvatar}><Text style={{ fontSize: 14 }}>👩‍⚕️</Text></View>
+              {m.from === 'aria' && (
+                <View style={s.msgAvatar}><Text style={{ fontSize: 14 }}>🤖</Text></View>
               )}
               <View style={{ maxWidth: '75%' }}>
-                <View style={[s.bubble, m.from === 'user' ? s.bubbleUser : s.bubbleYara]}>
-                  <Text style={[s.bubbleTxt, m.from === 'user' ? s.bubbleTxtUser : s.bubbleTxtYara]}>
+                <View style={[s.bubble, m.from === 'user' ? s.bubbleUser : s.bubbleAria]}>
+                  <Text style={[s.bubbleTxt, m.from === 'user' ? s.bubbleTxtUser : s.bubbleTxtAria]}>
                     {m.text}
                   </Text>
                 </View>
@@ -831,8 +502,8 @@ export default function YaraAssistant() {
           ))}
           {typing && (
             <View style={s.msgRow}>
-              <View style={s.msgAvatar}><Text style={{ fontSize: 14 }}>👩‍⚕️</Text></View>
-              <View style={[s.bubble, s.bubbleYara, { paddingVertical: 12 }]}>
+              <View style={s.msgAvatar}><Text style={{ fontSize: 14 }}>🤖</Text></View>
+              <View style={[s.bubble, s.bubbleAria, { paddingVertical: 12 }]}>
                 <TypingDots />
               </View>
             </View>
@@ -851,31 +522,12 @@ export default function YaraAssistant() {
           </ScrollView>
         )}
 
-        {voiceError && (
-          <View style={s.voiceErrorBar}>
-            <Text style={s.voiceErrorTxt}>{voiceError}</Text>
-          </View>
-        )}
         <View style={[s.inputBar, { paddingBottom: Math.max(14, insets.bottom + 8) }]}>
-          {/* Manual mic button — always available */}
-          <TouchableOpacity
-            style={[s.micBtn, listenState === 'listening' && s.micBtnActive]}
-            onPress={() => {
-              if (listenState === 'listening') stopAndTranscribe();
-              else startListening();
-            }}
-            disabled={listenState === 'processing' || listenState === 'speaking' || typing}
-            activeOpacity={0.8}
-          >
-            <Text style={{ fontSize: 16 }}>
-              {listenState === 'listening' ? '⏹' : '🎙'}
-            </Text>
-          </TouchableOpacity>
           <TextInput
             style={s.input}
             value={input}
             onChangeText={setInput}
-            placeholder="Ask Yara anything…"
+            placeholder="Ask Aria anything…"
             placeholderTextColor="#8B82AD"
             returnKeyType="send"
             onSubmitEditing={() => send()}
@@ -894,27 +546,21 @@ export default function YaraAssistant() {
     );
   }
 
+  // ── FAB + Sheet ───────────────────────────────────────────────────────────────
   return (
     <>
       {!open && (
         <Animated.View
-          ref={r => registerTourRef('yara_fab', r)}
+          ref={r => registerTourRef('aria_fab', r)}
           collapsable={false}
-          style={[s.fabWrap, { transform: [{ translateY: bobAnim }, { scale: fabScale }] }]}
+          pointerEvents="auto"
+          style={[s.fabWrap, { opacity: 1, transform: [{ translateY: bobAnim }, { scale: fabScale }] }]}
         >
-          {/* Outer glow halo — lime when listening */}
-          <Animated.View style={[s.glowOuter, {
-            opacity: listenState === 'listening' ? limePulse.interpolate({ inputRange: [1, 1.35], outputRange: [0.5, 0.9] }) : glowOpacityOuter,
-            transform: [{ scale: listenState === 'listening' ? limePulse : glowScaleOuter }],
-            backgroundColor: listenState === 'listening' ? 'rgba(198,255,51,0.3)' : undefined,
-          }]} />
-          {/* Mid glow halo */}
+          <Animated.View style={[s.glowOuter, { opacity: glowOpacityOuter, transform: [{ scale: glowScaleOuter }] }]} />
           <Animated.View style={[s.glowMid, { opacity: glowOpacityMid }]} />
-          {/* Core glow */}
           <View style={s.glowCore} />
-          {/* Mascot image — vibrates when speaking */}
           <TouchableOpacity style={s.mascotTouch} onPress={openChat} activeOpacity={0.88}>
-            <Animated.View style={[s.mascotClip, { transform: [{ scale: listenState === 'speaking' ? speakVibrate : 1 }] }]}>
+            <Animated.View style={s.mascotClip}>
               <Image
                 source={require('../assets/yara_spirit.png')}
                 style={s.mascotImg}
@@ -1006,18 +652,9 @@ const s = StyleSheet.create({
   closeBtn:         { width: 34, height: 34, borderRadius: 17, backgroundColor: '#2D2850', alignItems: 'center', justifyContent: 'center' },
   closeTxt:         { color: '#8B82AD', fontSize: 15 },
 
-  // Hands-free toggle
-  handsFreeBtn:   { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#2D2850', borderWidth: 1, borderColor: '#3D3560', marginRight: 6 },
-  handsFreeBtnOn: { backgroundColor: '#C6FF33', borderColor: '#C6FF33' },
-  handsFreeTxt:   { color: '#8B82AD', fontSize: 10, fontWeight: '800' },
 
-  // Manual mic button in input bar
-  micBtn:       { width: 38, height: 38, borderRadius: 19, backgroundColor: '#2D2850', alignItems: 'center', justifyContent: 'center', marginRight: 4, borderWidth: 1, borderColor: '#3D3560' },
-  micBtnActive: { backgroundColor: 'rgba(198,255,51,0.2)', borderColor: '#C6FF33' },
 
-  // Voice error banner
-  voiceErrorBar: { backgroundColor: 'rgba(255,80,80,0.12)', paddingHorizontal: 16, paddingVertical: 6, borderTopWidth: 1, borderTopColor: 'rgba(255,80,80,0.2)' },
-  voiceErrorTxt: { color: '#FF6464', fontSize: 11, textAlign: 'center' },
+
 
   messages:        { flex: 1 },
   messagesContent: { padding: 16, gap: 12 },
@@ -1025,10 +662,10 @@ const s = StyleSheet.create({
   msgRowUser:      { flexDirection: 'row-reverse' },
   msgAvatar:       { width: 30, height: 30, borderRadius: 15, backgroundColor: '#7B61FF', alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
   bubble:          { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
-  bubbleYara:      { backgroundColor: '#201C35', borderBottomLeftRadius: 4 },
+  bubbleAria:      { backgroundColor: '#201C35', borderBottomLeftRadius: 4 },
   bubbleUser:      { backgroundColor: '#7B61FF', borderBottomRightRadius: 4 },
   bubbleTxt:       { fontSize: 14, lineHeight: 21 },
-  bubbleTxtYara:   { color: '#E8E3FF' },
+  bubbleTxtAria:   { color: '#E8E3FF' },
   bubbleTxtUser:   { color: '#ffffff' },
   msgTime:         { color: '#4A4268', fontSize: 10, marginTop: 4, marginHorizontal: 4 },
   dot:             { width: 7, height: 7, borderRadius: 4, backgroundColor: '#8B82AD' },
@@ -1044,25 +681,18 @@ const s = StyleSheet.create({
   sendBtnOff: { opacity: 0.32 },
   sendTxt:    { color: '#fff', fontSize: 18, fontWeight: '800', lineHeight: 20 },
 
-  // ── My Insights sidebar panel ─────────────────────────────────────────────
   insightsDivider:     { height: 1, backgroundColor: '#2D2850', marginHorizontal: 16, marginTop: 14, marginBottom: 4 },
   insightsSectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: 16, paddingLeft: 0 },
   insightsRefreshBtn:  { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: '#1E1A35' },
   insightsRefreshTxt:  { color: '#8B82AD', fontSize: 10, fontWeight: '700' },
-
-  // Individual insight card — dark bg, coloured left border, purple border
-  insightCard:     { marginHorizontal: 8, marginBottom: 6, padding: 10, borderRadius: 10, backgroundColor: '#12102A', borderLeftWidth: 3, borderWidth: 1, borderColor: '#2D2850' },
-  insightCardHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
-  insightCardIcon: { fontSize: 14 },
-  insightCardType: { fontSize: 9, fontWeight: '800', letterSpacing: 1.2 },
-  insightCardMsg:  { color: '#C8BFEE', fontSize: 12, lineHeight: 17 },
-
-  // Empty state card
+  insightCard:         { marginHorizontal: 8, marginBottom: 6, padding: 10, borderRadius: 10, backgroundColor: '#12102A', borderLeftWidth: 3, borderWidth: 1, borderColor: '#2D2850' },
+  insightCardHead:     { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+  insightCardIcon:     { fontSize: 14 },
+  insightCardType:     { fontSize: 9, fontWeight: '800', letterSpacing: 1.2 },
+  insightCardMsg:      { color: '#C8BFEE', fontSize: 12, lineHeight: 17 },
   insightsEmptyCard:     { marginHorizontal: 8, marginTop: 4, padding: 14, borderRadius: 10, backgroundColor: '#12102A', borderWidth: 1, borderColor: '#2D2850', alignItems: 'center' },
   insightsEmptyTitle:    { color: '#8B82AD', fontSize: 13, fontWeight: '700', marginBottom: 4 },
   insightsEmptySubtitle: { color: '#3D3560', fontSize: 11, textAlign: 'center', lineHeight: 16 },
-
-  // Admin bulk-refresh button — only rendered for is_admin users
-  adminRefreshBtn: { marginHorizontal: 8, marginTop: 10, padding: 10, borderRadius: 10, backgroundColor: '#7B61FF1A', borderWidth: 1, borderColor: '#7B61FF30', alignItems: 'center' },
-  adminRefreshTxt: { color: '#7B61FF', fontSize: 12, fontWeight: '700' },
+  adminRefreshBtn:       { marginHorizontal: 8, marginTop: 10, padding: 10, borderRadius: 10, backgroundColor: '#7B61FF1A', borderWidth: 1, borderColor: '#7B61FF30', alignItems: 'center' },
+  adminRefreshTxt:       { color: '#7B61FF', fontSize: 12, fontWeight: '700' },
 });
