@@ -2,8 +2,12 @@ import { AppState, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 
-export const SUPABASE_URL = 'https://pxupvxhjrpemthzntrwe.supabase.co';
-export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB4dXB2eGhqcnBlbXRoem50cndlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEwOTA3NDQsImV4cCI6MjA4NjY2Njc0NH0.yB2USWhCUK3K61BnBATK2mOZm6wGoRY4GY5F7dIRJ9s';
+export const SUPABASE_URL = (process.env.EXPO_PUBLIC_SUPABASE_URL || '').trim();
+export const SUPABASE_ANON_KEY = (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '').trim();
+
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  console.warn('Missing Supabase env vars: EXPO_PUBLIC_SUPABASE_URL and/or EXPO_PUBLIC_SUPABASE_ANON_KEY');
+}
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {

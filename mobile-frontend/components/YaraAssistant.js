@@ -269,10 +269,15 @@ export default function YaraAssistant() {
       const { data, error } = await supabase.functions.invoke('generate-user-insights', {
         body: { userId },
       });
-      if (error) throw error;
+      if (error) {
+        // Silently fail - insights function may not be deployed
+        console.log('Insights unavailable - this is optional');
+        return;
+      }
       if (data?.insights?.length) setUserInsights(data.insights);
     } catch (e) {
-      console.error('YaraAssistant: refreshInsights error', e);
+      // Silently fail - insights are optional
+      console.log('YaraAssistant: refreshInsights unavailable (optional feature)');
     } finally {
       setInsightsRefreshing(false);
     }
@@ -289,12 +294,15 @@ export default function YaraAssistant() {
       const { data, error } = await supabase.functions.invoke('generate-user-insights', {
         body: { all: true, adminKey },
       });
-      if (error) throw error;
+      if (error) {
+        console.log('Admin bulk insights unavailable (optional feature)');
+        return;
+      }
       console.log('Admin bulk refresh result:', data);
       // Reload the current user's own insights after the bulk run
       await fetchUserInsights(userId);
     } catch (e) {
-      console.error('YaraAssistant: refreshAllInsights error', e);
+      console.log('YaraAssistant: refreshAllInsights unavailable (optional feature)');
     } finally {
       setInsightsRefreshing(false);
     }
@@ -580,35 +588,29 @@ export default function YaraAssistant() {
     ]).start(() => setSidebarOpen(false));
   };
 
+  const scrollToBottom = (animated = true) => {
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated }), 100);
+  };
+
   const newChat = () => {
     const conv = makeConv(getGreeting(profile, name));
     // Cap at MAX_CONVS to prevent unbounded growth
     setAndPersist(prev => [conv, ...prev].slice(0, MAX_CONVS));
     setActiveConvId(conv.id);
-    if (!IS_WIDE) closeSidebar();
-    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 80);
+    if (!IS_WIDE) openSidebar();
+    scrollToBottom(false);
   };
 
   const loadConversation = (id) => {
     setActiveConvId(id);
     if (!IS_WIDE) closeSidebar();
-    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 80);
+    scrollToBottom(false);
   };
 
-  // Reads conversations directly from closure — safe since this is a user action, not concurrent
-  const deleteConversation = (id) => {
-    const next = conversations.filter(c => c.id !== id);
-    if (next.length === 0) {
-      const fresh = makeConv(getGreeting(profile, name));
-      setConversations([fresh]);
-      setActiveConvId(fresh.id);
-      persist([fresh]);
-    } else {
-      setConversations(next);
-      if (id === activeConvId) setActiveConvId(next[0].id);
-      persist(next);
-    }
-  };
+  useEffect(() => {
+    if (!open || !activeConvId) return;
+    scrollToBottom(true);
+  }, [open, activeConvId, messages.length]);
 
   const send = async (text) => {
     const msg = (text || input).trim();
@@ -657,23 +659,36 @@ export default function YaraAssistant() {
     } finally {
       setTyping(false);
     }
-    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+    scrollToBottom(true);
   };
 
   function renderSidebar() {
     return (
-      <View style={[s.sidebar, { paddingTop: insets.top }]}>
+      <View style={[s.sidebar, { flex: 1, paddingTop: insets.top }]}> 
         <View style={s.sidebarHead}>
           <View style={s.sidebarBrand}>
             <Text style={{ fontSize: 18 }}>👩‍⚕️</Text>
             <Text style={s.sidebarBrandTxt}>Yara</Text>
           </View>
-          <TouchableOpacity style={s.newChatBtn} onPress={newChat} activeOpacity={0.8}>
-            <Text style={s.newChatTxt}>＋ New</Text>
-          </TouchableOpacity>
+          <View style={s.sidebarHeadRight}>
+            {!IS_WIDE && (
+              <TouchableOpacity style={s.hideHistoryBtn} onPress={closeSidebar} activeOpacity={0.8}>
+                <Text style={s.hideHistoryTxt}>Hide</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity style={s.newChatBtn} onPress={newChat} activeOpacity={0.8}>
+              <Text style={s.newChatTxt}>＋ New</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: 12, paddingBottom: 24 }}>
           <Text style={s.sidebarSectionLabel}>CONVERSATIONS</Text>
+          {conversations.length > 0 && (
+            <Text style={s.historyHint}>Tap a past chat below to reopen it.</Text>
+          )}
+          {conversations.length === 0 && (
+            <Text style={s.historyHint}>No saved conversations yet — start a new chat to save one.</Text>
+          )}
           {conversations.map(conv => (
             <TouchableOpacity
               key={conv.id}
@@ -687,65 +702,7 @@ export default function YaraAssistant() {
                 </Text>
                 <Text style={s.convDate}>{fmtDate(conv.createdAt)}</Text>
               </View>
-              <TouchableOpacity
-                style={s.convDeleteBtn}
-                onPress={() => deleteConversation(conv.id)}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Text style={s.convDeleteTxt}>✕</Text>
-              </TouchableOpacity>
-            </TouchableOpacity>
-          ))}
-
-          {/* ── My Insights panel ───────────────────────────────────────── */}
-          <View style={s.insightsDivider} />
-
-          {/* Section header row: label + refresh spinner / button */}
-          <View style={s.insightsSectionHead}>
-            <Text style={s.sidebarSectionLabel}>MY INSIGHTS</Text>
-            <TouchableOpacity
-              style={s.insightsRefreshBtn}
-              onPress={refreshInsights}
-              disabled={insightsRefreshing || insightsLoading}
-              activeOpacity={0.7}
-            >
-              {insightsRefreshing
-                ? <ActivityIndicator size={10} color="#8B82AD" />
-                : <Text style={s.insightsRefreshTxt}>↻ Refresh</Text>
-              }
-            </TouchableOpacity>
-          </View>
-
-          {/* Loading skeleton — 2 placeholder bars while fetching */}
-          {insightsLoading && (
-            <View style={{ paddingHorizontal: 8, gap: 6 }}>
-              {[1, 2].map(i => (
-                <View key={i} style={[s.insightCard, { borderLeftColor: '#3D2F7A' }]}>
-                  <View style={{ width: '60%', height: 10, borderRadius: 4, backgroundColor: '#2D2850', marginBottom: 6 }} />
-                  <View style={{ width: '90%', height: 8,  borderRadius: 4, backgroundColor: '#2D2850' }} />
-                </View>
-              ))}
-            </View>
-          )}
-
-          {/* Empty state — prompt user to generate their first insights */}
-          {!insightsLoading && userInsights.length === 0 && (
-            <TouchableOpacity style={s.insightsEmptyCard} onPress={refreshInsights} activeOpacity={0.8}>
-              <Text style={{ fontSize: 22, marginBottom: 6 }}>✨</Text>
-              <Text style={s.insightsEmptyTitle}>No insights yet</Text>
-              <Text style={s.insightsEmptySubtitle}>Tap to generate your personalised profile insights</Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Insight cards — one per returned row (up to 4) */}
-          {!insightsLoading && userInsights.map((ins, i) => (
-            <View key={i} style={[s.insightCard, { borderLeftColor: ins.color }]}>
-              <View style={s.insightCardHead}>
-                <Text style={s.insightCardIcon}>{ins.icon}</Text>
-                <Text style={[s.insightCardType, { color: ins.color }]}>{ins.insight_type}</Text>
-              </View>
-              <Text style={s.insightCardMsg} numberOfLines={4}>{ins.message}</Text>
-            </View>
+                </TouchableOpacity>
           ))}
 
           {/* Admin bulk-refresh button — only visible to admin users */}
@@ -771,10 +728,15 @@ export default function YaraAssistant() {
       <View style={{ flex: 1 }}>
         <View style={s.header}>
           {!IS_WIDE && (
-            <TouchableOpacity style={s.hamburger} onPress={openSidebar} activeOpacity={0.7}>
-              <View style={s.hLine} />
-              <View style={s.hLine} />
-              <View style={s.hLine} />
+            <TouchableOpacity style={s.historyBtn} onPress={openSidebar} activeOpacity={0.7}>
+              <View style={s.hamburgerIcon}>
+                <View style={s.hLine} />
+                <View style={s.hLine} />
+                <View style={s.hLine} />
+              </View>
+              <Text style={s.historyBtnTxt}>
+                History{conversations.length > 1 ? ` (${conversations.length})` : ''}
+              </Text>
             </TouchableOpacity>
           )}
           <View style={s.headerAvatarWrap}>
@@ -978,10 +940,13 @@ const s = StyleSheet.create({
   kavWrap:   { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 },
   sheet:     { flex: 1, backgroundColor: '#18152A', borderWidth: 1, borderColor: '#2D2850', shadowColor: '#000', shadowOffset: { width: 0, height: -8 }, shadowOpacity: 0.45, shadowRadius: 28, elevation: 28 },
 
-  sidebar:             { width: SIDEBAR_W, backgroundColor: '#12102A', borderRightWidth: 1, borderRightColor: '#2D2850' },
+  sidebar:             { flex: 1, width: SIDEBAR_W, backgroundColor: '#12102A', borderRightWidth: 1, borderRightColor: '#2D2850' },
   sidebarHead:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#2D2850' },
   sidebarBrand:        { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sidebarBrandTxt:     { color: '#F4F0FF', fontSize: 15, fontWeight: '800' },
+  sidebarHeadRight:    { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  hideHistoryBtn:      { backgroundColor: '#2D2850', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 },
+  hideHistoryTxt:      { color: '#8B82AD', fontSize: 12, fontWeight: '700' },
   newChatBtn:          { backgroundColor: '#7B61FF', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 },
   newChatTxt:          { color: '#fff', fontSize: 12, fontWeight: '700' },
   sidebarSectionLabel: { color: '#3D3560', fontSize: 9, fontWeight: '800', letterSpacing: 1.2, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6 },
@@ -997,7 +962,9 @@ const s = StyleSheet.create({
   chatDivider:         { width: 1, backgroundColor: '#2D2850' },
 
   header:           { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 18, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: '#2D2850' },
-  hamburger:        { width: 34, height: 34, justifyContent: 'center', alignItems: 'center', gap: 5, marginRight: 2 },
+  historyBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginRight: 2, paddingHorizontal: 10, paddingVertical: 9, borderRadius: 14, backgroundColor: '#1D1736', borderWidth: 1, borderColor: '#2D2850' },
+  historyBtnTxt:    { color: '#F4F0FF', fontSize: 11, fontWeight: '700' },
+  hamburgerIcon:    { flexDirection: 'column', justifyContent: 'space-between', height: 16 },
   hLine:            { width: 18, height: 2, borderRadius: 1, backgroundColor: '#8B82AD' },
   headerAvatarWrap: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#7B61FF', alignItems: 'center', justifyContent: 'center', position: 'relative' },
   headerOnlineDot:  { position: 'absolute', bottom: 2, right: 2, width: 10, height: 10, borderRadius: 5, backgroundColor: '#B8F566', borderWidth: 2, borderColor: '#18152A' },
@@ -1065,4 +1032,5 @@ const s = StyleSheet.create({
   // Admin bulk-refresh button — only rendered for is_admin users
   adminRefreshBtn: { marginHorizontal: 8, marginTop: 10, padding: 10, borderRadius: 10, backgroundColor: '#7B61FF1A', borderWidth: 1, borderColor: '#7B61FF30', alignItems: 'center' },
   adminRefreshTxt: { color: '#7B61FF', fontSize: 12, fontWeight: '700' },
+  historyHint:      { color: '#8B82AD', fontSize: 12, marginHorizontal: 16, marginBottom: 10, lineHeight: 16 },
 });
