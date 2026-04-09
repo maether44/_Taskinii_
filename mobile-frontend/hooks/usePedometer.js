@@ -5,58 +5,117 @@ import * as Haptics from 'expo-haptics';
 
 export function usePedometer(userId) {
   const [stepCount, setStepCount] = useState(0);
-  const lastSyncedSteps = useRef(0); // Keeps track of what we already sent to DB
+  const [isAvailable, setIsAvailable] = useState(false);
+  const [permissionStatus, setPermissionStatus] = useState(null);
+  const [syncError, setSyncError] = useState(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const lastSyncedSteps = useRef(0);
 
   useEffect(() => {
     let subscription;
 
     const subscribe = async () => {
-      const { status } = await Pedometer.requestPermissionsAsync();
-      if (status !== 'granted') return;
+      try {
+        // 1. Check if device has pedometer
+        const available = await Pedometer.isAvailableAsync();
+        setIsAvailable(available);
+        console.log('✓ Pedometer available:', available);
 
-      const isAvailable = await Pedometer.isAvailableAsync();
-      console.log('Is Pedometer available?', isAvailable);
+        if (!available) {
+          setSyncError('Pedometer not available on this device');
+          return;
+        }
 
-      const { status: permStatus } = await Pedometer.getPermissionsAsync();
-      console.log('Pedometer Permission Status:', permStatus);
+        // 2. Request permissions
+        const { status } = await Pedometer.requestPermissionsAsync();
+        setPermissionStatus(status);
+        console.log('✓ Permission status:', status);
 
-      if (isAvailable) {
+        if (status !== 'granted') {
+          setSyncError('Pedometer permission denied');
+          return;
+        }
+
+        // 3. Start watching steps
         subscription = Pedometer.watchStepCount(result => {
           setStepCount(result.steps);
+          setSyncError(null);
 
-          // Calculate how many NEW steps since the last sync
           const newStepsSinceLastSync = result.steps - lastSyncedSteps.current;
 
-          // TEST MODE: Sync every 5 steps
-          if (newStepsSinceLastSync >= 5) {
-            console.log(`Syncing ${newStepsSinceLastSync} steps to Supabase...`);
-            
-            // Level 5 Detail: Subtle vibration when syncing
+          // Sync every 10 steps (adjust as needed)
+          if (newStepsSinceLastSync >= 10) {
+            console.log(`📊 ${newStepsSinceLastSync} new steps detected, syncing...`);
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            
             syncStepsToDb(newStepsSinceLastSync);
-            lastSyncedSteps.current = result.steps; // Update the marker
+            lastSyncedSteps.current = result.steps;
           }
         });
+
+        console.log('✓ Pedometer subscribed');
+      } catch (error) {
+        const msg = error?.message || 'Unknown error';
+        console.error('❌ Pedometer setup error:', msg);
+        setSyncError(msg);
       }
     };
 
     subscribe();
-    return () => subscription && subscription.remove();
+    return () => {
+      if (subscription) {
+        subscription.remove();
+        console.log('✓ Pedometer unsubscribed');
+      }
+    };
   }, [userId]);
 
   const syncStepsToDb = async (stepsToAdd) => {
-    const TODAY = new Date().toISOString().split('T')[0];
-    
-    // Call the SQL function we created in Step 2
-    const { error } = await supabase.rpc('increment_steps', { 
-      p_user_id: userId, 
-      p_steps: stepsToAdd, 
-      p_date: TODAY 
-    });
+    if (!userId) {
+      console.error('❌ No userId provided');
+      setSyncError('No user ID');
+      return;
+    }
 
-    if (error) console.error("Sync Error:", error.message);
+    setIsSyncing(true);
+    const TODAY = new Date().toISOString().split('T')[0];
+
+    try {
+      const { error } = await supabase.rpc('increment_steps', {
+        p_user_id: userId,
+        p_steps: stepsToAdd,
+        p_date: TODAY,
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      console.log(`✓ Synced ${stepsToAdd} steps to database`);
+      setSyncError(null);
+    } catch (error) {
+      const msg = error?.message || 'Sync failed';
+      console.error('❌ Sync error:', msg);
+      setSyncError(msg);
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
-  return { stepCount };
+  // Manual sync for testing
+  const manualSync = async () => {
+    const newSteps = stepCount - lastSyncedSteps.current;
+    if (newSteps > 0) {
+      await syncStepsToDb(newSteps);
+      lastSyncedSteps.current = stepCount;
+    }
+  };
+
+  return {
+    stepCount,
+    isAvailable,
+    permissionStatus,
+    syncError,
+    isSyncing,
+    manualSync, // For testing
+  };
 }

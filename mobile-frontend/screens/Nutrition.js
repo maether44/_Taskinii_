@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import MacroBar from "../components/shared/MacroBar";
 import RingProgress from "../components/shared/RingProgress";
+import { StepCounter } from "../components/StepCounter";
 import { useNutrition } from "../hooks/useNutrition";
 import { useProfile } from "../hooks/useProfile";
 import { invokeEdgePublic, supabase } from "../config/supabase";
@@ -448,6 +449,8 @@ export default function Nutrition({ navigation }) {
             </TouchableOpacity>
           </View>
         </View>
+
+        <StepCounter userId={userId} />
 
         <View style={s.yaraCard}>
           <Text style={s.cardLabel}>YARA</Text>
