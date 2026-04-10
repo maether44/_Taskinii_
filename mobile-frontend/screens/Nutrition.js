@@ -16,6 +16,7 @@ import { StepCounter } from "../components/StepCounter";
 import { useNutrition } from "../hooks/useNutrition";
 import { useProfile } from "../hooks/useProfile";
 import { invokeEdgePublic, supabase } from "../config/supabase";
+import { DEFAULT_TARGETS } from "../constants/targets";
 
 const C = {
   bg: "#0F0B1E",
@@ -129,10 +130,10 @@ function buildClientNutritionContext({ goals, eaten, protein, carbs, fat, waterM
       avg_carbs_g: carbs || 0,
       avg_fat_g: fat || 0,
       logged_days: recentMeals.length ? 1 : 0,
-      daily_calorie_target: goals?.calorie_target || 2000,
-      protein_target: goals?.protein_target || 150,
-      carbs_target: goals?.carbs_target || 250,
-      fat_target: goals?.fat_target || 65,
+      daily_calorie_target: goals?.calorie_target || DEFAULT_TARGETS.calorie_target,
+      protein_target: goals?.protein_target || DEFAULT_TARGETS.protein_target,
+      carbs_target: goals?.carbs_target || DEFAULT_TARGETS.carbs_target,
+      fat_target: goals?.fat_target || DEFAULT_TARGETS.fat_target,
       recent_meals: recentMeals,
     },
     activity: {

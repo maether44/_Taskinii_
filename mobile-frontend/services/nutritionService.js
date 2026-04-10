@@ -1,6 +1,7 @@
 // src/services/nutritionService.js
 // All nutrition DB operations — matches the exact Supabase schema
 import { supabase } from '../config/supabase';
+import { DEFAULT_TARGETS } from '../constants/targets';
 
 const TODAY = () => new Date().toISOString().split('T')[0];
 
@@ -87,7 +88,12 @@ export async function getCalorieTargets(userId) {
         .limit(1)
         .single();
     if (error && error.code !== 'PGRST116') throw error;
-    return data ?? { daily_calories: 2000, protein_target: 150, carbs_target: 250, fat_target: 65 };
+    return data ?? {
+        daily_calories: DEFAULT_TARGETS.calorie_target,
+        protein_target: DEFAULT_TARGETS.protein_target,
+        carbs_target:   DEFAULT_TARGETS.carbs_target,
+        fat_target:     DEFAULT_TARGETS.fat_target,
+    };
 }
 
 export async function saveCalorieTargets(userId, targets) {

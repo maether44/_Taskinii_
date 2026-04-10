@@ -34,24 +34,24 @@ export default function Home({ navigation }) {
   const [lastSession, setLastSession] = useState(null);
   const [headerAvatarUri, setHeaderAvatarUri] = useState(null);
 
+  const authUserId = useAuth().user?.id;
   useFocusEffect(
     useCallback(() => {
       refresh();
+      if (!authUserId) return;
       (async () => {
-        const { data: { user: u } } = await supabase.auth.getUser();
-        if (!u) return;
-        const localAvatar = await getLocalAvatarForUser(u.id).catch(() => null);
+        const localAvatar = await getLocalAvatarForUser(authUserId).catch(() => null);
         setHeaderAvatarUri(localAvatar);
         const { data } = await supabase
           .from('workout_sessions')
           .select('notes, calories_burned, started_at')
-          .eq('user_id', u.id)
+          .eq('user_id', authUserId)
           .order('started_at', { ascending: false })
           .limit(1)
           .maybeSingle();
         setLastSession(data ?? null);
       })();
-    }, [refresh])
+    }, [refresh, authUserId])
   );
 
   // Count-up effect for calories — only runs once data is ready
@@ -179,9 +179,9 @@ export default function Home({ navigation }) {
             <Text style={styles.cardLabel}>👟 STEPS</Text>
             <Text style={styles.statNum}>{totalSteps.toLocaleString()}</Text>
             <View style={styles.miniBarBg}>
-              <View style={[styles.miniBarFill, { width: `${Math.min((totalSteps / 10000) * 100, 100)}%`, backgroundColor: COLORS.lime }]} />
+              <View style={[styles.miniBarFill, { width: `${Math.min((totalSteps / (stats.stepsTarget || 10000)) * 100, 100)}%`, backgroundColor: COLORS.lime }]} />
             </View>
-            <Text style={styles.smallSub}>goal 10,000</Text>
+            <Text style={styles.smallSub}>goal {(stats.stepsTarget || 10000).toLocaleString()}</Text>
           </BentoCard>
 
           <BentoCard style={styles.halfCard} delay={600}>

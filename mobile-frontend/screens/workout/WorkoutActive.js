@@ -15,6 +15,7 @@ import { BlurView } from 'expo-blur';
 import { useAuth } from '../../context/AuthContext';
 import { saveWorkoutSession } from '../../services/workoutService';
 import { supabase } from '../../lib/supabase';
+import { AppEvents, emit } from '../../lib/eventBus';
 
 const { height: SH } = Dimensions.get('window');
 
@@ -679,7 +680,10 @@ export default function WorkoutActive({ route, navigation }) {
                 p_description: `Completed ${msg.exercise || displayName} workout`
               });
               if (xpError) console.error('[BodyQ] award_xp:', xpError);
-              else console.log('[BodyQ] XP awarded:', xpResult);
+              else {
+                console.log('[BodyQ] XP awarded:', xpResult);
+                emit(AppEvents.XP_AWARDED, { amount: 50, source: 'workout', result: xpResult });
+              }
             } catch (e) {
               console.error('[BodyQ] award_xp exception:', e);
             }
@@ -692,8 +696,8 @@ export default function WorkoutActive({ route, navigation }) {
               if (achError) console.error('[BodyQ] check_achievements:', achError);
               else if (achievementsResult?.awarded?.length > 0) {
                 console.log('[BodyQ] Achievements awarded:', achievementsResult.awarded);
-                // Show achievement popup (for now, just log - we'll enhance this)
                 const newAchievements = achievementsResult.awarded;
+                emit(AppEvents.ACHIEVEMENT_AWARDED, { awarded: newAchievements });
                 if (newAchievements.length > 0) {
                   const achievement = newAchievements[0]; // Show first new achievement
                   Alert.alert(
@@ -734,6 +738,16 @@ export default function WorkoutActive({ route, navigation }) {
                 console.error('[BodyQ] muscle_fatigue:', e.message);
               }
             }
+
+            // Signal: workout is done — refresh TodayContext + any other subscribers
+            emit(AppEvents.WORKOUT_COMPLETED, {
+              sessionId,
+              exerciseKey: htmlKey ?? rawKey,
+              exerciseName: msg.exercise || displayName,
+              reps: msg.reps,
+              calories,
+              postureScore: avgFormScore,
+            });
           }
 
           navigation.replace('WorkoutSummary', {

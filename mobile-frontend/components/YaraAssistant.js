@@ -15,10 +15,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
 import * as Speech from 'expo-speech';
-import { registerTourRef } from '../tour/tourRefs';
+import { registerTourRef } from './onBoarding/tourRefs';
 import { useNutrition } from '../hooks/useNutrition';
 import { useProfile } from '../hooks/useProfile';
+import { useToday } from '../context/TodayContext';
 import { invokeEdgePublic, supabase } from '../config/supabase';
+import { DEFAULT_TARGETS } from '../constants/targets';
 
 const SIDEBAR_W      = 272;
 const STORAGE_KEY    = '@yara_conversations';
@@ -83,14 +85,23 @@ async function invokeYara(body) {
   }
 }
 
-function buildClientNutritionContext({ profile, goals, eaten, protein, carbs, fat, waterMl, caloriesBurned, mealSections }) {
+function buildClientTodayContext({
+  profile, goals, eaten, protein, carbs, fat,
+  waterMl, caloriesBurned, mealSections,
+  sleepHours, sleepQuality, muscleFatigue,
+}) {
   const recentMeals = (mealSections || [])
     .filter((meal) => meal.logged)
     .map((meal) => ({
-      date: new Date().toISOString().slice(0, 10),
       meal_type: meal.id,
       foods: meal.items.map((item) => item.name).join(', '),
+      calories: meal.totals?.calories ?? 0,
     }));
+
+  const fatigueList = (muscleFatigue || []).map((m) => ({
+    muscle: m.muscle_name,
+    pct: m.fatigue_pct,
+  }));
 
   return {
     profile: profile ? {
@@ -107,21 +118,23 @@ function buildClientNutritionContext({ profile, goals, eaten, protein, carbs, fa
       sleep_quality: profile.sleep_quality,
       stress_level: profile.stress_level,
     } : null,
-    nutrition: {
-      avg_calories: eaten || 0,
-      avg_protein_g: protein || 0,
-      avg_carbs_g: carbs || 0,
-      avg_fat_g: fat || 0,
-      logged_days: recentMeals.length ? 1 : 0,
-      daily_calorie_target: goals?.calorie_target || 2000,
-      protein_target: goals?.protein_target || 150,
-      carbs_target: goals?.carbs_target || 250,
-      fat_target: goals?.fat_target || 65,
-      recent_meals: recentMeals,
-    },
-    activity: {
-      avg_water_ml: waterMl || 0,
+    today: {
+      date: new Date().toISOString().slice(0, 10),
+      calories_eaten: eaten || 0,
+      calorie_target: goals?.calorie_target || DEFAULT_TARGETS.calorie_target,
+      protein_eaten: protein || 0,
+      protein_target: goals?.protein_target || DEFAULT_TARGETS.protein_target,
+      carbs_eaten: carbs || 0,
+      carbs_target: goals?.carbs_target || DEFAULT_TARGETS.carbs_target,
+      fat_eaten: fat || 0,
+      fat_target: goals?.fat_target || DEFAULT_TARGETS.fat_target,
+      water_ml: waterMl || 0,
+      water_target_ml: goals?.water_target_ml || DEFAULT_TARGETS.water_target_ml,
       calories_burned: caloriesBurned || 0,
+      sleep_hours: sleepHours ?? null,
+      sleep_quality: sleepQuality ?? null,
+      muscle_fatigue: fatigueList,
+      meals: recentMeals,
     },
   };
 }
@@ -168,6 +181,7 @@ function TypingDots() {
 export default function YaraAssistant() {
   const { profile, name, userId } = useProfile();
   const { goals, eaten, protein, carbs, fat, waterMl, caloriesBurned, mealSections } = useNutrition();
+  const { sleepHours, sleepQuality, muscleFatigue } = useToday();
   const insets = useSafeAreaInsets();
 
   const [open,        setOpen]        = useState(false);
@@ -196,7 +210,7 @@ export default function YaraAssistant() {
   const [userInsights,       setUserInsights]       = useState([]);
   const [insightsLoading,    setInsightsLoading]    = useState(false);
   const [insightsRefreshing, setInsightsRefreshing] = useState(false);
-  const clientContext = buildClientNutritionContext({
+  const clientContext = buildClientTodayContext({
     profile,
     goals,
     eaten,
@@ -206,6 +220,9 @@ export default function YaraAssistant() {
     waterMl,
     caloriesBurned,
     mealSections,
+    sleepHours,
+    sleepQuality,
+    muscleFatigue,
   });
 
   const activeConv = conversations.find(c => c.id === activeConvId);

@@ -1,13 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { supabase } from "../config/supabase";
-
-const DEFAULT_GOALS = {
-  calorie_target: 2000,
-  protein_target: 150,
-  carbs_target: 250,
-  fat_target: 65,
-  water_target_ml: 2500,
-};
+import { useAuth } from "../context/AuthContext";
+import { useToday } from "../context/TodayContext";
+import { AppEvents, emit } from "../lib/eventBus";
 
 export const MEAL_TYPE_MAP = {
   breakfast: "breakfast",
@@ -24,21 +19,6 @@ const MEAL_META = {
   dinner: { id: "dinner", label: "Dinner", icon: "🌙", accent: "#9D85F5" },
   snack: { id: "snack", label: "Snack", icon: "🍎", accent: "#C8F135" },
 };
-
-function todayString() {
-  return new Date().toISOString().split("T")[0];
-}
-
-function normalizeGoals(row) {
-  if (!row) return DEFAULT_GOALS;
-  return {
-    calorie_target: row.calorie_target ?? row.daily_calories ?? DEFAULT_GOALS.calorie_target,
-    protein_target: row.protein_target ?? DEFAULT_GOALS.protein_target,
-    carbs_target: row.carbs_target ?? DEFAULT_GOALS.carbs_target,
-    fat_target: row.fat_target ?? DEFAULT_GOALS.fat_target,
-    water_target_ml: row.water_target_ml ?? row.water_ml ?? DEFAULT_GOALS.water_target_ml,
-  };
-}
 
 function round1(value) {
   return Math.round((Number(value) || 0) * 10) / 10;
@@ -107,70 +87,15 @@ async function ensureFoodRecord(payload) {
 }
 
 export function useNutrition() {
-  const [loading, setLoading] = useState(false);
-  const [goals, setGoals] = useState(DEFAULT_GOALS);
-  const [foodLogs, setFoodLogs] = useState([]);
-  const [waterMl, setWaterMl] = useState(0);
-  const [caloriesBurned, setCaloriesBurned] = useState(0);
-  const [userId, setUserId] = useState(null);
+  const { user: authUser } = useAuth();
+  const userId = authUser?.id ?? null;
+  const today = useToday();
+
+  // Read shared state from TodayContext
+  const { goals, foodLogs, waterMl, caloriesBurned, loading, logWater, refresh } = today;
+
+  // Guest mode: local-only logs when not authenticated
   const [guestLogs, setGuestLogs] = useState([]);
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (data?.user?.id) setUserId(data.user.id);
-    });
-  }, []);
-
-  const loadTodayData = useCallback(async () => {
-    if (!userId) return;
-    setLoading(true);
-    const today = todayString();
-
-    try {
-      const [{ data: goalsData }, { data: logs }, { data: activity }] = await Promise.all([
-        supabase
-          .from("calorie_targets")
-          .select("*")
-          .eq("user_id", userId)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-        supabase
-          .from("food_logs")
-          .select(`
-            id, meal_type, quantity_grams, consumed_at,
-            foods (
-              id, name, brand, barcode,
-              calories_per_100g, protein_per_100g,
-              carbs_per_100g, fat_per_100g, fiber_per_100g
-            )
-          `)
-          .eq("user_id", userId)
-          .gte("consumed_at", `${today}T00:00:00.000Z`)
-          .lte("consumed_at", `${today}T23:59:59.999Z`)
-          .order("consumed_at", { ascending: true }),
-        supabase
-          .from("daily_activity")
-          .select("water_ml, calories_burned")
-          .eq("user_id", userId)
-          .eq("date", today)
-          .maybeSingle(),
-      ]);
-
-      setGoals(normalizeGoals(goalsData));
-      setFoodLogs(logs || []);
-      setWaterMl(activity?.water_ml || 0);
-      setCaloriesBurned(activity?.calories_burned || 0);
-    } catch (error) {
-      console.error("loadTodayData error:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [userId]);
-
-  useEffect(() => {
-    if (userId) loadTodayData();
-  }, [userId, loadTodayData]);
 
   const saveMealEntries = useCallback(async ({ mealType = "snack", items = [] }) => {
     const dbMealType = MEAL_TYPE_MAP[mealType] || "snack";
@@ -216,8 +141,8 @@ export function useNutrition() {
 
       // Award XP for logging meals
       try {
-        const xpAmount = inserts.length * 10; // 10 XP per food item
-        const { data: xpResult, error: xpError } = await supabase.rpc('award_xp', {
+        const xpAmount = inserts.length * 10;
+        const { error: xpError } = await supabase.rpc('award_xp', {
           p_user_id: userId,
           p_amount: xpAmount,
           p_source: 'meal',
@@ -235,20 +160,20 @@ export function useNutrition() {
         });
         if (achError) console.error('[BodyQ] check_achievements:', achError);
         else if (achievementsResult?.awarded?.length > 0) {
-          console.log('[BodyQ] Achievements awarded:', achievementsResult.awarded);
-          // Note: Achievement popup would be shown in Profile screen
+          emit(AppEvents.ACHIEVEMENT_AWARDED, { awarded: achievementsResult.awarded });
         }
       } catch (e) {
         console.error('[BodyQ] check_achievements exception:', e);
       }
 
-      await loadTodayData();
+      // Signal TodayContext to refresh + notify other subscribers
+      emit(AppEvents.MEAL_LOGGED, { mealType: dbMealType, itemCount: inserts.length });
       return true;
     } catch (error) {
       console.error("saveMealEntries error:", error);
       return false;
     }
-  }, [loadTodayData, userId]);
+  }, [refresh, userId]);
 
   const logScannedFood = useCallback(async ({
     mealType = "snack",
@@ -267,33 +192,6 @@ export function useNutrition() {
       items: [{ foodName, brand, calories, protein, carbs, fat, fiber, quantity, barcode }],
     });
   }, [saveMealEntries]);
-
-  const logWater = useCallback(async (mlDelta) => {
-    if (!userId) {
-      setWaterMl((prev) => Math.max(0, prev + mlDelta));
-      return;
-    }
-
-    try {
-      const today = todayString();
-      const { data: existing } = await supabase
-        .from("daily_activity")
-        .select("*")
-        .eq("user_id", userId)
-        .eq("date", today)
-        .maybeSingle();
-
-      const newMl = Math.max(0, (existing?.water_ml || 0) + mlDelta);
-      if (existing?.id) {
-        await supabase.from("daily_activity").update({ water_ml: newMl }).eq("id", existing.id);
-      } else {
-        await supabase.from("daily_activity").insert({ user_id: userId, date: today, water_ml: newMl });
-      }
-      setWaterMl(newMl);
-    } catch (error) {
-      console.error("logWater error:", error);
-    }
-  }, [userId]);
 
   const allLogs = userId ? foodLogs : guestLogs;
 
@@ -370,6 +268,6 @@ export function useNutrition() {
     logScannedFood,
     saveMealEntries,
     logWater,
-    refresh: loadTodayData,
+    refresh,
   };
 }

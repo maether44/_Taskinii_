@@ -21,6 +21,7 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import { useFocusEffect } from '@react-navigation/native';
 import { useInsights } from '../hooks/useInsights';
 import { generateAndCacheInsights } from '../services/yaraInsightsService';
+import { AppEvents, on } from '../lib/eventBus';
 
 const PERIODS = ['Week', 'Month', '3 Months'];
 
@@ -74,6 +75,17 @@ export default function Insights() {
   } = useInsights(period);
 
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
+
+  // Auto-refresh when user logs activity elsewhere in the app
+  useEffect(() => {
+    const unsubs = [
+      on(AppEvents.WORKOUT_COMPLETED, refresh),
+      on(AppEvents.MEAL_LOGGED,       refresh),
+      on(AppEvents.WATER_LOGGED,      refresh),
+      on(AppEvents.SLEEP_LOGGED,      refresh),
+    ];
+    return () => unsubs.forEach(fn => fn());
+  }, [refresh]);
 
   const [aiInsights,      setAiInsights]      = useState([]);
   const [insightsLoading, setInsightsLoading] = useState(false);

@@ -25,6 +25,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { getMuscleFatigue } from '../services/workoutService';
+import { useAuth } from '../context/AuthContext';
 
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -161,7 +162,8 @@ function buildWorkoutSummary(rows) {
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useInsights(period) {
-  const [userId,           setUserId]           = useState(null);
+  const { user: authUser } = useAuth();
+  const userId = authUser?.id ?? null;
   const [isLoading,        setIsLoading]        = useState(true);
   const [error,            setError]            = useState(null);
   const [rawStats,         setRawStats]         = useState(null);
@@ -173,15 +175,8 @@ export function useInsights(period) {
   const [muscleFatigue,    setMuscleFatigue]    = useState([]);
   const [aiHistory,        setAiHistory]        = useState([]);
 
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (data?.user) setUserId(data.user.id);
-      else setIsLoading(false);
-    });
-  }, []);
-
   const load = useCallback(async () => {
-    if (!userId) return;
+    if (!userId) { setIsLoading(false); return; }
     setIsLoading(true);
     setError(null);
     try {

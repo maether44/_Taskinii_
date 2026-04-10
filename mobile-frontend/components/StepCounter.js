@@ -8,6 +8,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { usePedometer } from '../hooks/usePedometer';
+import { useToday } from '../context/TodayContext';
+import { DEFAULT_TARGETS } from '../constants/targets';
 
 const C = {
   bg: '#0F0B1E',
@@ -30,7 +32,8 @@ export function StepCounter({ userId }) {
     manualSync,
   } = usePedometer(userId);
 
-  const [dailyGoal] = useState(10000);
+  const { goals } = useToday();
+  const dailyGoal = goals?.steps_target ?? DEFAULT_TARGETS.steps_target;
   const percentage = Math.min((stepCount / dailyGoal) * 100, 100);
 
   if (!isAvailable) {

@@ -14,6 +14,10 @@ import Svg, { Ellipse, Rect, Circle, Path } from 'react-native-svg';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 import { getMuscleFatigue } from '../services/workoutService';
+import { useAuth } from '../context/AuthContext';
+import { AppEvents, emit, on } from '../lib/eventBus';
+
+const STREAK_MILESTONES = [3, 7, 14, 30, 60, 100, 365];
 
 const { width } = Dimensions.get('window');
 
@@ -514,6 +518,8 @@ function MachineModal({ machine, visible, onClose, onAnalyze }) {
 
 // ── Main Screen ───────────────────────────────────────────────
 export default function Training({ navigation }) {
+  const { user: authUser } = useAuth();
+  const authUserId = authUser?.id ?? null;
   const hour = new Date().getHours();
   const greeting =
     hour < 12 ? 'Good Morning' :
@@ -525,6 +531,7 @@ export default function Training({ navigation }) {
   const [fatigueLoading, setFatigueLoading] = useState(true);
   const [weekDays,       setWeekDays]       = useState(Array(7).fill(false));
   const [streakCount,    setStreakCount]     = useState(0);
+  const prevStreakRef = useRef(0);
   const [recoveryPct,    setRecoveryPct]    = useState(100);
   const [selectedMachine,  setSelectedMachine]  = useState(null);
   const [modalVisible,     setModalVisible]     = useState(false);
@@ -541,20 +548,18 @@ export default function Training({ navigation }) {
   });
 
   const loadData = useCallback(async () => {
+    if (!authUserId) return;
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
       // ── 0. Environment preference from profiles ───────────
       const { data: profile } = await supabase
         .from('profiles')
         .select('environment')
-        .eq('id', user.id)
+        .eq('id', authUserId)
         .maybeSingle();
       if (profile?.environment) setEnvironment(profile.environment);
 
       // ── 1. Muscle fatigue ──────────────────────────────────
-      const rows = await getMuscleFatigue(user.id);
+      const rows = await getMuscleFatigue(authUserId);
       const map = {};
       rows.forEach(r => { map[r.muscle_name] = r; });
       setFatigueMap(map);
@@ -569,7 +574,7 @@ export default function Training({ navigation }) {
       const { data: activityRow } = await supabase
         .from('daily_activity')
         .select('sleep_hours')
-        .eq('user_id', user.id)
+        .eq('user_id', authUserId)
         .eq('date', TODAY_STR)
         .maybeSingle();
       const sleepHours = activityRow?.sleep_hours ?? null;
@@ -616,7 +621,7 @@ export default function Training({ navigation }) {
         const { data: prev } = await supabase
           .from('workout_sessions')
           .select('notes, created_at')
-          .eq('user_id', user.id)
+          .eq('user_id', authUserId)
           .ilike('notes', `%${ex.key}%`)
           .order('created_at', { ascending: false })
           .limit(1);
@@ -642,7 +647,7 @@ export default function Training({ navigation }) {
       const { data: pastSessions } = await supabase
         .from('workout_sessions')
         .select('notes, created_at')
-        .eq('user_id', user.id)
+        .eq('user_id', authUserId)
         .ilike('notes', `%${chosenKey}%`)
         .order('created_at', { ascending: false })
         .limit(2);
@@ -677,7 +682,7 @@ export default function Training({ navigation }) {
       const { data: sessions } = await supabase
         .from('workout_sessions')
         .select('created_at')
-        .eq('user_id', user.id)
+        .eq('user_id', authUserId)
         .gte('created_at', monday.toISOString())
         .lt('created_at', sunday.toISOString());
 
@@ -701,7 +706,7 @@ export default function Training({ navigation }) {
       const { data: allSessions } = await supabase
         .from('workout_sessions')
         .select('created_at')
-        .eq('user_id', user.id)
+        .eq('user_id', authUserId)
         .order('created_at', { ascending: false });
 
       const allDates = new Set(
@@ -721,11 +726,21 @@ export default function Training({ navigation }) {
       }
       setStreakCount(streak);
 
+      // Emit milestone event when crossing a new milestone (not on first load)
+      if (
+        prevStreakRef.current > 0 &&
+        streak > prevStreakRef.current &&
+        STREAK_MILESTONES.includes(streak)
+      ) {
+        emit(AppEvents.STREAK_MILESTONE, { streak });
+      }
+      prevStreakRef.current = streak;
+
       // ── 7. High-protein meal tip from today's food logs ────
       const { data: foodLogs } = await supabase
         .from('food_logs')
         .select('quantity_grams, foods(protein_per_100g, name)')
-        .eq('user_id', user.id)
+        .eq('user_id', authUserId)
         .gte('consumed_at', `${TODAY_STR}T00:00:00.000Z`)
         .lte('consumed_at', `${TODAY_STR}T23:59:59.999Z`);
 
@@ -751,18 +766,23 @@ export default function Training({ navigation }) {
     } finally {
       setFatigueLoading(false);
     }
-  }, []);
+  }, [authUserId]);
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
+  // React to workout completion anywhere in the app
+  React.useEffect(() => {
+    const off = on(AppEvents.WORKOUT_COMPLETED, loadData);
+    return off;
+  }, [loadData]);
+
   const toggleEnvironment = useCallback(async (env) => {
     setEnvironment(env);
+    if (!authUserId) return;
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      await supabase.from('profiles').update({ environment: env }).eq('id', user.id);
+      await supabase.from('profiles').update({ environment: env }).eq('id', authUserId);
     } catch (e) { /* non-critical */ }
-  }, []);
+  }, [authUserId]);
 
   const handleMusclePress = useCallback((muscleId) => {
     setSelectedMuscle(muscleId);

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
+import { AppEvents, emit, on } from '../lib/eventBus';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { ActivityIndicator, Alert, Image, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
@@ -197,10 +198,18 @@ export default function Profile({ navigate, replayTour }) {
     loadProfileData();
   }, [loadProfileData]);
 
-  useFocusEffect(useCallback(() => {
-    if (!authUser?.id) return;
-    loadProfileData();
-  }, [authUser?.id, loadProfileData]));
+  // React to events that affect profile screen data (XP, achievements, streaks, workouts, profile edits)
+  useEffect(() => {
+    const unsubs = [
+      on(AppEvents.PROFILE_UPDATED,    loadProfileData),
+      on(AppEvents.XP_AWARDED,         loadProfileData),
+      on(AppEvents.ACHIEVEMENT_AWARDED, loadProfileData),
+      on(AppEvents.STREAK_MILESTONE,   loadProfileData),
+      on(AppEvents.WORKOUT_COMPLETED,  loadProfileData),
+      on(AppEvents.TARGETS_UPDATED,    loadProfileData),
+    ];
+    return () => unsubs.forEach(fn => fn());
+  }, [loadProfileData]);
 
   if (loadingProfile) {
     return (
@@ -332,6 +341,9 @@ export default function Profile({ navigate, replayTour }) {
       setCalorieTarget(nextCalories);
       setProteinTarget(nextProtein || macros.protein_target);
       setEditVisible(false);
+      // Notify other screens (TodayContext, Home, Nutrition, …) that profile + targets changed
+      emit(AppEvents.PROFILE_UPDATED, { userId: authUser.id });
+      emit(AppEvents.TARGETS_UPDATED, { userId: authUser.id });
       Alert.alert('Saved', 'Your profile has been updated.');
     } catch (error) {
       Alert.alert('Save failed', error?.message || 'Could not update your profile.');

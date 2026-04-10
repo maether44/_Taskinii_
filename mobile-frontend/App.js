@@ -14,6 +14,7 @@ import { registerRootComponent } from "expo";
 // Context & Supabase
 import { supabase } from "./lib/supabase";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { TodayProvider } from "./context/TodayContext";
 
 // ✅ Custom splash screen
 import CustomSplashScreen from "./components/CustomSplashScreen";
@@ -130,16 +131,18 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AuthProvider>
-          <View style={styles.container} onLayout={onLayoutRootView}>
-            <StatusBar style="light" />
-            <NavigationContainer
-              onStateChange={(state) => setActiveRoute(getActiveRouteName(state))}
-            >
-              <Navigation />
-            </NavigationContainer>
-            {activeRoute !== "WorkoutActive" && <YaraAssistant />}
-            <AppTour activeTab={activeTab} onTabPress={setActiveTab} showOnMount={true} />
-          </View>
+          <TodayProvider>
+            <View style={styles.container} onLayout={onLayoutRootView}>
+              <StatusBar style="light" />
+              <NavigationContainer
+                onStateChange={(state) => setActiveRoute(getActiveRouteName(state))}
+              >
+                <Navigation />
+              </NavigationContainer>
+              {activeRoute !== "WorkoutActive" && <YaraAssistant />}
+              <AppTour activeTab={activeTab} onTabPress={setActiveTab} showOnMount={true} />
+            </View>
+          </TodayProvider>
         </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

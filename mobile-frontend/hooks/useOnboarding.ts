@@ -17,8 +17,10 @@ import {
 } from "../services/profileService";
 import { saveAIPlan } from "../services/aiPlanService";
 import { supabase } from "../lib/supabase";
+import { useAuth } from "../context/AuthContext";
 
 export function useOnboarding() {
+  const { user: authUser } = useAuth();
   const [step, setStep] = useState(0);
   const [aiPlan, setAiPlan] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -171,13 +173,10 @@ export function useOnboarding() {
     setSavingProfile(true);
     setLoadError(null);
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
+      if (!authUser) {
         throw new Error("No authenticated user found");
       }
+      const user = authUser;
 
       const answers = getAnswers();
 
