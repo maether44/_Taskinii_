@@ -25,53 +25,65 @@ const HYDRATION_ID = "hydration-5pm";
 const TEST_WORKOUT_SEND_NOW = true;
 
 const useNotification = (ml, waterGoalMl = 2000) => {
-  // ── Notification 1: Hydration reminder at 5pm ──────────────────────────────
-  // Fires at 17:00 each day as long as the user hasn't hit their water goal.
-  // Cancels automatically once they reach the goal.
+  // ── Notification 1: Hydration reminder TEST MODE ──────────────────────────
+  // Fires in 10 seconds if the user hasn't hit 2000ml water intake.
   useEffect(() => {
     const syncHydrationReminder = async () => {
       try {
         const { status } = await Notifications.getPermissionsAsync();
-        if (status !== "granted") return;
+        if (status !== "granted") {
+          // console.log(
+          //   "[HydrationReminder] Notification permission not granted",
+          // );
+          return;
+        }
 
-        // Always cancel the previous one-shot reminder before rescheduling
+        // Cancel any previous hydration reminder
         await Notifications.cancelScheduledNotificationAsync(
           HYDRATION_ID,
         ).catch(() => {});
 
-        if (ml >= waterGoalMl) return; // Goal met — no reminder needed
+        if (ml >= 2500) {
+          // console.log(
+          //   `[HydrationReminder] Water goal met (${ml}ml), no notification scheduled.`,
+          // );
+          return;
+        }
 
+        // Schedule for 5pm today, or tomorrow if past 5pm
         const now = new Date();
         const reminderTime = new Date();
         reminderTime.setHours(17, 0, 0, 0);
-
-        // If 5pm already passed today, schedule for tomorrow
         if (reminderTime <= now) {
           reminderTime.setDate(reminderTime.getDate() + 1);
         }
 
+        console.log(
+          `[HydrationReminder] Scheduling notification for ${reminderTime}`,
+        );
         await Notifications.scheduleNotificationAsync({
           identifier: HYDRATION_ID,
           content: {
-            title: "Stay Hydrated! 💧",
-            body: `You've only had ${ml}ml today — drink up before the day ends!`,
+            title: "",
+            body: "reminder to drink water\ud83d\udca7",
             sound: true,
           },
-          trigger: reminderTime,
+          trigger: { type: "date", date: reminderTime },
         });
+        console.log("[HydrationReminder] Notification scheduled.");
       } catch (error) {
         console.error("syncHydrationReminder error:", error);
       }
     };
 
     syncHydrationReminder();
-  }, [ml, waterGoalMl]);
+  }, [ml]);
 
   // ── Notification 2: Workout reminders ──────────────────────────────────────
   // Fetches the user's preferred_workout_time and workout_days_per_week from
   // Supabase and schedules a weekly repeating notification for each workout day.
   useEffect(() => {
-    const scheduleWorkoutReminders = async () => {
+    const scheduleWorkoutReminder = async () => {
       try {
         const { status } = await Notifications.getPermissionsAsync();
         if (status !== "granted") return;
@@ -83,12 +95,11 @@ const useNotification = (ml, waterGoalMl = 2000) => {
 
         const { data: profile } = await supabase
           .from("profiles")
-          .select("display_name, preferred_workout_time, workout_days_per_week")
+          .select("preferred_workout_time")
           .eq("id", user.id)
           .single();
 
-        if (!profile?.preferred_workout_time || !profile?.workout_days_per_week)
-          return;
+        if (!profile?.preferred_workout_time) return;
 
         // Cancel any previously scheduled workout reminders
         const scheduled =
@@ -102,48 +113,30 @@ const useNotification = (ml, waterGoalMl = 2000) => {
         );
 
         const hour = TIME_TO_HOUR[profile.preferred_workout_time] ?? 8;
-        const weekdays = WORKOUT_DAYS_MAP[profile.workout_days_per_week] ?? [
-          2, 4, 6,
-        ];
-        const name = profile.display_name || "there";
 
-        if (TEST_WORKOUT_SEND_NOW) {
-          console.log("Sending test workout reminder immediately...");
-          await Notifications.scheduleNotificationAsync({
-            identifier: `workout-test-now`,
-            content: {
-              title: `Time to train, ${name}! 💪`,
-              body: "Test notification sent immediately.",
-              sound: true,
-            },
-            trigger: { seconds: 5 },
-          });
-          return;
+        // Schedule for 5pm today, or tomorrow if past preferred time
+        const now = new Date();
+        const reminderTime = new Date();
+        reminderTime.setHours(hour, 0, 0, 0);
+        if (reminderTime <= now) {
+          reminderTime.setDate(reminderTime.getDate() + 1);
         }
 
-        for (const weekday of weekdays) {
-          const dayId = WORKOUT_DAY_NAMES[weekday];
-          await Notifications.scheduleNotificationAsync({
-            identifier: `workout-${dayId}`,
-            content: {
-              title: `Time to train, ${name}! 💪`,
-              body: "Your workout is scheduled for today. Let's get it done!",
-              sound: true,
-            },
-            trigger: {
-              weekday, // 1=Sun … 7=Sat (expo-notifications convention)
-              hour,
-              minute: 0,
-              repeats: true,
-            },
-          });
-        }
+        await Notifications.scheduleNotificationAsync({
+          identifier: `workout-time`,
+          content: {
+            title: "",
+            body: "workout time!",
+            sound: true,
+          },
+          trigger: { type: "date", date: reminderTime },
+        });
       } catch (error) {
         console.error("scheduleWorkoutReminders error:", error);
       }
     };
 
-    scheduleWorkoutReminders();
+    scheduleWorkoutReminder();
   }, []);
 };
 
