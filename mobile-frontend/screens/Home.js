@@ -12,6 +12,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { useDashboard } from "../hooks/useDashboard";
 import useNotification from "../hooks/useNotification";
@@ -19,6 +20,7 @@ import { useShakySteps } from "../hooks/useShakySteps";
 import WaterTracker from "../components/home/WaterTracker"; // Your interactive cup component
 import { COLORS } from "../constants/colors";
 import { supabase } from "../lib/supabase";
+import motivationalQuotes from "../data/motivationalQuotes.json";
 
 // ─── Level 5 Bento Components ───────────────────────────────────────────────
 
@@ -49,6 +51,7 @@ export default function Home({ navigation }) {
   const totalSteps = (stats?.steps || 0) + liveSteps;
   const [displayCal, setDisplayCal] = useState(0);
   const [lastSession, setLastSession] = useState(null);
+  const [quoteOfTheDay, setQuoteOfTheDay] = useState("");
 
   useFocusEffect(
     useCallback(() => {
@@ -88,6 +91,23 @@ export default function Home({ navigation }) {
     return () => clearInterval(timer);
   }, [isLoading, error, stats?.calories?.remaining]);
 
+  useEffect(() => {
+    const loadQuote = async () => {
+      const today = new Date();
+      const key = `motivation-quote-${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`;
+      const stored = await AsyncStorage.getItem(key);
+      if (stored) {
+        setQuoteOfTheDay(stored);
+      } else {
+        const idx = Math.floor(Math.random() * motivationalQuotes.length);
+        const quote = motivationalQuotes[idx];
+        await AsyncStorage.setItem(key, quote);
+        setQuoteOfTheDay(quote);
+      }
+    };
+    loadQuote();
+  }, []);
+
   if (error) {
     return (
       <View style={styles.loadingRoot}>
@@ -111,6 +131,13 @@ export default function Home({ navigation }) {
       </View>
     );
   }
+
+  // Daily motivational quotes
+  // const MOTIVATIONAL_QUOTES = motivationalQuotes;
+
+  // Pick a quote based on the day of the year
+  // const today = new Date();
+  // quoteOfTheDay = MOTIVATIONAL_QUOTES[today.getDate() % MOTIVATIONAL_QUOTES.length];
 
   return (
     <View style={styles.root}>
@@ -143,10 +170,10 @@ export default function Home({ navigation }) {
             style={styles.aiCard}
           >
             <View style={styles.aiHeader}>
-              <Text style={styles.aiTitle}>YARA COACH</Text>
+              <Text style={styles.aiTitle}>DAILY MOTIVATION</Text>
               <View style={styles.liveDot} />
             </View>
-            <Text style={styles.aiText}>"{yaraInsight}"</Text>
+            <Text style={styles.aiText}>"{quoteOfTheDay}"</Text>
           </LinearGradient>
         </BentoCard>
 

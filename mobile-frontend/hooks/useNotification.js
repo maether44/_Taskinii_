@@ -86,10 +86,10 @@ const useNotification = (ml, waterGoalMl = 2000) => {
     const scheduleWorkoutReminder = async () => {
       try {
         const { status } = await Notifications.getPermissionsAsync();
-        console.log(
-          "[WorkoutReminder] Notification permission status:",
-          status,
-        );
+        // console.log(
+        //   "[WorkoutReminder] Notification permission status:",
+        //   status,
+        // );
         if (status !== "granted") {
           console.log("[WorkoutReminder] Notification permission not granted");
           return;
@@ -98,7 +98,6 @@ const useNotification = (ml, waterGoalMl = 2000) => {
         const {
           data: { user },
         } = await supabase.auth.getUser();
-        console.log("[WorkoutReminder] Supabase user:", user);
         if (!user) {
           console.log("[WorkoutReminder] No user found");
           return;
