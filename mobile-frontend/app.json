@@ -1,56 +1,56 @@
 {
-    "expo":  {
-                 "name":  "mobile",
-                 "slug":  "mobile",
-                 "version":  "1.0.0",
-                 "orientation":  "portrait",
-                 "icon":  "./assets/icon.png",
-                 "userInterfaceStyle":  "light",
-                 "newArchEnabled":  true,
-                 "splash":  {
-                                "image":  "./assets/splash-icon.png",
-                                "resizeMode":  "contain",
-                                "backgroundColor":  "#ffffff"
-                            },
-                 "ios":  {
-                             "supportsTablet":  true,
-                             "bundleIdentifier":  "com.yourname.bodyq",
-                             "infoPlist":  {
-                                               "NSMotionUsageDescription":  "BodyQ uses your motion data to count steps and track your activity progress automatically.",
-                                               "NSCameraUsageDescription":  "BodyQ uses the camera to provide real-time AI posture correction and rep counting during your workouts."
-                                           }
-                         },
-                 "android":  {
-                                 "adaptiveIcon":  {
-                                                      "foregroundImage":  "./assets/adaptive-icon.png",
-                                                      "backgroundColor":  "#ffffff"
-                                                  },
-                                 "permissions":  [
-                                                     "android.permission.ACTIVITY_RECOGNITION",
-                                                     "CAMERA",
-                                                     "RECORD_AUDIO"
-                                                 ],
-                                 "edgeToEdgeEnabled":  true
-                             },
-                 "web":  {
-                             "favicon":  "./assets/favicon.png"
-                         },
-                 "plugins":  [
-                                 [
-                                     "expo-sensors",
-                                     {
-                                         "motionPermission":  "Allow BodyQ to track your steps."
-                                     }
-                                 ],
-                                 [
-                                     "expo-camera",
-                                     {
-                                         "cameraPermission":  "Allow BodyQ to use the camera for AI tracking."
-                                     }
-                                 ],
-                                 "expo-asset"
-                             ],
-                 "extra":  {
-                           }
-             }
+  "expo": {
+    "name": "mobile",
+    "slug": "mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.yourname.bodyq",
+      "infoPlist": {
+        "NSMotionUsageDescription": "BodyQ uses your motion data to count steps and track your activity progress automatically.",
+        "NSCameraUsageDescription": "BodyQ uses the camera to provide real-time AI posture correction and rep counting during your workouts."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "permissions": [
+        "android.permission.ACTIVITY_RECOGNITION",
+        "CAMERA",
+        "RECORD_AUDIO"
+      ],
+      "edgeToEdgeEnabled": true
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-sensors",
+        {
+          "motionPermission": "Allow BodyQ to track your steps."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow BodyQ to use the camera for AI tracking."
+        }
+      ],
+      "expo-asset",
+      "@react-native-community/datetimepicker"
+    ],
+    "extra": {}
+  }
 }

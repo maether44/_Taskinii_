@@ -6,6 +6,13 @@ import {
   TouchableOpacity,
   Pressable,
   Alert,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableWithoutFeedback,
+  Keyboard,
+  ActivityIndicator,
 } from "react-native";
 import { useForm, Controller } from "react-hook-form";
 import AuthLayout from "../components/AuthLayout";
@@ -24,21 +31,44 @@ const SignIn = () => {
   } = useForm();
   const [loading, setLoading] = useState(false);
 
+  // ── Forgot Password state ──────────────────────────────────────────────────
+  const [fpVisible, setFpVisible]   = useState(false);
+  const [fpEmail, setFpEmail]       = useState("");
+  const [fpSending, setFpSending]   = useState(false);
+
   const onSubmit = async (data) => {
     setLoading(true);
-
-    const { data: authData, error } = await supabase.auth.signInWithPassword({
+    const { error } = await supabase.auth.signInWithPassword({
       email: data.email,
       password: data.password,
     });
-
     setLoading(false);
-
     if (error) {
       Alert.alert("Sign In Error", error.message);
-    } else {
-      Alert.alert("Success", "Welcome back!");
-      // Navigation will be handled automatically by AuthContext
+    }
+    // Navigation handled automatically by AuthContext
+  };
+
+  const sendResetEmail = async () => {
+    const trimmed = fpEmail.trim();
+    if (!trimmed || !trimmed.includes("@")) {
+      Alert.alert("Invalid email", "Please enter a valid email address.");
+      return;
+    }
+    setFpSending(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(trimmed);
+      if (error) throw error;
+      setFpVisible(false);
+      setFpEmail("");
+      Alert.alert(
+        "Email sent ✉️",
+        "Check your inbox for a password reset link."
+      );
+    } catch (err) {
+      Alert.alert("Error", err?.message || "Could not send reset email.");
+    } finally {
+      setFpSending(false);
     }
   };
 
@@ -60,7 +90,7 @@ const SignIn = () => {
               label="Email"
               placeholder="Enter your email"
               onBlur={onBlur}
-              autoCapitalize={"none"}
+              autoCapitalize="none"
               onChangeText={onChange}
               value={value}
               icon={Mail}
@@ -79,7 +109,7 @@ const SignIn = () => {
               placeholder="Enter your password"
               onBlur={onBlur}
               onChangeText={onChange}
-              autoCapitalize={"none"}
+              autoCapitalize="none"
               value={value}
               secureTextEntry
               icon={Lock}
@@ -89,7 +119,14 @@ const SignIn = () => {
           name="password"
         />
 
-        <TouchableOpacity style={styles.forgotPassword}>
+        {/* ── Forgot Password trigger ── */}
+        <TouchableOpacity
+          style={styles.forgotPassword}
+          onPress={() => {
+            setFpEmail("");
+            setFpVisible(true);
+          }}
+        >
           <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
         </TouchableOpacity>
 
@@ -107,6 +144,74 @@ const SignIn = () => {
           </Pressable>
         </View>
       </View>
+
+      {/* ════════════════════════════════════════════════════════════════════
+          MODAL — Forgot Password
+      ════════════════════════════════════════════════════════════════════ */}
+      <Modal
+        visible={fpVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => !fpSending && setFpVisible(false)}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+          <View style={styles.modalBackdrop}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : "height"}
+              style={styles.modalKeyboardWrap}
+            >
+              <TouchableWithoutFeedback>
+                <View style={styles.modalCard}>
+                  <View style={styles.modalHandle} />
+
+                  <Text style={styles.modalTitle}>Reset Password</Text>
+                  <Text style={styles.modalSubtitle}>
+                    Enter your email and we'll send you a reset link.
+                  </Text>
+
+                  <Text style={styles.modalLabel}>Email</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={fpEmail}
+                    onChangeText={setFpEmail}
+                    placeholder="your@email.com"
+                    placeholderTextColor="rgba(255,255,255,0.3)"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    returnKeyType="done"
+                    onSubmitEditing={Keyboard.dismiss}
+                  />
+
+                  <View style={styles.modalActions}>
+                    <Pressable
+                      style={[styles.modalBtn, styles.modalBtnSecondary]}
+                      onPress={() => !fpSending && setFpVisible(false)}
+                    >
+                      <Text style={styles.modalBtnSecondaryText}>Cancel</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[
+                        styles.modalBtn,
+                        styles.modalBtnPrimary,
+                        fpSending && styles.modalBtnDisabled,
+                      ]}
+                      onPress={sendResetEmail}
+                      disabled={fpSending}
+                    >
+                      {fpSending ? (
+                        <ActivityIndicator color="#161230" size="small" />
+                      ) : (
+                        <Text style={styles.modalBtnPrimaryText}>Send Link</Text>
+                      )}
+                    </Pressable>
+                  </View>
+                </View>
+              </TouchableWithoutFeedback>
+            </KeyboardAvoidingView>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </AuthLayout>
   );
 };
@@ -154,6 +259,101 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "bold",
     fontFamily: "Outfit-Bold",
+  },
+
+  // ── Modal ────────────────────────────────────────────────────────────────
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "flex-end",
+  },
+  modalKeyboardWrap: {
+    justifyContent: "flex-end",
+  },
+  modalCard: {
+    backgroundColor: "#161230",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 10,
+    paddingHorizontal: 20,
+    paddingBottom: 36,
+    borderTopWidth: 1,
+    borderColor: "#1E1A35",
+  },
+  modalHandle: {
+    alignSelf: "center",
+    width: 44,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: "#6B5F8A",
+    opacity: 0.45,
+    marginBottom: 20,
+  },
+  modalTitle: {
+    color: "#FFFFFF",
+    fontSize: 20,
+    fontWeight: "800",
+    marginBottom: 6,
+    fontFamily: "Outfit-Bold",
+  },
+  modalSubtitle: {
+    color: "#6B5F8A",
+    fontSize: 13,
+    marginBottom: 20,
+    fontFamily: "Outfit-Regular",
+  },
+  modalLabel: {
+    color: "#6B5F8A",
+    fontSize: 13,
+    fontWeight: "700",
+    marginBottom: 8,
+    fontFamily: "Outfit-Medium",
+  },
+  modalInput: {
+    backgroundColor: "#0F0B1E",
+    color: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#1E1A35",
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    fontSize: 15,
+    fontFamily: "Outfit-Regular",
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 24,
+  },
+  modalBtn: {
+    flex: 1,
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalBtnPrimary: {
+    backgroundColor: "#7C5CFC",
+  },
+  modalBtnSecondary: {
+    backgroundColor: "#0F0B1E",
+    borderWidth: 1,
+    borderColor: "#1E1A35",
+  },
+  modalBtnPrimaryText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "800",
+    fontFamily: "Outfit-Bold",
+  },
+  modalBtnSecondaryText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
+    fontFamily: "Outfit-Medium",
+  },
+  modalBtnDisabled: {
+    opacity: 0.7,
   },
 });
 
