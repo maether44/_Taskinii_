@@ -22,7 +22,7 @@ const TIME_TO_HOUR = {
 };
 
 const HYDRATION_ID = "hydration-5pm";
-const TEST_WORKOUT_SEND_NOW = true;
+const TEST_WORKOUT_SEND_NOW = false;
 
 const useNotification = (ml, waterGoalMl = 2000) => {
   // ── Notification 1: Hydration reminder TEST MODE ──────────────────────────
@@ -43,7 +43,7 @@ const useNotification = (ml, waterGoalMl = 2000) => {
           HYDRATION_ID,
         ).catch(() => {});
 
-        if (ml >= 2500) {
+        if (ml >= 2000) {
           // console.log(
           //   `[HydrationReminder] Water goal met (${ml}ml), no notification scheduled.`,
           // );
@@ -64,8 +64,8 @@ const useNotification = (ml, waterGoalMl = 2000) => {
         await Notifications.scheduleNotificationAsync({
           identifier: HYDRATION_ID,
           content: {
-            title: "",
-            body: "reminder to drink water\ud83d\udca7",
+            title: "BodyQ",
+            body: "reminder to drink water! 💧",
             sound: true,
           },
           trigger: { type: "date", date: reminderTime },
@@ -86,24 +86,42 @@ const useNotification = (ml, waterGoalMl = 2000) => {
     const scheduleWorkoutReminder = async () => {
       try {
         const { status } = await Notifications.getPermissionsAsync();
-        if (status !== "granted") return;
+        console.log(
+          "[WorkoutReminder] Notification permission status:",
+          status,
+        );
+        if (status !== "granted") {
+          console.log("[WorkoutReminder] Notification permission not granted");
+          return;
+        }
 
         const {
           data: { user },
         } = await supabase.auth.getUser();
-        if (!user) return;
+        console.log("[WorkoutReminder] Supabase user:", user);
+        if (!user) {
+          console.log("[WorkoutReminder] No user found");
+          return;
+        }
 
-        const { data: profile } = await supabase
+        const { data: profile} = await supabase
           .from("profiles")
           .select("preferred_workout_time")
           .eq("id", user.id)
           .single();
 
-        if (!profile?.preferred_workout_time) return;
+        if (!profile?.preferred_workout_time) {
+          console.log("[WorkoutReminder] No preferred_workout_time found");
+          return;
+        }
 
         // Cancel any previously scheduled workout reminders
         const scheduled =
           await Notifications.getAllScheduledNotificationsAsync();
+        // console.log(
+        //   "[WorkoutReminder] Scheduled notifications before cancel:",
+        //   scheduled,
+        // );
         await Promise.all(
           scheduled
             .filter((n) => n.identifier.startsWith("workout-"))
@@ -113,24 +131,42 @@ const useNotification = (ml, waterGoalMl = 2000) => {
         );
 
         const hour = TIME_TO_HOUR[profile.preferred_workout_time] ?? 8;
+        console.log("[WorkoutReminder] Hour for notification:", hour);
 
-        // Schedule for 5pm today, or tomorrow if past preferred time
-        const now = new Date();
-        const reminderTime = new Date();
-        reminderTime.setHours(hour, 0, 0, 0);
-        if (reminderTime <= now) {
-          reminderTime.setDate(reminderTime.getDate() + 1);
+        // For testing: if TEST_WORKOUT_SEND_NOW is true, schedule in 10 seconds
+        let reminderTime;
+        if (TEST_WORKOUT_SEND_NOW) {
+          reminderTime = new Date(Date.now() + 10000); // 10 seconds from now
+          console.log(
+            "[WorkoutReminder] TEST MODE: Scheduling in 10 seconds at",
+            reminderTime,
+          );
+        } else {
+          const now = new Date();
+          reminderTime = new Date();
+          reminderTime.setHours(hour, 0, 0, 0);
+          if (reminderTime <= now) {
+            reminderTime.setDate(reminderTime.getDate() + 1);
+          }
+          console.log("[WorkoutReminder] Scheduling for:", reminderTime);
+        }
+
+        // Set notification body based on preferred_workout_time
+        let workoutBody = "Time to exercise!";
+        if (profile.preferred_workout_time === "any") {
+          workoutBody = "Don't forget to workout!";
         }
 
         await Notifications.scheduleNotificationAsync({
           identifier: `workout-time`,
           content: {
-            title: "",
-            body: "workout time!",
+            title: "BodyQ",
+            body: workoutBody,
             sound: true,
           },
           trigger: { type: "date", date: reminderTime },
         });
+        console.log("[WorkoutReminder] Notification scheduled.");
       } catch (error) {
         console.error("scheduleWorkoutReminders error:", error);
       }
