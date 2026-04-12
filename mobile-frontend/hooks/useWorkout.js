@@ -4,7 +4,8 @@
  * Tables: workout_sessions, workout_exercises, exercises
  */
 import { useCallback, useEffect, useState } from 'react';
-import { supabase } from '../config/supabase';
+import { supabase } from '../lib/supabase';
+import { error as logError } from '../lib/logger';
 
 export function useWorkouts(userId) {
     const [loading, setLoading] = useState(true);
@@ -33,7 +34,7 @@ export function useWorkouts(userId) {
 
             setExercises(exLib ?? []);
         } catch (e) {
-            console.error('useWorkouts load error:', e);
+            logError('useWorkouts load error:', e);
         } finally {
             setLoading(false);
         }

@@ -451,7 +451,7 @@ export default function Nutrition({ navigation }) {
           </View>
         </View>
 
-        <StepCounter userId={userId} />
+        <StepCounter />
 
         <View style={s.yaraCard}>
           <Text style={s.cardLabel}>YARA</Text>

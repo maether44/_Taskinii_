@@ -7,8 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 
 import { useDashboard } from '../hooks/useDashboard';
-import { useShakySteps } from '../hooks/useShakySteps';
-import WaterTracker from '../components/home/WaterTracker'; // Your interactive cup component
+import WaterTracker from '../components/home/WaterTracker';
 import { COLORS } from '../constants/colors';
 import { supabase } from '../lib/supabase';
 import { getLocalAvatarForUser } from '../lib/avatar';
@@ -28,8 +27,7 @@ const BentoCard = ({ children, style, delay = 0 }) => (
 export default function Home({ navigation }) {
   const { isLoading, error, user, stats, logWater, logSleep, refresh, yaraInsight, muscleFatigue } = useDashboard();
   const { profileAvatarUri } = useAuth();
-  const { steps: liveSteps } = useShakySteps(user?.id);
-  const totalSteps = (stats?.steps || 0) + liveSteps;
+  const totalSteps = stats?.steps || 0;
   const [displayCal, setDisplayCal] = useState(0);
   const [lastSession, setLastSession] = useState(null);
   const [headerAvatarUri, setHeaderAvatarUri] = useState(null);

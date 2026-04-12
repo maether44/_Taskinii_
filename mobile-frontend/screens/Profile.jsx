@@ -8,6 +8,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { ActivityIndicator, Alert, Image, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { error as logError } from '../lib/logger';
 import { calcMacroTargets, normalizeGoal } from '../lib/calculations';
 import { AVATAR_BUCKET, buildAvatarPath, getLocalAvatarForUser, saveLocalAvatarForUser } from '../lib/avatar';
 
@@ -161,7 +162,7 @@ export default function Profile({ replayTour }) {
       } catch { setAchievements([]); }
 
     } catch (error) {
-      console.error('Profile screen load error:', error);
+      logError('Profile screen load error:', error);
       Alert.alert('Profile load issue', 'We could not load your latest profile details right now.');
     } finally {
       setLoadingProfile(false);

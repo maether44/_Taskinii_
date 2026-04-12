@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { searchFoodLibrary } from "../../services/foodScannerApi";
 import { useNutrition } from "../../hooks/useNutrition";
+import { error as logError } from '../../lib/logger';
 
 const C = {
   bg: "#0F0B1E",
@@ -83,7 +84,7 @@ export default function MealLogger() {
         const results = await searchFoodLibrary(search.trim());
         setFoods(results);
       } catch (error) {
-        console.error("MealLogger food library search failed:", error);
+        logError("MealLogger food library search failed:", error);
         setFoods([]);
         setSearchError(error?.message || "Food library search failed.");
       } finally {

@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { log, warn, error as logError } from '../lib/logger';
 
 /**
  * Saves a completed workout session to Supabase.
@@ -43,7 +44,7 @@ export async function saveWorkoutSession({
       .single();
 
     if (sessionError) {
-      console.error('[workoutService] session insert error:', sessionError.message);
+      logError('[workoutService] session insert error:', sessionError.message);
       return null;
     }
 
@@ -77,7 +78,7 @@ export async function saveWorkoutSession({
         if (!createError) exerciseId = created.id;
       }
     } catch (e) {
-      console.warn('[workoutService] exercise lookup error:', e.message);
+      warn('[workoutService] exercise lookup error:', e.message);
     }
 
     // ── 3. Insert workout_exercises row ───────────────────────
@@ -95,15 +96,15 @@ export async function saveWorkoutSession({
         });
 
       if (exError) {
-        console.warn('[workoutService] workout_exercises insert error:', exError.message);
+        warn('[workoutService] workout_exercises insert error:', exError.message);
       }
     }
 
-    console.log('[workoutService] Session saved:', sessionId);
+    log('[workoutService] Session saved:', sessionId);
     return sessionId;
 
   } catch (err) {
-    console.error('[workoutService] Unexpected error:', err.message);
+    logError('[workoutService] Unexpected error:', err.message);
     return null;
   }
 }
@@ -149,7 +150,7 @@ export async function fetchWorkoutHistory(userId, limit = 50) {
     if (error) throw error;
     return sessions || [];
   } catch (err) {
-    console.error('[workoutService] fetchWorkoutHistory error:', err.message);
+    logError('[workoutService] fetchWorkoutHistory error:', err.message);
     return [];
   }
 }

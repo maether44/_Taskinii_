@@ -19,8 +19,9 @@ import { registerTourRef } from './onBoarding/tourRefs';
 import { useNutrition } from '../hooks/useNutrition';
 import { useProfile } from '../hooks/useProfile';
 import { useToday } from '../context/TodayContext';
-import { invokeEdgePublic, supabase } from '../config/supabase';
+import { invokeEdgePublic, supabase } from '../lib/supabase';
 import { DEFAULT_TARGETS } from '../constants/targets';
+import { log, error as logError } from '../lib/logger';
 
 const SIDEBAR_W      = 272;
 const STORAGE_KEY    = '@yara_conversations';
@@ -241,7 +242,7 @@ export default function YaraAssistant() {
     try {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(convs));
     } catch (e) {
-      console.error('YaraAssistant: failed to persist conversations', e);
+      logError('YaraAssistant: failed to persist conversations', e);
     }
   };
 
@@ -269,7 +270,7 @@ export default function YaraAssistant() {
         .limit(4);
       if (!error && data) setUserInsights(data);
     } catch (e) {
-      console.error('YaraAssistant: fetchUserInsights error', e);
+      logError('YaraAssistant: fetchUserInsights error', e);
     } finally {
       setInsightsLoading(false);
     }
@@ -288,13 +289,13 @@ export default function YaraAssistant() {
       });
       if (error) {
         // Silently fail - insights function may not be deployed
-        console.log('Insights unavailable - this is optional');
+        log('Insights unavailable - this is optional');
         return;
       }
       if (data?.insights?.length) setUserInsights(data.insights);
     } catch (e) {
       // Silently fail - insights are optional
-      console.log('YaraAssistant: refreshInsights unavailable (optional feature)');
+      log('YaraAssistant: refreshInsights unavailable (optional feature)');
     } finally {
       setInsightsRefreshing(false);
     }
@@ -312,14 +313,14 @@ export default function YaraAssistant() {
         body: { all: true, adminKey },
       });
       if (error) {
-        console.log('Admin bulk insights unavailable (optional feature)');
+        log('Admin bulk insights unavailable (optional feature)');
         return;
       }
-      console.log('Admin bulk refresh result:', data);
+      log('Admin bulk refresh result:', data);
       // Reload the current user's own insights after the bulk run
       await fetchUserInsights(userId);
     } catch (e) {
-      console.log('YaraAssistant: refreshAllInsights unavailable (optional feature)');
+      log('YaraAssistant: refreshAllInsights unavailable (optional feature)');
     } finally {
       setInsightsRefreshing(false);
     }
@@ -444,7 +445,7 @@ export default function YaraAssistant() {
         await supabase.from('daily_activity').upsert({ user_id: userId, date: TODAY, sleep_hours: hrs }, { onConflict: 'user_id,date' });
       }
     } catch (e) {
-      console.error('[Yara voice] action command error:', e.message);
+      logError('[Yara voice] action command error:', e.message);
     }
   };
 
@@ -475,7 +476,7 @@ export default function YaraAssistant() {
       // Auto-stop after 8 seconds
       recordTimeoutRef.current = setTimeout(() => stopAndTranscribe(), 8000);
     } catch (e) {
-      console.error('[Yara voice] startListening error:', e.message);
+      logError('[Yara voice] startListening error:', e.message);
       setVoiceError('Could not start microphone.');
       setListenState('idle');
     }
@@ -505,7 +506,7 @@ export default function YaraAssistant() {
       setInput(transcript);
       await sendVoice(transcript);
     } catch (e) {
-      console.error('[Yara voice] transcribe error:', e.message);
+      logError('[Yara voice] transcribe error:', e.message);
       setVoiceError('Could not understand. Try again.');
       setListenState('idle');
       if (voiceLoopRef.current) setTimeout(startListening, 1200);
@@ -547,7 +548,7 @@ export default function YaraAssistant() {
         if (voiceLoopRef.current) setTimeout(startListening, 600);
       });
     } catch (e) {
-      console.error('[Yara voice] sendVoice error:', e.message);
+      logError('[Yara voice] sendVoice error:', e.message);
       setListenState('idle');
       if (voiceLoopRef.current) setTimeout(startListening, 1200);
     } finally {
@@ -668,7 +669,7 @@ export default function YaraAssistant() {
         messages: [...c.messages, { from: 'yara', text: data.response, time: fmtTime() }],
       }));
     } catch (err) {
-      console.error('Yara error:', err.message);
+      logError('Yara error:', err.message);
       setAndPersist(prev => prev.map(c => c.id !== activeConvId ? c : {
         ...c,
         messages: [...c.messages, { from: 'yara', text: "Connection issue — try again!", time: fmtTime() }],

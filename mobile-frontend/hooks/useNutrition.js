@@ -3,6 +3,7 @@ import { supabase } from "../config/supabase";
 import { useAuth } from "../context/AuthContext";
 import { useToday } from "../context/TodayContext";
 import { AppEvents, emit } from "../lib/eventBus";
+import { error as logError } from '../lib/logger';
 
 export const MEAL_TYPE_MAP = {
   breakfast: "breakfast",
@@ -148,9 +149,9 @@ export function useNutrition() {
           p_source: 'meal',
           p_description: `Logged ${inserts.length} food item(s)`
         });
-        if (xpError) console.error('[BodyQ] award_xp meal:', xpError);
+        if (xpError) logError('[BodyQ] award_xp meal:', xpError);
       } catch (e) {
-        console.error('[BodyQ] award_xp meal exception:', e);
+        logError('[BodyQ] award_xp meal exception:', e);
       }
 
       // Check for achievements
@@ -158,19 +159,19 @@ export function useNutrition() {
         const { data: achievementsResult, error: achError } = await supabase.rpc('check_achievements', {
           p_user_id: userId
         });
-        if (achError) console.error('[BodyQ] check_achievements:', achError);
+        if (achError) logError('[BodyQ] check_achievements:', achError);
         else if (achievementsResult?.awarded?.length > 0) {
           emit(AppEvents.ACHIEVEMENT_AWARDED, { awarded: achievementsResult.awarded });
         }
       } catch (e) {
-        console.error('[BodyQ] check_achievements exception:', e);
+        logError('[BodyQ] check_achievements exception:', e);
       }
 
       // Signal TodayContext to refresh + notify other subscribers
       emit(AppEvents.MEAL_LOGGED, { mealType: dbMealType, itemCount: inserts.length });
       return true;
     } catch (error) {
-      console.error("saveMealEntries error:", error);
+      logError("saveMealEntries error:", error);
       return false;
     }
   }, [refresh, userId]);

@@ -16,6 +16,7 @@ import { supabase } from '../lib/supabase';
 import { getMuscleFatigue } from '../services/workoutService';
 import { useAuth } from '../context/AuthContext';
 import { AppEvents, emit, on } from '../lib/eventBus';
+import { warn } from '../lib/logger';
 
 const STREAK_MILESTONES = [3, 7, 14, 30, 60, 100, 365];
 
@@ -762,7 +763,7 @@ export default function Training({ navigation }) {
       }
 
     } catch (e) {
-      console.warn('[BodyQ] Training fetch:', e);
+      warn('[BodyQ] Training fetch:', e);
     } finally {
       setFatigueLoading(false);
     }

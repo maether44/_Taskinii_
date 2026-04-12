@@ -16,6 +16,7 @@ import { useAuth } from '../../context/AuthContext';
 import { saveWorkoutSession } from '../../services/workoutService';
 import { supabase } from '../../lib/supabase';
 import { AppEvents, emit } from '../../lib/eventBus';
+import { log, error as logError } from '../../lib/logger';
 
 const { height: SH } = Dimensions.get('window');
 
@@ -419,7 +420,7 @@ export default function WorkoutActive({ route, navigation }) {
         const text = await res.text();
         setHtmlContent(text);
       } catch (err) {
-        console.error('[BodyQ] HTML Load Error:', err);
+        logError('[BodyQ] HTML Load Error:', err);
       }
     })();
   }, []);
@@ -668,7 +669,7 @@ export default function WorkoutActive({ route, navigation }) {
                 await supabase.from('daily_activity').insert({ user_id: user.id, date: TODAY, calories_burned: newTotal });
               }
             } catch (e) {
-              console.error('[BodyQ] daily_activity:', e.message);
+              logError('[BodyQ] daily_activity:', e.message);
             }
 
             // Award XP for completing workout
@@ -679,13 +680,13 @@ export default function WorkoutActive({ route, navigation }) {
                 p_source: 'workout',
                 p_description: `Completed ${msg.exercise || displayName} workout`
               });
-              if (xpError) console.error('[BodyQ] award_xp:', xpError);
+              if (xpError) logError('[BodyQ] award_xp:', xpError);
               else {
-                console.log('[BodyQ] XP awarded:', xpResult);
+                log('[BodyQ] XP awarded:', xpResult);
                 emit(AppEvents.XP_AWARDED, { amount: 50, source: 'workout', result: xpResult });
               }
             } catch (e) {
-              console.error('[BodyQ] award_xp exception:', e);
+              logError('[BodyQ] award_xp exception:', e);
             }
 
             // Check for achievements
@@ -693,9 +694,9 @@ export default function WorkoutActive({ route, navigation }) {
               const { data: achievementsResult, error: achError } = await supabase.rpc('check_achievements', {
                 p_user_id: user.id
               });
-              if (achError) console.error('[BodyQ] check_achievements:', achError);
+              if (achError) logError('[BodyQ] check_achievements:', achError);
               else if (achievementsResult?.awarded?.length > 0) {
-                console.log('[BodyQ] Achievements awarded:', achievementsResult.awarded);
+                log('[BodyQ] Achievements awarded:', achievementsResult.awarded);
                 const newAchievements = achievementsResult.awarded;
                 emit(AppEvents.ACHIEVEMENT_AWARDED, { awarded: newAchievements });
                 if (newAchievements.length > 0) {
@@ -708,7 +709,7 @@ export default function WorkoutActive({ route, navigation }) {
                 }
               }
             } catch (e) {
-              console.error('[BodyQ] check_achievements exception:', e);
+              logError('[BodyQ] check_achievements exception:', e);
             }
 
             // ── Update muscle fatigue ───────────────────────────
@@ -735,7 +736,7 @@ export default function WorkoutActive({ route, navigation }) {
                   .from('muscle_fatigue')
                   .upsert(upserts, { onConflict: 'user_id,muscle_name' });
               } catch (e) {
-                console.error('[BodyQ] muscle_fatigue:', e.message);
+                logError('[BodyQ] muscle_fatigue:', e.message);
               }
             }
 

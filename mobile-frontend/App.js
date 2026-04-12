@@ -37,6 +37,7 @@ import WorkoutSummary from "./screens/workout/WorkoutSummary";
 // Global Components
 import YaraAssistant from "./components/YaraAssistant";
 import AppTour from "./components/onBoarding/AppTour";
+import { warn } from './lib/logger';
 
 SplashScreen.preventAutoHideAsync();
 const Stack = createStackNavigator();
@@ -101,7 +102,7 @@ export default function App() {
         });
         await supabase.auth.getSession();
       } catch (e) {
-        console.warn(e);
+        warn(e);
       } finally {
         setAppIsReady(true);
       }

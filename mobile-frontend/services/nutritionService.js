@@ -1,6 +1,6 @@
 // src/services/nutritionService.js
 // All nutrition DB operations — matches the exact Supabase schema
-import { supabase } from '../config/supabase';
+import { supabase } from '../lib/supabase';
 import { DEFAULT_TARGETS } from '../constants/targets';
 
 const TODAY = () => new Date().toISOString().split('T')[0];

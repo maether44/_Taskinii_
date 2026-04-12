@@ -4,6 +4,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { fetchWorkoutHistory } from '../services/workoutService';
 import { Ionicons } from '@expo/vector-icons';
+import { error as logError } from '../lib/logger';
 
 const C = { bg:'#0F0B1E', card:'#161230', border:'#1E1A35', purple:'#7C5CFC', lime:'#C8F135', accent:'#9D85F5', text:'#FFFFFF', sub:'#6B5F8A', green:'#34C759', orange:'#FF9500' };
 
@@ -95,7 +96,7 @@ export default function WorkoutHistoryScreen(){
   const load=useCallback(async()=>{
     if(!authUser?.id)return;
     try{const data=await fetchWorkoutHistory(authUser.id);setSessions(data);}
-    catch(e){console.error('WorkoutHistory load error:',e);}
+    catch(e){logError('WorkoutHistory load error:',e);}
     finally{setLoading(false);setRefreshing(false);}
   },[authUser?.id]);
 

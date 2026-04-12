@@ -5,6 +5,7 @@ import { CameraView } from 'expo-camera';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRef } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { error as logError } from '../../lib/logger';
 
 const PURPLE = '#7C5CFC';
 const LIME = '#C8F135';
@@ -18,7 +19,7 @@ export default function PhotoAnalyser({ onCapture, onPickFromLibrary, loading = 
             const photo = await cameraRef.current.takePictureAsync({ quality: 0.7, base64: true });
             if (photo?.base64) onCapture?.(photo.base64);
         } catch (err) {
-            console.error('PhotoAnalyser capture error:', err);
+            logError('PhotoAnalyser capture error:', err);
         }
     };
 

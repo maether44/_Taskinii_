@@ -26,6 +26,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { getMuscleFatigue } from '../services/workoutService';
 import { useAuth } from '../context/AuthContext';
+import { error as logError } from '../lib/logger';
 
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -275,7 +276,7 @@ export function useInsights(period) {
       });
 
     } catch (e) {
-      console.error('[useInsights] load error:', e);
+      logError('[useInsights] load error:', e);
       setError(e);
     } finally {
       setIsLoading(false);

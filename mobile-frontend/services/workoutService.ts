@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { warn } from '../lib/logger';
 
 // ── Exercise key (HTML camelCase) → muscles worked ────────────
 const EXERCISE_MUSCLES: Record<string, string[]> = {
@@ -64,7 +65,7 @@ export const saveWorkoutSession = async ({
     .single();
 
   if (error) {
-    console.warn('[BodyQ] workout_sessions insert:', error.message);
+    warn('[BodyQ] workout_sessions insert:', error.message);
     return null;
   }
 
@@ -105,7 +106,7 @@ export const getMuscleFatigue = async (userId: string) => {
     .order('fatigue_pct', { ascending: false });
 
   if (error) {
-    console.warn('[BodyQ] muscle_fatigue fetch:', error.message);
+    warn('[BodyQ] muscle_fatigue fetch:', error.message);
     return [];
   }
   return (data ?? []) as { muscle_name: string; fatigue_pct: number }[];

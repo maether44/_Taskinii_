@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { callYara }                    from '../lib/groqAPI';
 import { getChatHistory, saveMessage } from '../services/chatService';
 import { useAuth }                     from '../context/AuthContext';
+import { error as logError } from '../lib/logger';
 
 function fmtTime() {
   return new Date().toLocaleTimeString('en-US', {
@@ -76,7 +77,7 @@ export function useYaraChat(profile) {
 
       setMessages(prev => [...prev, { from: 'yara', text: reply, time: fmtTime() }]);
     } catch (err) {
-      console.error('Yara error:', err);
+      logError('Yara error:', err);
       apiHistory.current = apiHistory.current.slice(0, -1);
       setMessages(prev => [...prev, {
         from: 'yara',

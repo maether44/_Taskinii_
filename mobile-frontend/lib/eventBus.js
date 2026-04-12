@@ -1,3 +1,4 @@
+import { error as logError } from './logger';
 /**
  * AppEventBus — lightweight pub/sub for cross-screen communication.
  *
@@ -54,6 +55,6 @@ export function emit(event, payload) {
   const list = listeners[event];
   if (!list?.length) return;
   for (const fn of list) {
-    try { fn(payload); } catch (e) { console.error(`[EventBus] ${event}:`, e); }
+    try { fn(payload); } catch (e) { logError(`[EventBus] ${event}:`, e); }
   }
 }

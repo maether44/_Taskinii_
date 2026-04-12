@@ -6,6 +6,7 @@ import {
     StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { DEFAULT_TARGETS } from '../../constants/targets';
+import { error as logError } from '../../lib/logger';
 
 const C = {
     bg: '#0E0C15', surface: '#18152A', card: '#201C35', border: '#2D2850',
@@ -39,7 +40,7 @@ export default function OnboardingDone({ plan = {}, profile = {}, onComplete }) 
         try {
             await onComplete?.({ plan, profile });
         } catch (e) {
-            console.error('OnboardingDone onComplete error:', e);
+            logError('OnboardingDone onComplete error:', e);
         } finally {
             setSaving(false);
         }

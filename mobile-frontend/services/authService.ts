@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase";
+import { log } from '../lib/logger';
 
 export const signUpUser = async (email, password, fullName) => {
   const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -23,7 +24,7 @@ export const signUpUser = async (email, password, fullName) => {
 
   if (profileError) throw new Error(profileError.message);
 
-  console.log("✅ User created with ID:", authData.user.id);
+  log("✅ User created with ID:", authData.user.id);
   return authData;
 };
 

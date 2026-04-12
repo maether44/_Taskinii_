@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { getProfile } from "../services/profileService";
 import { getLocalAvatarForUser } from "../lib/avatar";
+import { warn } from "../lib/logger";
 
 const AuthContext = createContext();
 
@@ -47,11 +48,11 @@ export function AuthProvider({ children }) {
       )
         .then((res) => {
           if (res?.error) {
-            console.warn("[AuthContext] record_user_visit:", res.error.message);
+            warn("[AuthContext] record_user_visit:", res.error.message);
           }
         })
         .catch((e) => {
-          console.warn("[AuthContext] record_user_visit threw:", e?.message ?? e);
+          warn("[AuthContext] record_user_visit threw:", e?.message ?? e);
         });
     }, 0);
   };

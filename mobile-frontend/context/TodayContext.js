@@ -7,11 +7,14 @@
  * All hooks that previously fetched these independently now read from here.
  */
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { Platform } from 'react-native';
+import { Pedometer } from 'expo-sensors';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import { getMuscleFatigue } from '../services/workoutService';
 import { AppEvents, emit } from '../lib/eventBus';
 import { DEFAULT_TARGETS, computeWaterTarget } from '../constants/targets';
+import { error as logError } from '../lib/logger';
 
 const TodayContext = createContext(null);
 
@@ -44,6 +47,13 @@ export function TodayProvider({ children }) {
   const [sleepQuality, setSleepQuality] = useState(null);
   const [caloriesBurned, setCaloriesBurned] = useState(0);
   const [muscleFatigue, setMuscleFatigue] = useState([]);
+  // Steps: DB-persisted base + live pedometer count since context mounted
+  const [dbSteps, setDbSteps] = useState(0);
+  const [liveSteps, setLiveSteps] = useState(0);
+  const [pedometerAvailable, setPedometerAvailable] = useState(true);
+  const [pedometerPermission, setPedometerPermission] = useState(null);
+  const pendingSyncRef = useRef(0);
+  const syncTimerRef = useRef(null);
   // Tracks the user id we've already completed an initial fetch for. We only
   // flip the global `loading` flag when we've never loaded data for the
   // current user — subsequent refreshes (focus, event bus, write-backs) must
@@ -90,7 +100,7 @@ export function TodayProvider({ children }) {
           .order('consumed_at', { ascending: true }),
         supabase
           .from('daily_activity')
-          .select('water_ml, calories_burned, sleep_hours, sleep_quality')
+          .select('water_ml, calories_burned, sleep_hours, sleep_quality, steps')
           .eq('user_id', userId)
           .eq('date', today)
           .maybeSingle(),
@@ -108,10 +118,11 @@ export function TodayProvider({ children }) {
       setCaloriesBurned(activity?.calories_burned || 0);
       setSleepHours(activity?.sleep_hours ?? null);
       setSleepQuality(activity?.sleep_quality ?? null);
+      setDbSteps(activity?.steps || 0);
       setMuscleFatigue(fatigue ?? []);
       loadedForUserRef.current = userId;
     } catch (error) {
-      console.error('[TodayContext] loadToday error:', error);
+      logError('[TodayContext] loadToday error:', error);
     } finally {
       setLoading(false);
     }
@@ -141,6 +152,55 @@ export function TodayProvider({ children }) {
     return () => unsub.forEach(fn => fn());
   }, [loadToday]);
 
+  // ── Pedometer: shared step source for Home + Fuel ───────────────
+  // Subscribes to the device pedometer, batches DB syncs every 30s.
+  useEffect(() => {
+    let sub = null;
+
+    (async () => {
+      const available = await Pedometer.isAvailableAsync().catch(() => false);
+      setPedometerAvailable(available);
+      if (!available) return;
+
+      const { status } = await Pedometer.requestPermissionsAsync().catch(() => ({ status: 'denied' }));
+      setPedometerPermission(status);
+      if (status !== 'granted') return;
+
+      sub = Pedometer.watchStepCount(({ steps: count }) => {
+        setLiveSteps(count);
+        pendingSyncRef.current = count;
+      });
+    })();
+
+    return () => { if (sub) sub.remove(); };
+  }, []);
+
+  // Batch sync live steps to DB every 30 seconds
+  useEffect(() => {
+    if (!userId) return;
+    const timer = setInterval(() => {
+      const pending = pendingSyncRef.current;
+      if (pending <= 0) return;
+      const today = todayString();
+      supabase.rpc('increment_steps', {
+        p_user_id: userId,
+        p_steps: pending,
+        p_date: today,
+      }).then(({ error }) => {
+        if (!error) {
+          setDbSteps(prev => prev + pending);
+          pendingSyncRef.current = 0;
+          setLiveSteps(0);
+        }
+      });
+    }, 30000);
+    syncTimerRef.current = timer;
+    return () => clearInterval(timer);
+  }, [userId]);
+
+  // Total steps = persisted DB steps + live (unsynced) pedometer steps
+  const steps = dbSteps + liveSteps;
+
   // ── Write operations (optimistic + persist) ──────────────────────
 
   const logWater = useCallback(async (mlDelta) => {
@@ -167,7 +227,7 @@ export function TodayProvider({ children }) {
       }
       emit(AppEvents.WATER_LOGGED, { waterMl: newMl });
     } catch (error) {
-      console.error('[TodayContext] logWater error:', error);
+      logError('[TodayContext] logWater error:', error);
       loadToday(); // revert optimistic on failure
     }
   }, [userId, loadToday]);
@@ -188,7 +248,7 @@ export function TodayProvider({ children }) {
       emit(AppEvents.SLEEP_LOGGED, { hours, quality });
       return true;
     } catch (e) {
-      console.error('[TodayContext] logSleep error:', e);
+      logError('[TodayContext] logSleep error:', e);
       loadToday();
       return false;
     }
@@ -204,10 +264,13 @@ export function TodayProvider({ children }) {
     sleepQuality,
     caloriesBurned,
     muscleFatigue,
+    steps,
+    pedometerAvailable,
+    pedometerPermission,
     logWater,
     logSleep,
     refresh: loadToday,
-  }), [loading, userId, goals, foodLogs, waterMl, sleepHours, sleepQuality, caloriesBurned, muscleFatigue, logWater, logSleep, loadToday]);
+  }), [loading, userId, goals, foodLogs, waterMl, sleepHours, sleepQuality, caloriesBurned, muscleFatigue, steps, pedometerAvailable, pedometerPermission, logWater, logSleep, loadToday]);
 
   return (
     <TodayContext.Provider value={value}>

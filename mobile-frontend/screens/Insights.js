@@ -22,6 +22,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useInsights } from '../hooks/useInsights';
 import { generateAndCacheInsights } from '../services/yaraInsightsService';
 import { AppEvents, on } from '../lib/eventBus';
+import { error as logError } from '../lib/logger';
 
 const PERIODS = ['Week', 'Month', '3 Months'];
 
@@ -100,7 +101,7 @@ export default function Insights() {
     setInsightsLoading(true);
     generateAndCacheInsights(userId, rawStats, period)
       .then(cards => setAiInsights(cards ?? []))
-      .catch(err  => console.error('[Insights] AI cards error:', err))
+      .catch(err  => logError('[Insights] AI cards error:', err))
       .finally(() => setInsightsLoading(false));
   }, [isLoading, period, userId]);
 

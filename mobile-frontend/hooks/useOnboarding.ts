@@ -18,6 +18,7 @@ import {
 import { saveAIPlan } from "../services/aiPlanService";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
+import { error as logError } from '../lib/logger';
 
 export function useOnboarding() {
   const { user: authUser } = useAuth();
@@ -156,7 +157,7 @@ export function useOnboarding() {
         const plan = await generateAIPlan(getAnswers());
         setAiPlan(plan);
       } catch (err) {
-        console.error("AI plan error:", err);
+        logError("AI plan error:", err);
         setLoadError("Could not generate your plan. Tap retry.");
       } finally {
         setLoading(false);
@@ -186,7 +187,7 @@ export function useOnboarding() {
 
       onComplete?.();
     } catch (err) {
-      console.error("Failed to save onboarding:", err);
+      logError("Failed to save onboarding:", err);
       setLoadError(
         err.message || "Failed to save your profile. Please try again.",
       );

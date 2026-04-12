@@ -6,6 +6,7 @@ import { getLocalAvatarForUser, resolveAvatarUrl } from '../lib/avatar';
 import { useAuth } from '../context/AuthContext';
 import { useToday } from '../context/TodayContext';
 import { DEFAULT_TARGETS } from '../constants/targets';
+import { error as logError } from '../lib/logger';
 
 export function useDashboard() {
   const { user: authUser } = useAuth();
@@ -62,7 +63,7 @@ export function useDashboard() {
         setError('No data received');
       }
     } catch (err) {
-      console.error('Critical error in useDashboard:', err);
+      logError('Critical error in useDashboard:', err);
       setError(err.message);
     } finally {
       setIsLoading(false);
@@ -77,7 +78,7 @@ export function useDashboard() {
   }, [loadSnapshot, today.refresh]);
 
   // Read shared state from TodayContext
-  const { waterMl, sleepHours, caloriesBurned: workoutCals, muscleFatigue, goals } = today;
+  const { waterMl, sleepHours, caloriesBurned: workoutCals, muscleFatigue, goals, steps: todaySteps } = today;
 
   return {
     isLoading: isLoading || today.loading,
@@ -96,7 +97,7 @@ export function useDashboard() {
         fat: { current: 0, target: goals.fat_target }
       },
       water: { current: waterMl, target: goals.water_target_ml },
-      steps: snapshot?.activity?.steps || 0,
+      steps: todaySteps,
       stepsTarget: goals.steps_target ?? DEFAULT_TARGETS.steps_target,
       sleep: sleepHours ?? snapshot?.activity?.sleep_hours ?? null,
     },

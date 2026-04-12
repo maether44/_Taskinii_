@@ -4,6 +4,7 @@ const GEMINI_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.0-flash
 
 import commonFoods from '../data/commonFoods.json';
 import comprehensiveFoods from '../data/comprehensiveFoods.json';
+import { log } from '../lib/logger';
 
 function unique(values) {
   const out = [];
@@ -214,7 +215,7 @@ export async function searchFoodLibrary(query) {
     }
     // If no results from v2, fall through to v0
   } catch (e) {
-    console.log("OpenFoodFacts v2 failed, trying v0:", e.message);
+    log("OpenFoodFacts v2 failed, trying v0:", e.message);
   }
 
   try {
@@ -257,7 +258,7 @@ export async function searchFoodLibrary(query) {
     }
     // If no results from v0, fall through to local
   } catch (e) {
-    console.log("OpenFoodFacts v0 failed, trying local databases:", e.message);
+    log("OpenFoodFacts v0 failed, trying local databases:", e.message);
   }
 
   // Fallback to comprehensive + common foods databases
