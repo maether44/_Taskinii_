@@ -16,6 +16,10 @@ import WorkoutActive from "../screens/workout/WorkoutActive";
 import WorkoutSummary from "../screens/workout/WorkoutSummary";
 import PostureAI from "../screens/PostureAI";
 
+// New screens
+import EditProfileScreen from "../screens/Editprofilescreen";
+import WorkoutHistoryScreen from "../screens/Workouthistoryscreen";
+
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
@@ -36,6 +40,16 @@ function TrainingStack() {
         component={WorkoutSummary}
         options={{ tabBarStyle: { display: 'none' } }}
       />
+    </Stack.Navigator>
+  );
+}
+
+function ProfileStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="ProfileMain" component={Profile} />
+      <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+      <Stack.Screen name="WorkoutHistory" component={WorkoutHistoryScreen} />
     </Stack.Navigator>
   );
 }
@@ -68,7 +82,7 @@ export default function NavBar() {
         <Tab.Screen name="Insights" component={Insights}
           options={{ tabBarIcon: ({ color }) => <Ionicons name="analytics" size={24} color={color} /> }} />
 
-        <Tab.Screen name="Profile" component={Profile}
+        <Tab.Screen name="Profile" component={ProfileStack}
           options={{ tabBarIcon: ({ color }) => <Ionicons name="person" size={24} color={color} /> }} />
       </Tab.Navigator>
     </View>
