@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { getHomeSnapshot } from '../services/dashboardService';
 import { RECOVERY_MAP } from '../services/workoutService';
@@ -16,12 +16,20 @@ export function useDashboard() {
   const [snapshot, setSnapshot] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  // Tracks the user id we've completed an initial fetch for. Subsequent
+  // refetches (on focus, after logging, after events) must NOT flip
+  // isLoading back to true — otherwise Home swaps its layout for the global
+  // spinner, every BentoCard unmounts, their FadeInDown animations replay
+  // on remount, and the calorie count-up restarts, which the user sees as
+  // the page "losing its content" even though the DB data is intact.
+  const loadedForUserRef = useRef(null);
 
   // Load the RPC snapshot + profile (dashboard-specific, not duplicated elsewhere)
   const loadSnapshot = useCallback(async () => {
     if (!userId) { setIsLoading(false); return; }
     try {
-      setIsLoading(true);
+      // Only show the global spinner the first time we fetch for this user.
+      if (loadedForUserRef.current !== userId) setIsLoading(true);
       const TODAY = new Date().toISOString().split('T')[0];
 
       const [result, profileRow] = await Promise.all([
@@ -49,6 +57,7 @@ export function useDashboard() {
             avatar_url: localAvatarUrl || resolvedAvatarUrl,
           },
         });
+        loadedForUserRef.current = userId;
       } else {
         setError('No data received');
       }

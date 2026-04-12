@@ -35,6 +35,25 @@ export function AuthProvider({ children }) {
     } finally {
       setLoading(false);
     }
+
+    // Persistent login-streak bookkeeping — deferred to the next tick and
+    // wrapped in Promise.resolve(...) so PostgrestFilterBuilder rejections
+    // can't propagate into the auth flow. Runs AFTER setLoading(false) so
+    // nothing about this call can influence the splash screen. Idempotent
+    // per day — safe to call on every session resolve.
+    setTimeout(() => {
+      Promise.resolve(
+        supabase.rpc("record_user_visit", { p_user_id: sessionUser.id }),
+      )
+        .then((res) => {
+          if (res?.error) {
+            console.warn("[AuthContext] record_user_visit:", res.error.message);
+          }
+        })
+        .catch((e) => {
+          console.warn("[AuthContext] record_user_visit threw:", e?.message ?? e);
+        });
+    }, 0);
   };
 
   useEffect(() => {

@@ -30,6 +30,12 @@ import { useAuth } from '../context/AuthContext';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+// Streaks are now persisted server-side (profiles.login_streak +
+// profiles.longest_streak, updated by record_user_visit RPC on every app
+// open). This helper is the FALLBACK used only if the RPC response for some
+// reason doesn't carry the persisted values — it recomputes a best-effort
+// streak from activity_dates the same way it used to, so the Insights card
+// never displays a blank value during a migration/rollout.
 function computeStreaks(activityDates) {
   if (!activityDates?.length) return { currentStreak: 0, longestStreak: 0 };
   const dateSet = new Set(activityDates);
@@ -50,6 +56,21 @@ function computeStreaks(activityDates) {
     if (diff === 1) { streak++; } else { longest = Math.max(longest, streak); streak = 1; }
   }
   return { currentStreak, longestStreak: Math.max(longest, streak) };
+}
+
+// Prefer the persisted streak on stats (set by get_insights_data v3). Falls
+// back to recomputing from activity_dates if the field is missing — useful
+// for older cached responses during rollout.
+function resolveStreaks(stats) {
+  const persisted = Number(stats?.login_streak);
+  const longest   = Number(stats?.longest_streak);
+  if (Number.isFinite(persisted) && persisted >= 0 && (stats?.login_streak !== undefined && stats?.login_streak !== null)) {
+    return {
+      currentStreak: persisted,
+      longestStreak: Number.isFinite(longest) ? Math.max(longest, persisted) : persisted,
+    };
+  }
+  return computeStreaks(stats?.activity_dates);
 }
 
 function buildHeatmapData(heatmapDays) {
@@ -102,8 +123,18 @@ function buildTrendData(heatmapDays) {
 function buildMetrics(stats, streakData) {
   const fmtK = v => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(Math.round(v ?? 0));
   const { workout_count = 0, avg_steps = 0, avg_sleep = 0 } = stats;
+  const current = streakData.currentStreak ?? 0;
+  const longest = streakData.longestStreak ?? 0;
+  // Streak delta surfaces the best record so the user sees progress over the
+  // full history — not just the current period. Matches the "strong tracking
+  // system" request: the streak is persistent and always visible.
+  const streakDelta = current === 0
+    ? 'Start!'
+    : current >= longest
+      ? `Best: ${current}d`
+      : `Best: ${longest}d`;
   return [
-    { label: 'Streak',     value: `${streakData.currentStreak}d`, delta: streakData.currentStreak > 0 ? 'Active' : 'Start!', up: streakData.currentStreak > 0 },
+    { label: 'Streak',     value: `${current}d`, delta: streakDelta, up: current > 0 },
     { label: 'Workouts',   value: String(workout_count), delta: workout_count > 0 ? `+${workout_count}` : '0', up: workout_count > 0 },
     { label: 'Avg. Steps', value: fmtK(avg_steps), delta: avg_steps >= 8000 ? 'On target' : avg_steps > 0 ? 'Below' : '–', up: avg_steps >= 8000 },
     { label: 'Avg. Sleep', value: avg_sleep > 0 ? `${avg_sleep}h` : '–', delta: avg_sleep >= 7 ? 'Good' : avg_sleep > 0 ? 'Low' : '–', up: avg_sleep >= 7 },
@@ -218,7 +249,7 @@ export function useInsights(period) {
       if (rpcErr) throw rpcErr;
 
       const stats   = rpcData ?? {};
-      const streaks = computeStreaks(stats.activity_dates);
+      const streaks = resolveStreaks(stats);
 
       const nutrition = buildNutritionSummary(nutritionRows);
       const workout   = buildWorkoutSummary(workoutRows);
@@ -231,9 +262,13 @@ export function useInsights(period) {
       setTrendData(buildTrendData(stats.heatmap_days));
       setHeatmapData(buildHeatmapData(stats.heatmap_days));
 
-      // rawStats forwarded to Groq — now includes muscle fatigue
+      // rawStats forwarded to Groq — now includes muscle fatigue and the
+      // resolved (persisted-preferred) streak numbers so the AI sees the same
+      // engagement metric the user does.
       setRawStats({
         ...stats,
+        login_streak:      streaks.currentStreak,
+        longest_streak:    streaks.longestStreak,
         nutrition_summary: nutrition,
         workout_summary:   workout,
         muscle_fatigue:    fatigueRows ?? [],

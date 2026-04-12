@@ -6,7 +6,7 @@
  *
  * All hooks that previously fetched these independently now read from here.
  */
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import { getMuscleFatigue } from '../services/workoutService';
@@ -44,11 +44,19 @@ export function TodayProvider({ children }) {
   const [sleepQuality, setSleepQuality] = useState(null);
   const [caloriesBurned, setCaloriesBurned] = useState(0);
   const [muscleFatigue, setMuscleFatigue] = useState([]);
+  // Tracks the user id we've already completed an initial fetch for. We only
+  // flip the global `loading` flag when we've never loaded data for the
+  // current user — subsequent refreshes (focus, event bus, write-backs) must
+  // not trigger the Home screen's full-page spinner, which unmounts the
+  // whole layout and loses optimistic state mid-tap.
+  const loadedForUserRef = useRef(null);
 
   // ── Central data loader ──────────────────────────────────────────
   const loadToday = useCallback(async () => {
     if (!userId) { setLoading(false); return; }
-    setLoading(true);
+    // Only show the global loader on the very first fetch for this user.
+    // Refreshes after that update state in place.
+    if (loadedForUserRef.current !== userId) setLoading(true);
     const today = todayString();
 
     try {
@@ -101,6 +109,7 @@ export function TodayProvider({ children }) {
       setSleepHours(activity?.sleep_hours ?? null);
       setSleepQuality(activity?.sleep_quality ?? null);
       setMuscleFatigue(fatigue ?? []);
+      loadedForUserRef.current = userId;
     } catch (error) {
       console.error('[TodayContext] loadToday error:', error);
     } finally {
@@ -111,14 +120,21 @@ export function TodayProvider({ children }) {
   // Load on mount / user change
   useEffect(() => { loadToday(); }, [loadToday]);
 
-  // Subscribe to EventBus refresh signals
+  // Subscribe to EventBus refresh signals.
+  //
+  // NOTE: we deliberately do NOT listen to WATER_LOGGED / SLEEP_LOGGED here,
+  // even though this context emits them. Those events exist for OTHER
+  // screens (e.g. Insights) to react to user activity. Subscribing locally
+  // would create a loop: logWater() optimistically updates state → persists
+  // → emits WATER_LOGGED → loadToday() refetches → momentarily flips the
+  // global loading flag → Home.js unmounts its layout and the user's tap
+  // visually evaporates. The logWater / logSleep write paths already keep
+  // state in sync themselves, so no local refetch is needed.
   useEffect(() => {
     const unsub = [];
     unsub.push(
       require('../lib/eventBus').on(AppEvents.REFRESH_TODAY, loadToday),
       require('../lib/eventBus').on(AppEvents.MEAL_LOGGED, loadToday),
-      require('../lib/eventBus').on(AppEvents.WATER_LOGGED, loadToday),
-      require('../lib/eventBus').on(AppEvents.SLEEP_LOGGED, loadToday),
       require('../lib/eventBus').on(AppEvents.WORKOUT_COMPLETED, loadToday),
       require('../lib/eventBus').on(AppEvents.TARGETS_UPDATED, loadToday),
     );
