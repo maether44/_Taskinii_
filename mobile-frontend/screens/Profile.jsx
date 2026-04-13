@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase';
 import { AppEvents, emit, on } from '../lib/eventBus';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import {
   ActivityIndicator,
@@ -80,6 +81,8 @@ const TIME_TO_HOUR = {
   evening: 18,
   any: 8,
 };
+
+const NOTIFICATION_PREFS_KEY = 'bodyq_notification_prefs';
 
 const EDITABLE_GOALS = [
   { id: 'lose_fat', label: 'Lose Fat' },
@@ -178,7 +181,7 @@ export default function Profile({ replayTour }) {
         supabase
           .from('profiles')
           .select(
-            'full_name, bio, city, country, date_of_birth, gender, height_cm, weight_kg, goal, activity_level, target_weight_kg, avatar_url, notif_workout, notif_water, notif_meal',
+            'full_name, bio, city, country, date_of_birth, gender, height_cm, weight_kg, goal, activity_level, target_weight_kg, avatar_url',
           )
           .eq('id', authUser.id)
           .single(),
@@ -190,7 +193,7 @@ export default function Profile({ replayTour }) {
         const { data: fallbackProf, error: fallbackError } = await supabase
           .from('profiles')
           .select(
-            'full_name, bio, city, country, date_of_birth, gender, height_cm, weight_kg, goal, activity_level, target_weight_kg, xp_current, level, notif_workout, notif_water, notif_meal',
+            'full_name, bio, city, country, date_of_birth, gender, height_cm, weight_kg, goal, activity_level, target_weight_kg, xp_current, level',
           )
           .eq('id', authUser.id)
           .single();
@@ -210,12 +213,6 @@ export default function Profile({ replayTour }) {
             }
           : null,
       );
-
-      if (prof) {
-        setNotifWorkout(prof.notif_workout ?? true);
-        setNotifWater(prof.notif_water ?? true);
-        setNotifMeal(prof.notif_meal ?? false);
-      }
 
       if (cal) {
         setCalorieTarget(cal.daily_calories);
@@ -248,6 +245,24 @@ export default function Profile({ replayTour }) {
       setLoadingProfile(false);
     }
   }, [authUser?.id, profileAvatarUri]);
+
+  useEffect(() => {
+    const loadNotificationPrefs = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(NOTIFICATION_PREFS_KEY);
+        if (!stored) return;
+
+        const parsed = JSON.parse(stored);
+        setNotifWorkout(parsed.workout ?? true);
+        setNotifWater(parsed.water ?? true);
+        setNotifMeal(parsed.meal ?? false);
+      } catch {
+        // Keep local defaults if storage is unavailable.
+      }
+    };
+
+    loadNotificationPrefs();
+  }, []);
 
   useEffect(() => {
     loadProfileData();
@@ -341,14 +356,8 @@ export default function Profile({ replayTour }) {
   const handleWorkoutToggle = async (nextValue) => {
     setNotifWorkout(nextValue);
     try {
-      if (authUser?.id) {
-        const { error: prefError } = await supabase
-          .from('profiles')
-          .update({ notif_workout: nextValue, updated_at: new Date().toISOString() })
-          .eq('id', authUser.id);
-        if (prefError)
-          logError('[ProfileNotifications] Failed to persist workout preference:', prefError);
-      }
+      const nextPrefs = { workout: nextValue, water: notifWater, meal: notifMeal };
+      await AsyncStorage.setItem(NOTIFICATION_PREFS_KEY, JSON.stringify(nextPrefs));
 
       const { status } = await Notifications.getPermissionsAsync();
       if (status !== 'granted') {
@@ -412,14 +421,8 @@ export default function Profile({ replayTour }) {
   const handleWaterToggle = async (nextValue) => {
     setNotifWater(nextValue);
     try {
-      if (authUser?.id) {
-        const { error: prefError } = await supabase
-          .from('profiles')
-          .update({ notif_water: nextValue, updated_at: new Date().toISOString() })
-          .eq('id', authUser.id);
-        if (prefError)
-          logError('[ProfileNotifications] Failed to persist water preference:', prefError);
-      }
+      const nextPrefs = { workout: notifWorkout, water: nextValue, meal: notifMeal };
+      await AsyncStorage.setItem(NOTIFICATION_PREFS_KEY, JSON.stringify(nextPrefs));
 
       const { status } = await Notifications.getPermissionsAsync();
       if (status !== 'granted') {
@@ -465,14 +468,8 @@ export default function Profile({ replayTour }) {
   const handleMealToggle = async (nextValue) => {
     setNotifMeal(nextValue);
     try {
-      if (authUser?.id) {
-        const { error: prefError } = await supabase
-          .from('profiles')
-          .update({ notif_meal: nextValue, updated_at: new Date().toISOString() })
-          .eq('id', authUser.id);
-        if (prefError)
-          logError('[ProfileNotifications] Failed to persist meal preference:', prefError);
-      }
+      const nextPrefs = { workout: notifWorkout, water: notifWater, meal: nextValue };
+      await AsyncStorage.setItem(NOTIFICATION_PREFS_KEY, JSON.stringify(nextPrefs));
       console.log(`[ProfileNotifications] Meal reminders toggled ${nextValue ? 'on' : 'off'}.`);
     } catch (error) {
       logError('[ProfileNotifications] Failed to update meal preference:', error);

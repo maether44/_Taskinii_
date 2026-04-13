@@ -23,6 +23,7 @@ import { COLORS } from '../constants/colors';
 import { supabase } from '../lib/supabase';
 import { getLocalAvatarForUser } from '../lib/avatar';
 import { useAuth } from '../context/AuthContext';
+const NOTIFICATION_PREFS_KEY = 'bodyq_notification_prefs';
 
 // ─── Level 5 Bento Components ───────────────────────────────────────────────
 
@@ -56,19 +57,15 @@ export default function Home({ navigation }) {
     let mounted = true;
 
     const loadNotificationPrefs = async () => {
-      if (!authUserId) return;
       try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('notif_workout, notif_water, notif_meal')
-          .eq('id', authUserId)
-          .maybeSingle();
+        const stored = await AsyncStorage.getItem(NOTIFICATION_PREFS_KEY);
+        if (!mounted || !stored) return;
 
-        if (!mounted || error || !data) return;
+        const parsed = JSON.parse(stored);
         setNotificationPrefs({
-          workout: data.notif_workout ?? true,
-          water: data.notif_water ?? true,
-          meal: data.notif_meal ?? false,
+          workout: parsed.workout ?? true,
+          water: parsed.water ?? true,
+          meal: parsed.meal ?? false,
         });
       } catch {
         // Keep defaults if preference columns are not available.
