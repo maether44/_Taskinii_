@@ -14,7 +14,7 @@ import { registerRootComponent } from "expo";
 // Context & Supabase
 import { supabase } from "./lib/supabase";
 import { AuthProvider, useAuth } from "./context/AuthContext";
-import { AriaVoiceProvider, AriaVoiceOrb, AriaScreenBorder, AriaSiriGlow, AriaEarDot, AriaDebugOverlay, AriaEvents } from "./context/AriaVoiceContext";
+import { AlexiVoiceProvider, AlexiCompanion, AlexiScreenBorder, AlexiDebugOverlay, AlexiEvents } from "./context/AlexiVoiceContext";
 import { navigationRef } from "./lib/navigationRef";
 
 // ✅ Custom splash screen
@@ -36,14 +36,13 @@ import FoodScannerScreen from "./components/food-scanner/FoodScannerScreen";
 import WorkoutSummary from "./screens/workout/WorkoutSummary";
 
 // Global Components
-import AriaAssistant from "./components/AriaAssistant";
+import AlexiAssistant from "./components/AlexiAssistant";
 import AppTour from "./components/onBoarding/AppTour";
-import { useAriaVoice } from "./context/AriaVoiceContext";
 
-// AriaGatedAssistant — must be inside AriaVoiceProvider to read isAriaVisible
-function AriaGatedAssistant({ activeRoute }) {
+// AlexiGatedAssistant — renders AlexiAssistant on all screens except WorkoutActive
+function AlexiGatedAssistant({ activeRoute }) {
   if (activeRoute === 'WorkoutActive') return null;
-  return <AriaAssistant />;
+  return <AlexiAssistant />;
 }
 
 SplashScreen.preventAutoHideAsync();
@@ -121,9 +120,9 @@ export default function App() {
     if (appIsReady) await SplashScreen.hideAsync();
   }, [appIsReady]);
 
-  // Route navigation commands emitted by AriaVoiceContext
+  // Route navigation commands emitted by AlexiVoiceContext
   useEffect(() => {
-    const off = AriaEvents.on('navigate', ({ screen, params }) => {
+    const off = AlexiEvents.on('navigate', ({ screen, params }) => {
       if (navigationRef.isReady()) {
         navigationRef.navigate(screen, params);
       }
@@ -147,9 +146,9 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AuthProvider>
-          {/* AriaVoiceProvider runs the global passive listening loop.
+          {/* AlexiVoiceProvider runs the global passive listening loop.
               Must be inside AuthProvider so its Supabase calls have a session. */}
-          <AriaVoiceProvider>
+          <AlexiVoiceProvider>
             <View style={styles.container} onLayout={onLayoutRootView}>
               <StatusBar style="light" />
               <NavigationContainer
@@ -158,15 +157,13 @@ export default function App() {
               >
                 <Navigation />
               </NavigationContainer>
-              <AriaGatedAssistant activeRoute={activeRoute} />
+              <AlexiGatedAssistant activeRoute={activeRoute} />
               <AppTour activeTab={activeTab} onTabPress={setActiveTab} showOnMount={true} />
-              {activeRoute !== 'WorkoutActive' && <AriaVoiceOrb />}
-              <AriaScreenBorder />
-              <AriaSiriGlow />
-              <AriaEarDot />
-              <AriaDebugOverlay />
+              <AlexiScreenBorder />
+              {activeRoute !== 'WorkoutActive' && <AlexiCompanion />}
+              <AlexiDebugOverlay />
             </View>
-          </AriaVoiceProvider>
+          </AlexiVoiceProvider>
         </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

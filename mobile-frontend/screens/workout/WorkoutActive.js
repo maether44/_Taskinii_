@@ -14,7 +14,7 @@ import { BlurView } from 'expo-blur';
 import { useAuth } from '../../context/AuthContext';
 import { saveWorkoutSession } from '../../services/workoutService';
 import { supabase } from '../../lib/supabase';
-import { useAriaVoice, AriaEvents } from '../../context/AriaVoiceContext';
+import { useAlexiVoice, AlexiEvents } from '../../context/AlexiVoiceContext';
 
 const { height: SH } = Dimensions.get('window');
 
@@ -313,7 +313,7 @@ function formatTimer(secs) {
 // ─────────────────────────────────────────────────────────────
 export default function WorkoutActive({ route, navigation }) {
   const { user } = useAuth();
-  const { pausePassive, resumePassive } = useAriaVoice();
+  const { pausePassive, resumePassive } = useAlexiVoice();
   const rawKey      = route.params?.exerciseKey || route.params?.exerciseName || 'squat';
   const isPostureMode = rawKey === 'posture_check' || route.params?.mode === 'posture';
   const htmlKey     = isPostureMode ? 'posture_check' : resolveHtmlKey(rawKey);
@@ -377,19 +377,19 @@ export default function WorkoutActive({ route, navigation }) {
   // Whether SpeechRecognition is supported in this WebView
   const [srSupported,     setSrSupported]    = useState(true);
 
-  // ── Global Aria passive loop — pause immediately, resume after camera releases ─
-  // Pausing prevents Aria's recorder racing the WebView camera init (iOS only
+  // ── Global Alexi passive loop — pause immediately, resume after camera releases ─
+  // Pausing prevents Alexi's recorder racing the WebView camera init (iOS only
   // allows one audio session owner at a time).  On unmount we wait 2 s before
-  // resumePassive so the camera codec fully releases before Aria opens the mic.
+  // resumePassive so the camera codec fully releases before Alexi opens the mic.
   useEffect(() => {
     pausePassive();
     return () => { setTimeout(() => resumePassive(), 2000); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Subscribe to global Aria commands (e.g. triggered by other paths) ───────
+  // ── Subscribe to global Alexi commands (e.g. triggered by other paths) ───────
   useEffect(() => {
-    const unsub = AriaEvents.on('command', (cmd) => {
+    const unsub = AlexiEvents.on('command', (cmd) => {
       if (cmd.type === 'SHOW_INSTRUCTIONS') setIsHelpVisible(true);
     });
     return () => unsub();
@@ -769,7 +769,7 @@ export default function WorkoutActive({ route, navigation }) {
             mediaCapturePermissionGrantType="manual"
             startInLoadingState={false}
             onPermissionRequest={e => {
-              // Grant camera only — Aria (native) owns the mic exclusively.
+              // Grant camera only — Alexi (native) owns the mic exclusively.
               // Filtering out RECORD_AUDIO prevents the WebView from fighting
               // the native audio session for the microphone on Android.
               const cameraResources = (e.resources ?? []).filter(

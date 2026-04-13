@@ -1,25 +1,24 @@
 /**
- * AriaAssistant.js
+ * AlexiAssistant.js
  * Floating AI coach with Claude-style conversation history sidebar.
  * Sidebar: persistent on wide screens (>600px), slide-in overlay on mobile.
  * Storage: AsyncStorage — conversations persist across sessions.
- * Voice: integrates with AriaVoiceContext for pause/resume of global passive loop.
+ * Voice: integrates with AlexiVoiceContext for pause/resume of global passive loop.
  */
 import {
-  ActivityIndicator, Animated, Dimensions, Easing, Image, KeyboardAvoidingView, Platform,
+  ActivityIndicator, Animated, Dimensions, KeyboardAvoidingView, Platform,
   ScrollView, StyleSheet, Text, TextInput,
   TouchableOpacity, View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { registerTourRef } from '../tour/tourRefs';
 import { useProfile } from '../hooks/useProfile';
 import { supabase } from '../lib/supabase';
-import { useAriaVoice } from '../context/AriaVoiceContext';
+import { useAlexiVoice, AlexiEvents } from '../context/AlexiVoiceContext';
 
 const SIDEBAR_W   = 272;
-const STORAGE_KEY = '@aria_conversations';
+const STORAGE_KEY = '@alexi_conversations';
 const MAX_CONVS   = 50;
 const IS_WIDE     = Dimensions.get('window').width > 600;
 
@@ -47,14 +46,14 @@ const fmtDate = (iso) => {
 };
 
 const getGreeting = (profile, name) => profile
-  ? `Hey ${name}! I'm Aria, your personal AI coach inside BodyQ. I already know your profile — goal, targets, all of it. What's on your mind today?`
-  : "Hey! I'm Aria — your personal AI coach. Ask me anything about training, nutrition, or recovery.";
+  ? `Hey ${name}! I'm Alexi, your personal AI coach inside BodyQ. I already know your profile — goal, targets, all of it. What's on your mind today?`
+  : "Hey! I'm Alexi — your personal AI coach. Ask me anything about training, nutrition, or recovery.";
 
 const makeConv = (greeting) => ({
   id: uid(),
   title: 'New conversation',
   createdAt: new Date().toISOString(),
-  messages: [{ from: 'aria', text: greeting, time: fmtTime() }],
+  messages: [{ from: 'alexi', text: greeting, time: fmtTime() }],
 });
 
 // ─── Typing indicator ─────────────────────────────────────────────────────────
@@ -84,10 +83,10 @@ function TypingDots() {
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function AriaAssistant() {
+export default function AlexiAssistant() {
   const { profile, name, userId } = useProfile();
   const insets  = useSafeAreaInsets();
-  const { resumePassive } = useAriaVoice();
+  const { resumePassive, hideAlexi } = useAlexiVoice();
 
   const [open,          setOpen]          = useState(false);
   const [input,         setInput]         = useState('');
@@ -109,15 +108,16 @@ export default function AriaAssistant() {
   const sidebarX    = useRef(new Animated.Value(-SIDEBAR_W)).current;
   const sidebarFade = useRef(new Animated.Value(0)).current;
   const scrollRef   = useRef(null);
-  const fabScale    = useRef(new Animated.Value(1)).current;
-  const bobAnim     = useRef(new Animated.Value(0)).current;
+  // sendRef: always points at the latest send() so the AlexiEvents listener
+  // can call send() without a stale closure.
+  const sendRef     = useRef(null);
 
   // ── Persistence helpers ──────────────────────────────────────────────────────
   const persist = async (convs) => {
     try {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(convs));
     } catch (e) {
-      console.error('AriaAssistant: persist error', e);
+      console.error('AlexiAssistant: persist error', e);
     }
   };
 
@@ -142,7 +142,7 @@ export default function AriaAssistant() {
         .limit(4);
       if (!error && data) setUserInsights(data);
     } catch (e) {
-      console.error('AriaAssistant: fetchUserInsights error', e);
+      console.error('AlexiAssistant: fetchUserInsights error', e);
     } finally {
       setInsightsLoading(false);
     }
@@ -158,7 +158,7 @@ export default function AriaAssistant() {
       if (error) throw error;
       if (data?.insights?.length) setUserInsights(data.insights);
     } catch (e) {
-      console.error('AriaAssistant: refreshInsights error', e);
+      console.error('AlexiAssistant: refreshInsights error', e);
     } finally {
       setInsightsRefreshing(false);
     }
@@ -176,7 +176,7 @@ export default function AriaAssistant() {
       console.log('Admin bulk refresh result:', data);
       await fetchUserInsights(userId);
     } catch (e) {
-      console.error('AriaAssistant: refreshAllInsights error', e);
+      console.error('AlexiAssistant: refreshAllInsights error', e);
     } finally {
       setInsightsRefreshing(false);
     }
@@ -206,37 +206,30 @@ export default function AriaAssistant() {
       .catch(() => {});
   }, []);
 
-  // ── FAB breathe + bob ────────────────────────────────────────────────────────
+  // ── Keep sendRef current so the AlexiEvents listener never captures a stale send ──
+  useEffect(() => { sendRef.current = send; });
+
+  // ── Listen for voice "open_chat" — slide up chat + auto-send the query ───────
   useEffect(() => {
-    const breathe = Animated.loop(Animated.sequence([
-      Animated.timing(fabScale, { toValue: 1.08, duration: 1800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      Animated.timing(fabScale, { toValue: 1,    duration: 1800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-    ]));
-    const bob = Animated.loop(Animated.sequence([
-      Animated.timing(bobAnim, { toValue: -10, duration: 1500, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      Animated.timing(bobAnim, { toValue: 0,   duration: 1500, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-    ]));
-    breathe.start();
-    bob.start();
-    return () => { breathe.stop(); bob.stop(); };
+    const off = AlexiEvents.on('open_chat', ({ query }) => {
+      setOpen(true);
+      Animated.parallel([
+        Animated.spring(slideY,   { toValue: 0, tension: 65, friction: 11, useNativeDriver: true }),
+        Animated.timing(fadeBack, { toValue: 1, duration: 200, useNativeDriver: true }),
+      ]).start();
+      if (query) {
+        // Wait for sheet to finish opening before sending
+        setTimeout(() => sendRef.current?.(query), 650);
+      }
+    });
+    return off;
   }, []);
 
-  const glowOpacityOuter = fabScale.interpolate({ inputRange: [1, 1.08], outputRange: [0.18, 0.42] });
-  const glowOpacityMid   = fabScale.interpolate({ inputRange: [1, 1.08], outputRange: [0.28, 0.60] });
-  const glowScaleOuter   = fabScale.interpolate({ inputRange: [1, 1.08], outputRange: [1, 1.18] });
-
   // ── Chat open / close ────────────────────────────────────────────────────────
-  const openChat = () => {
-    setOpen(true);
-    Animated.parallel([
-      Animated.spring(slideY,   { toValue: 0, tension: 65, friction: 11, useNativeDriver: true }),
-      Animated.timing(fadeBack, { toValue: 1, duration: 200, useNativeDriver: true }),
-    ]).start();
-  };
-
   const closeChat = () => {
     if (sidebarOpen) closeSidebar();
     resumePassive();
+    hideAlexi(); // dismiss mascot FAB when sheet closes
     Animated.parallel([
       Animated.timing(slideY,   { toValue: 500, duration: 230, useNativeDriver: true }),
       Animated.timing(fadeBack, { toValue: 0,   duration: 180, useNativeDriver: true }),
@@ -294,7 +287,7 @@ export default function AriaAssistant() {
       setAndPersist(prev => prev.map(c => c.id !== activeConvId ? c : {
         ...c,
         messages: [...c.messages, {
-          from: 'aria',
+          from: 'alexi',
           text: "Still loading your profile — give it a second and try again!",
           time: fmtTime(),
         }],
@@ -332,14 +325,14 @@ export default function AriaAssistant() {
 
       setAndPersist(prev => prev.map(c => c.id !== activeConvId ? c : {
         ...c,
-        messages: [...c.messages, { from: 'aria', text: data.response, time: fmtTime() }],
+        messages: [...c.messages, { from: 'alexi', text: data.response, time: fmtTime() }],
       }));
     } catch (err) {
-      console.error('Aria error:', err.message);
+      console.error('Alexi error:', err.message);
       setAndPersist(prev => prev.map(c => c.id !== activeConvId ? c : {
         ...c,
         messages: [...c.messages, {
-          from: 'aria',
+          from: 'alexi',
           text: "Connection issue — try again!",
           time: fmtTime(),
         }],
@@ -357,7 +350,7 @@ export default function AriaAssistant() {
         <View style={s.sidebarHead}>
           <View style={s.sidebarBrand}>
             <Text style={{ fontSize: 18 }}>🤖</Text>
-            <Text style={s.sidebarBrandTxt}>Aria</Text>
+            <Text style={s.sidebarBrandTxt}>Alexi</Text>
           </View>
           <TouchableOpacity style={s.newChatBtn} onPress={newChat} activeOpacity={0.8}>
             <Text style={s.newChatTxt}>＋ New</Text>
@@ -467,7 +460,7 @@ export default function AriaAssistant() {
             <View style={s.headerOnlineDot} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={s.headerName}>Aria</Text>
+            <Text style={s.headerName}>Alexi · Your AI Coach</Text>
             <Text style={s.headerSub}>
               {profile ? 'Knows your profile ✓' : 'Personal AI Coach'}
             </Text>
@@ -485,12 +478,12 @@ export default function AriaAssistant() {
         >
           {messages.map((m, i) => (
             <View key={i} style={[s.msgRow, m.from === 'user' && s.msgRowUser]}>
-              {m.from === 'aria' && (
+              {m.from === 'alexi' && (
                 <View style={s.msgAvatar}><Text style={{ fontSize: 14 }}>🤖</Text></View>
               )}
               <View style={{ maxWidth: '75%' }}>
-                <View style={[s.bubble, m.from === 'user' ? s.bubbleUser : s.bubbleAria]}>
-                  <Text style={[s.bubbleTxt, m.from === 'user' ? s.bubbleTxtUser : s.bubbleTxtAria]}>
+                <View style={[s.bubble, m.from === 'user' ? s.bubbleUser : s.bubbleAlexi]}>
+                  <Text style={[s.bubbleTxt, m.from === 'user' ? s.bubbleTxtUser : s.bubbleTxtAlexi]}>
                     {m.text}
                   </Text>
                 </View>
@@ -503,7 +496,7 @@ export default function AriaAssistant() {
           {typing && (
             <View style={s.msgRow}>
               <View style={s.msgAvatar}><Text style={{ fontSize: 14 }}>🤖</Text></View>
-              <View style={[s.bubble, s.bubbleAria, { paddingVertical: 12 }]}>
+              <View style={[s.bubble, s.bubbleAlexi, { paddingVertical: 12 }]}>
                 <TypingDots />
               </View>
             </View>
@@ -527,7 +520,7 @@ export default function AriaAssistant() {
             style={s.input}
             value={input}
             onChangeText={setInput}
-            placeholder="Ask Aria anything…"
+            placeholder="Ask Alexi anything..."
             placeholderTextColor="#8B82AD"
             returnKeyType="send"
             onSubmitEditing={() => send()}
@@ -546,31 +539,9 @@ export default function AriaAssistant() {
     );
   }
 
-  // ── FAB + Sheet ───────────────────────────────────────────────────────────────
+  // ── Sheet only (FAB removed — AlexiCompanion is the single tap-to-chat trigger) ──
   return (
     <>
-      {!open && (
-        <Animated.View
-          ref={r => registerTourRef('aria_fab', r)}
-          collapsable={false}
-          pointerEvents="auto"
-          style={[s.fabWrap, { opacity: 1, transform: [{ translateY: bobAnim }, { scale: fabScale }] }]}
-        >
-          <Animated.View style={[s.glowOuter, { opacity: glowOpacityOuter, transform: [{ scale: glowScaleOuter }] }]} />
-          <Animated.View style={[s.glowMid, { opacity: glowOpacityMid }]} />
-          <View style={s.glowCore} />
-          <TouchableOpacity style={s.mascotTouch} onPress={openChat} activeOpacity={0.88}>
-            <Animated.View style={s.mascotClip}>
-              <Image
-                source={require('../assets/yara_spirit.png')}
-                style={s.mascotImg}
-                resizeMode="cover"
-              />
-            </Animated.View>
-          </TouchableOpacity>
-        </Animated.View>
-      )}
-
       {open && (
         <Animated.View style={[s.backdrop, { opacity: fadeBack }]}>
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={closeChat} />
@@ -612,14 +583,6 @@ export default function AriaAssistant() {
 }
 
 const s = StyleSheet.create({
-  fabWrap:    { position: 'absolute', bottom: 90, right: 20, zIndex: 9999, width: 114, height: 114, alignItems: 'center', justifyContent: 'center' },
-  glowOuter:  { position: 'absolute', width: 114, height: 114, borderRadius: 57, backgroundColor: 'rgba(200,241,53,0.08)', shadowColor: '#C8F135', shadowOpacity: 1, shadowRadius: 28, shadowOffset: { width: 0, height: 0 } },
-  glowMid:    { position: 'absolute', width: 94,  height: 94,  borderRadius: 47, backgroundColor: 'rgba(200,241,53,0.14)', shadowColor: '#C8F135', shadowOpacity: 0.85, shadowRadius: 18, shadowOffset: { width: 0, height: 0 } },
-  glowCore:   { position: 'absolute', width: 82,  height: 82,  borderRadius: 41, backgroundColor: 'rgba(200,241,53,0.20)', shadowColor: '#C8F135', shadowOpacity: 0.7, shadowRadius: 10, shadowOffset: { width: 0, height: 0 } },
-  mascotTouch:{ width: 78, height: 78, alignItems: 'center', justifyContent: 'center' },
-  mascotClip: { width: 78, height: 78, borderRadius: 39, overflow: 'hidden' },
-  mascotImg:  { width: 78, height: 78 },
-
   backdrop:  { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.38)', zIndex: 95 },
   kavWrap:   { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 },
   sheet:     { flex: 1, backgroundColor: '#18152A', borderWidth: 1, borderColor: '#2D2850', shadowColor: '#000', shadowOffset: { width: 0, height: -8 }, shadowOpacity: 0.45, shadowRadius: 28, elevation: 28 },
@@ -652,20 +615,16 @@ const s = StyleSheet.create({
   closeBtn:         { width: 34, height: 34, borderRadius: 17, backgroundColor: '#2D2850', alignItems: 'center', justifyContent: 'center' },
   closeTxt:         { color: '#8B82AD', fontSize: 15 },
 
-
-
-
-
   messages:        { flex: 1 },
   messagesContent: { padding: 16, gap: 12 },
   msgRow:          { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
   msgRowUser:      { flexDirection: 'row-reverse' },
   msgAvatar:       { width: 30, height: 30, borderRadius: 15, backgroundColor: '#7B61FF', alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
   bubble:          { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
-  bubbleAria:      { backgroundColor: '#201C35', borderBottomLeftRadius: 4 },
+  bubbleAlexi:     { backgroundColor: '#201C35', borderBottomLeftRadius: 4 },
   bubbleUser:      { backgroundColor: '#7B61FF', borderBottomRightRadius: 4 },
   bubbleTxt:       { fontSize: 14, lineHeight: 21 },
-  bubbleTxtAria:   { color: '#E8E3FF' },
+  bubbleTxtAlexi:  { color: '#E8E3FF' },
   bubbleTxtUser:   { color: '#ffffff' },
   msgTime:         { color: '#4A4268', fontSize: 10, marginTop: 4, marginHorizontal: 4 },
   dot:             { width: 7, height: 7, borderRadius: 4, backgroundColor: '#8B82AD' },

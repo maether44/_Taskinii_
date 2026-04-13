@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { calcMacroTargets, normalizeGoal } from '../lib/calculations';
+import { useAlexiVoice } from '../context/AlexiVoiceContext';
 
 const C = {
   bg:'#0F0B1E', card:'#161230', border:'#1E1A35',
@@ -87,7 +88,7 @@ function Row({ label, value, color }) {
 
 export default function Profile({ navigate, replayTour }) {
   const { signOut, user: authUser } = useAuth();
-  const { isMuted, setMutedState } = useAriaVoice();
+  const { isMuted, setMutedState } = useAlexiVoice();
   const [profile, setProfile] = useState(null);
   const [calorieTarget, setCalorieTarget] = useState(null);
   const [proteinTarget, setProteinTarget] = useState(null);
@@ -381,14 +382,14 @@ export default function Profile({ navigate, replayTour }) {
           ))}
         </View>
 
-        {/* ── Aria Voice Settings ───────────────────────────── */}
+        {/* ── Alexi Voice Settings ──────────────────────────── */}
         <View style={s.card}>
-          <Text style={s.cardLabel}>ARIA VOICE ASSISTANT</Text>
+          <Text style={s.cardLabel}>ALEXI VOICE ASSISTANT</Text>
           <View style={s.settingRow}>
             <View style={{ flex: 1 }}>
-              <Text style={s.settingLabel}>Mute Aria</Text>
+              <Text style={s.settingLabel}>Alexi Voice Assistant</Text>
               <Text style={[s.settingLabel, { fontSize: 11, color: C.sub, fontWeight: '400', marginTop: 2 }]}>
-                {isMuted ? 'Aria is sleeping — tap to wake her' : 'Aria is always listening for her name'}
+                {isMuted ? 'Alexi is sleeping — tap to wake her' : 'Alexi is always listening for her name'}
               </Text>
             </View>
             <Switch

@@ -11,6 +11,7 @@ import { useShakySteps } from '../hooks/useShakySteps';
 import WaterTracker from '../components/home/WaterTracker'; // Your interactive cup component
 import { COLORS } from '../constants/colors';
 import { supabase } from '../lib/supabase';
+import { AlexiEvents } from '../context/AlexiVoiceContext';
 
 // ─── Level 5 Bento Components ───────────────────────────────────────────────
 
@@ -29,6 +30,12 @@ export default function Home({ navigation }) {
   const totalSteps = (stats?.steps || 0) + liveSteps;
   const [displayCal, setDisplayCal] = useState(0);
   const [lastSession, setLastSession] = useState(null);
+
+  // ── Alexi voice updates — refresh dashboard instantly when voice logs data ────
+  useEffect(() => {
+    const off = AlexiEvents.on('dataUpdated', () => refresh());
+    return off;
+  }, [refresh]);
 
   useFocusEffect(
     useCallback(() => {

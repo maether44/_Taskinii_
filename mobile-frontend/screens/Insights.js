@@ -20,7 +20,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useInsights } from '../hooks/useInsights';
-import { generateAndCacheInsights } from '../services/ariaInsightsService';
+import { generateAndCacheInsights } from '../services/alexiInsightsService';
 
 const PERIODS = ['Week', 'Month', '3 Months'];
 
