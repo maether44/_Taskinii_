@@ -15,7 +15,6 @@ import {
   saveOnboardingProfile,
   saveCalorieTargets,
 } from "../services/profileService";
-import { saveAIPlan } from "../services/aiPlanService";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
 import { error as logError } from '../lib/logger';
@@ -182,8 +181,17 @@ export function useOnboarding() {
       const answers = getAnswers();
 
       await saveOnboardingProfile(user.id, answers); // → profiles
-      await saveCalorieTargets(user.id, answers); // → calorie_targets
-      // await saveAIPlan(user.id, aiPlan, answers);       // → once you create ai_plans table
+      await saveCalorieTargets(user.id, answers); // �� calorie_targets
+
+      // Save AI plan to training_plans table if one was generated
+      if (aiPlan?.days?.length) {
+        await supabase
+          .from('training_plans')
+          .upsert(
+            { user_id: user.id, plan_json: aiPlan, created_at: new Date().toISOString() },
+            { onConflict: 'user_id' },
+          );
+      }
 
       onComplete?.();
     } catch (err) {

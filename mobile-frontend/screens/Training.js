@@ -16,7 +16,8 @@ import { supabase } from '../lib/supabase';
 import { getMuscleFatigue } from '../services/workoutService';
 import { useAuth } from '../context/AuthContext';
 import { AppEvents, emit, on } from '../lib/eventBus';
-import { warn } from '../lib/logger';
+import { warn, log } from '../lib/logger';
+import { loadPlan, generatePlan } from '../services/aiPlanService';
 
 const STREAK_MILESTONES = [3, 7, 14, 30, 60, 100, 365];
 
@@ -547,6 +548,9 @@ export default function Training({ navigation }) {
     focus: 'Strength Focus', exerciseKey: 'squat',
     reason: '"Based on your current fitness status — let\'s push today."',
   });
+  const [aiPlan,           setAiPlan]           = useState(null);   // full AI plan object
+  const [aiPlanLoading,    setAiPlanLoading]    = useState(false);
+  const [aiPlanDate,       setAiPlanDate]       = useState(null);   // when the plan was generated
 
   const loadData = useCallback(async () => {
     if (!authUserId) return;
@@ -558,6 +562,13 @@ export default function Training({ navigation }) {
         .eq('id', authUserId)
         .maybeSingle();
       if (profile?.environment) setEnvironment(profile.environment);
+
+      // ── 0b. Load saved AI training plan ────────────────────
+      const saved = await loadPlan(authUserId);
+      if (saved?.plan_json?.days?.length) {
+        setAiPlan(saved.plan_json);
+        setAiPlanDate(saved.created_at);
+      }
 
       // ── 1. Muscle fatigue ──────────────────────────────────
       const rows = await getMuscleFatigue(authUserId);
@@ -610,12 +621,36 @@ export default function Training({ navigation }) {
         });
       }
 
-      // ── 3b. Build Today's Plan from recommendation focus ──
-      const planKey = lowSleep ? 'recovery'
-        : topFatigued
-          ? (['Quads','Hamstrings','Glutes','Calves'].includes(topFatigued.muscle_name) ? 'upper' : 'lower')
-          : 'strength';
-      const circuit = PLAN_CIRCUITS[planKey] || PLAN_CIRCUITS.strength;
+      // ── 3b. Build Today's Plan from AI plan or fallback circuits ──
+      let circuit;
+      const currentSaved = saved?.plan_json;
+      if (currentSaved?.days?.length) {
+        // Use the AI plan — pick today's day (cycle through plan days by weekday)
+        const dow = new Date().getDay(); // 0=Sun, 1=Mon...
+        const adjustedDow = dow === 0 ? 6 : dow - 1; // 0=Mon, 6=Sun
+        const aiDay = currentSaved.days[adjustedDow % currentSaved.days.length];
+        // Map AI plan exercises to the circuit format
+        circuit = (aiDay.exercises || []).slice(0, 5).map((ex) => ({
+          name:   ex.name,
+          icon:   'barbell-outline',
+          key:    ex.name.toLowerCase().replace(/\s+/g, '_'),
+          sets:   typeof ex.sets === 'number' ? `${ex.sets}×${ex.reps}` : `${ex.sets}`,
+          target: aiDay.focus || '',
+        }));
+        // Update recommendation to reflect the AI day
+        setRecommendation(prev => ({
+          ...prev,
+          title: aiDay.name?.replace(/\s+/g, '\n') || prev.title,
+          focus: aiDay.focus || prev.focus,
+          reason: aiDay.coachTip ? `"${aiDay.coachTip}"` : prev.reason,
+        }));
+      } else {
+        const planKey = lowSleep ? 'recovery'
+          : topFatigued
+            ? (['Quads','Hamstrings','Glutes','Calves'].includes(topFatigued.muscle_name) ? 'upper' : 'lower')
+            : 'strength';
+        circuit = PLAN_CIRCUITS[planKey] || PLAN_CIRCUITS.strength;
+      }
 
       // Fetch previous best for each circuit exercise
       const planWithBests = await Promise.all(circuit.map(async (ex) => {
@@ -811,6 +846,22 @@ export default function Training({ navigation }) {
     }, 300);
   }, [navigation]);
 
+  const handleGeneratePlan = useCallback(async () => {
+    if (!authUserId || aiPlanLoading) return;
+    setAiPlanLoading(true);
+    try {
+      const plan = await generatePlan(authUserId);
+      setAiPlan(plan);
+      setAiPlanDate(new Date().toISOString());
+      // Reload the full screen to pick up the new plan for today's circuit
+      loadData();
+    } catch (e) {
+      warn('[Training] AI plan generation failed:', e?.message ?? e);
+    } finally {
+      setAiPlanLoading(false);
+    }
+  }, [authUserId, aiPlanLoading, loadData]);
+
   return (
     <View style={s.root}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
@@ -861,7 +912,7 @@ export default function Training({ navigation }) {
             {/* AI header */}
             <View style={s.heroBadge}>
               <Ionicons name="sparkles" size={10} color={C.lime} />
-              <Text style={s.heroBadgeTxt}>  AI RECOMMENDED</Text>
+              <Text style={s.heroBadgeTxt}>  {aiPlan ? 'AI PERSONALISED PLAN' : 'AI RECOMMENDED'}</Text>
             </View>
             <Text style={s.heroLabel}>DAILY BLUEPRINT</Text>
             <Text style={s.heroTitle}>{recommendation.title}</Text>
@@ -1085,9 +1136,120 @@ export default function Training({ navigation }) {
         </Reanimated.View>
 
         {/* ══════════════════════════════════════
-            §4  THE PERFORMANCE LAB
+            §4  AI WEEKLY PLAN
         ══════════════════════════════════════ */}
-        <Reanimated.View entering={FadeInDown.delay(250).springify()}>
+        <Reanimated.View entering={FadeInDown.delay(230).springify()}>
+          <SectionHeader
+            title="AI WEEKLY PLAN"
+            sub={aiPlan ? `Generated ${aiPlanDate ? new Date(aiPlanDate).toLocaleDateString() : ''}` : 'Personalised to your profile'}
+          />
+
+          {aiPlan ? (
+            <View style={[s.glassCard, SHADOW, { padding: 18 }]}>
+              <BlurView intensity={22} tint="dark" style={StyleSheet.absoluteFillObject} />
+              <View style={s.glassCardBorder} pointerEvents="none" />
+              {/* Plan intro */}
+              {aiPlan.intro ? (
+                <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, lineHeight: 17, marginBottom: 14 }}>
+                  {aiPlan.intro}
+                </Text>
+              ) : null}
+              {/* Day pills */}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+                {aiPlan.days.map((day, i) => {
+                  const dow = new Date().getDay();
+                  const adjustedDow = dow === 0 ? 6 : dow - 1;
+                  const isToday = i === (adjustedDow % aiPlan.days.length);
+                  return (
+                    <View key={i} style={{
+                      backgroundColor: isToday ? C.lime : 'rgba(255,255,255,0.06)',
+                      paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12,
+                      borderWidth: 1, borderColor: isToday ? C.lime : 'rgba(255,255,255,0.08)',
+                    }}>
+                      <Text style={{
+                        color: isToday ? '#000' : C.text,
+                        fontSize: 11, fontWeight: '800',
+                      }}>Day {i + 1}</Text>
+                      <Text style={{
+                        color: isToday ? 'rgba(0,0,0,0.7)' : C.sub,
+                        fontSize: 10, marginTop: 2,
+                      }}>{day.name}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+              {/* Notes row */}
+              {(aiPlan.nutritionNote || aiPlan.recoveryNote) && (
+                <View style={{ gap: 6, marginBottom: 14 }}>
+                  {aiPlan.nutritionNote ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6 }}>
+                      <Ionicons name="nutrition-outline" size={12} color={C.lime} style={{ marginTop: 2 }} />
+                      <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, flex: 1, lineHeight: 16 }}>
+                        {aiPlan.nutritionNote}
+                      </Text>
+                    </View>
+                  ) : null}
+                  {aiPlan.recoveryNote ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6 }}>
+                      <Ionicons name="bed-outline" size={12} color={C.accent} style={{ marginTop: 2 }} />
+                      <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, flex: 1, lineHeight: 16 }}>
+                        {aiPlan.recoveryNote}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              )}
+              {/* Regenerate button */}
+              <TouchableOpacity
+                style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6,
+                  backgroundColor: 'rgba(124,92,252,0.15)', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10,
+                  borderWidth: 1, borderColor: 'rgba(124,92,252,0.3)', opacity: aiPlanLoading ? 0.5 : 1 }}
+                onPress={handleGeneratePlan}
+                disabled={aiPlanLoading}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="refresh-outline" size={14} color={C.accent} />
+                <Text style={{ color: C.accent, fontSize: 12, fontWeight: '700' }}>
+                  {aiPlanLoading ? 'Generating...' : 'Regenerate Plan'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={[s.glassCard, SHADOW, { padding: 24, alignItems: 'center' }]}
+              onPress={handleGeneratePlan}
+              disabled={aiPlanLoading}
+              activeOpacity={0.8}
+            >
+              <BlurView intensity={22} tint="dark" style={StyleSheet.absoluteFillObject} />
+              <View style={s.glassCardBorder} pointerEvents="none" />
+              <LinearGradient
+                colors={['rgba(124,92,252,0.18)', 'rgba(74,47,200,0.08)']}
+                style={StyleSheet.absoluteFillObject}
+              />
+              <Ionicons name="sparkles" size={32} color={C.accent} style={{ marginBottom: 10 }} />
+              <Text style={{ color: C.text, fontSize: 16, fontWeight: '800', textAlign: 'center', marginBottom: 6 }}>
+                {aiPlanLoading ? 'Generating your plan...' : 'Generate AI Weekly Plan'}
+              </Text>
+              <Text style={{ color: C.sub, fontSize: 12, textAlign: 'center', lineHeight: 18, marginBottom: 16 }}>
+                Create a personalised training split based on your goals, equipment, and experience level.
+              </Text>
+              <View style={{
+                backgroundColor: C.lime, paddingHorizontal: 24, paddingVertical: 10, borderRadius: 12,
+                opacity: aiPlanLoading ? 0.5 : 1,
+              }}>
+                <Text style={{ color: '#000', fontWeight: '800', fontSize: 13 }}>
+                  {aiPlanLoading ? 'Please wait...' : 'Generate Plan'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          )}
+        </Reanimated.View>
+
+        {/* ══════════════════════════════════════
+            §5  THE PERFORMANCE LAB
+        ══════════════════════════════════════ */}
+        <Reanimated.View entering={FadeInDown.delay(290).springify()}>
           <SectionHeader title="THE PERFORMANCE LAB" sub="Tools & analytics" />
           <View style={s.labGrid}>
 

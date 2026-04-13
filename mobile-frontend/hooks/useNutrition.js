@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { supabase } from "../config/supabase";
+import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
 import { useToday } from "../context/TodayContext";
 import { AppEvents, emit } from "../lib/eventBus";

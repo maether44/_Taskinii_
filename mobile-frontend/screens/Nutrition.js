@@ -15,7 +15,7 @@ import RingProgress from "../components/shared/RingProgress";
 import { StepCounter } from "../components/StepCounter";
 import { useNutrition } from "../hooks/useNutrition";
 import { useProfile } from "../hooks/useProfile";
-import { invokeEdgePublic, supabase } from "../config/supabase";
+import { invokeEdgePublic, supabase } from "../lib/supabase";
 import { DEFAULT_TARGETS } from "../constants/targets";
 
 const C = {
