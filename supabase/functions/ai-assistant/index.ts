@@ -442,13 +442,9 @@ Deno.serve(async (req) => {
 
       // Vocabulary hint: forces Whisper to snap to app-specific words rather than
       // phonetically similar alternatives ("Profile" not "Video file", etc.)
-      const userName = body.userName ?? ''
       form.append(
         'prompt',
-        `The user is ${userName || 'Maether'}. Common words: Profile, Fuel, Insights, Train, Home. ` +
-        'Profile. Fuel. Insights. Train. Home. WorkoutActive. ' +
-        'Log water. Log food. Log sleep. Log weight. Body fat. How am I doing. ' +
-        'Protein. Carbs. Calories. Steps. Sleep hours.',
+        'The user is Maether. Commands: Profile, Fuel, Train, Insights, Log Water, Log Food, Log Weight.',
       )
 
       const sttEndpoint = useOpenAI

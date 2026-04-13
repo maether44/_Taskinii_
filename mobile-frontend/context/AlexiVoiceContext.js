@@ -148,32 +148,35 @@ function parseCommand(text) {
   if (/show (me |me how to |how to )?move|instructions?|form (guide|check|tip|help)|how to do (this|it|the exercise)|help( me)?$/.test(t))
     return { type: 'SHOW_INSTRUCTIONS' };
 
-  // ── Navigation — checked FIRST, bypass AI entirely ───────────────────────
-  // Bare single words ("profile", "fuel") or phrase variants all snap here.
-  if (/\b(home|dashboard|main screen|main page)\b/.test(t))
+  // ── Navigation — hard-coded keyword map, bypasses AI entirely ────────────
+  // Each entry: word-boundary test on `t` so substrings don't false-match.
+  // Ordering matters: more specific patterns before broad ones.
+
+  // WorkoutActive (must come before Train)
+  if (/start (a |the )?workout|begin (a |my )?workout|let('?s| us) work(out| out)/.test(t))
+    return { type: 'NAVIGATE', screen: 'WorkoutActive' };
+
+  // Home
+  if (/\b(home|dashboard|main)\b/.test(t))
     return { type: 'NAVIGATE', screen: 'Home' };
 
-  if (/\b(profile|account|settings|my account|my settings|my profile)\b/.test(t) ||
+  // Profile — includes 'video' / 'file' (common Whisper hallucinations for "Profile")
+  if (/\b(profile|account|settings|video|file)\b/.test(t) ||
       /^pro\b/.test(t))
     return { type: 'NAVIGATE', screen: 'Profile' };
 
-  if (/\b(fuel|nutrition|food|meals?|eating|diet)\b/.test(t) ||
-      /go to (fuel|nutrition|food)|open (fuel|nutrition|food)|log.*food|what.*eat/i.test(t) ||
-      /^(nutri|nu\b)/.test(t))
+  // Fuel — 'eat' word-boundary safe; 'fell'/'full' are Whisper phonetics for "fuel"
+  if (/\b(fuel|nutrition|food|meals?|eating|eat|diet|fell|macros?|calories)\b/.test(t) ||
+      /go to (fuel|nutrition|food)|open (fuel|nutrition|food)|what.*eat/i.test(t))
     return { type: 'NAVIGATE', screen: 'Fuel' };
 
-  if (/\b(insights?|analytics?|analysis|my stats|my data)\b/.test(t) ||
-      /show (my )?progress/.test(t) ||
-      /^ins/.test(t))
+  // Insights — 'stats', 'progress', 'analysis' all route here
+  if (/\b(insights?|analytics?|analysis|stats?|progress|my data)\b/.test(t))
     return { type: 'NAVIGATE', screen: 'Insights' };
 
-  if (/\b(train|training|workout|workouts|exercise|gym|lift)\b/.test(t) ||
-      /go to (workout|train|gym)|open (workout|train)/.test(t) ||
-      /^(trai|work)/.test(t))
+  // Train — standalone 'work' word-boundary matches "work" but not "workout" (caught above)
+  if (/\b(train|training|workout|workouts|exercise|gym|lift|work)\b/.test(t))
     return { type: 'NAVIGATE', screen: 'Train' };
-
-  if (/start (a |the )?workout|begin (a |my )?workout|let('?s| us) work(out| out)/.test(t))
-    return { type: 'NAVIGATE', screen: 'WorkoutActive' };
 
   // Data logging
   if (/how am i doing|my stats|daily summary|today.?s (progress|summary)|check in/.test(t))
@@ -1396,21 +1399,27 @@ const orbStyles = StyleSheet.create({
 export function AlexiCompanion() {
   const { passiveState, responseText, setMutedState, isMuted, talkToAlexi } = useAlexiVoice();
 
-  const isOrb      = ['activated', 'capturing', 'transcribing'].includes(passiveState);
-  const isSpeaking = passiveState === 'speaking';
+  // isOrb = full Siri orb (wake word / transcribing)
+  // isListening = subtle outer pulse (passive mic is live)
+  // isSpeaking  = purple glow + speech bubble
+  // idle/muted  = completely static
+  const isOrb       = ['activated', 'capturing', 'transcribing'].includes(passiveState);
+  const isListening = passiveState === 'listening';
+  const isSpeaking  = passiveState === 'speaking';
 
   // ── Shared animation values ──────────────────────────────────────────────
   const avatarSc  = useSharedValue(1);
-  // Arc rotation (each ring rotates at a unique speed/direction)
+  // Full-orb arc rotation (activated / capturing / transcribing)
   const rot1      = useSharedValue(0);
   const rot2      = useSharedValue(0);
   const rot3      = useSharedValue(0);
-  // Breathing scale per ring
   const sc1       = useSharedValue(1);
   const sc2       = useSharedValue(1);
   const sc3       = useSharedValue(1);
-  // Background glow opacity
   const glowBgOp  = useSharedValue(0);
+  // Listening heartbeat — single outer ring, very subtle
+  const listenSc  = useSharedValue(1);
+  const listenOp  = useSharedValue(0);
   // Speaking glow
   const speakOp   = useSharedValue(0);
   const speakSc   = useSharedValue(1);
@@ -1419,7 +1428,7 @@ export function AlexiCompanion() {
   const successOp = useSharedValue(0);
 
   useEffect(() => {
-    // ── Reset everything first ─────────────────────────────────────────────
+    // ── Reset everything ───────────────────────────────────────────────────
     cancelAnimation(avatarSc); avatarSc.value = withTiming(1, { duration: 200 });
     cancelAnimation(rot1);     rot1.value = 0;
     cancelAnimation(rot2);     rot2.value = 0;
@@ -1427,18 +1436,31 @@ export function AlexiCompanion() {
     cancelAnimation(sc1);      sc1.value = 1;
     cancelAnimation(sc2);      sc2.value = 1;
     cancelAnimation(sc3);      sc3.value = 1;
-    cancelAnimation(glowBgOp); glowBgOp.value = withTiming(0, { duration: 250 });
+    cancelAnimation(glowBgOp); glowBgOp.value = withTiming(0, { duration: 300 });
+    cancelAnimation(listenSc); listenSc.value = 1;
+    cancelAnimation(listenOp); listenOp.value = withTiming(0, { duration: 300 });
     cancelAnimation(speakOp);  speakOp.value  = withTiming(0, { duration: 250 });
     cancelAnimation(speakSc);  speakSc.value  = 1;
 
-    if (isOrb) {
+    if (isListening) {
+      // ── Heartbeat: single outer ring expands and fades slowly ─────────
+      // Opacity 0→0.22→0, scale 1→1.55→1 — very subtle, shows mic is alive.
+      listenOp.value = withRepeat(withSequence(
+        withTiming(0.22, { duration: 1400 }),
+        withTiming(0.00, { duration: 1400 }),
+      ), -1, false);
+      listenSc.value = withRepeat(withSequence(
+        withTiming(1.55, { duration: 1400 }),
+        withTiming(1.00, { duration: 1400 }),
+      ), -1, false);
+
+    } else if (isOrb) {
       // ── Siri orb: 3 arcs rotating at distinct speeds ──────────────────
-      // Linear easing keeps the spin smooth and constant — no acceleration.
       rot1.value = withRepeat(withTiming( 360, { duration: 2400, easing: Easing.linear }), -1, false);
       rot2.value = withRepeat(withTiming(-360, { duration: 3800, easing: Easing.linear }), -1, false);
       rot3.value = withRepeat(withTiming( 360, { duration: 6000, easing: Easing.linear }), -1, false);
 
-      // ── Breathing: staggered scale pulses, one per ring ────────────────
+      // Staggered breathing — wave across all 3 rings
       sc1.value = withRepeat(withSequence(
         withTiming(1.09, { duration:  700 }),
         withTiming(1.00, { duration:  700 }),
@@ -1452,20 +1474,18 @@ export function AlexiCompanion() {
         withTiming(1.00, { duration: 1400 }),
       ), -1, false));
 
-      // ── Soft green background glow behind avatar ───────────────────────
       glowBgOp.value = withRepeat(withSequence(
         withTiming(0.28, { duration: 1200 }),
         withTiming(0.08, { duration: 1200 }),
       ), -1, false);
 
-      // ── Avatar subtle scale pulse ──────────────────────────────────────
       avatarSc.value = withRepeat(withSequence(
         withTiming(1.06, { duration: 1200 }),
         withTiming(1.00, { duration: 1200 }),
       ), -1, false);
 
     } else if (isSpeaking) {
-      // ── Purple glow pulse while speaking ─────────────────────────────
+      // ── Purple glow pulse ─────────────────────────────────────────────
       speakOp.value = withRepeat(withSequence(
         withTiming(0.80, { duration: 500 }),
         withTiming(0.22, { duration: 500 }),
@@ -1479,7 +1499,7 @@ export function AlexiCompanion() {
         withTiming(0.97, { duration: 500 }),
       ), -1, false);
     }
-    // idle / listening / muted / error → completely static, no drain
+    // idle / muted / error → completely static
   }, [passiveState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Speech bubble: only shown while Alexi is actually speaking ───────────
@@ -1509,6 +1529,10 @@ export function AlexiCompanion() {
   }, []);
 
   // ── Animated styles ───────────────────────────────────────────────────────
+  const listenStyle  = useAnimatedStyle(() => ({
+    opacity:   listenOp.value,
+    transform: [{ scale: listenSc.value }],
+  }));
   const ring1Style  = useAnimatedStyle(() => ({
     transform: [{ rotate: `${rot1.value}deg` }, { scale: sc1.value }],
   }));
@@ -1543,6 +1567,11 @@ export function AlexiCompanion() {
           <Text style={cStyles.bubbleText} numberOfLines={3}>{responseText}</Text>
           <View style={cStyles.bubbleTail} />
         </RAnimated.View>
+      )}
+
+      {/* Listening heartbeat — single outer ring, very subtle, shows mic is live */}
+      {isListening && (
+        <RAnimated.View pointerEvents="none" style={[cStyles.arcBase, cStyles.listenRing, listenStyle]} />
       )}
 
       {/* Siri orb layer — activated / capturing / transcribing only */}
@@ -1648,6 +1677,18 @@ const cStyles = StyleSheet.create({
     shadowOpacity:   1,
     shadowRadius:    22,
     shadowOffset:    { width: 0, height: 0 },
+  },
+
+  // Listening heartbeat ring — single lime outer ring, expands + fades slowly
+  listenRing: {
+    width:        AV * 1.78,
+    height:       AV * 1.78,
+    borderWidth:  1,
+    borderColor:  '#C6FF33',
+    shadowColor:  '#C6FF33',
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 0 },
   },
 
   // Shared base for all three arc rings

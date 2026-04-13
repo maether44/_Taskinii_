@@ -21,6 +21,7 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import { useFocusEffect } from '@react-navigation/native';
 import { useInsights } from '../hooks/useInsights';
 import { generateAndCacheInsights } from '../services/alexiInsightsService';
+import { AlexiEvents } from '../context/AlexiVoiceContext';
 
 const PERIODS = ['Week', 'Month', '3 Months'];
 
@@ -74,6 +75,11 @@ export default function Insights() {
   } = useInsights(period);
 
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
+
+  useEffect(() => {
+    const off = AlexiEvents.on('dataUpdated', () => refresh());
+    return off;
+  }, [refresh]);
 
   const [aiInsights,      setAiInsights]      = useState([]);
   const [insightsLoading, setInsightsLoading] = useState(false);

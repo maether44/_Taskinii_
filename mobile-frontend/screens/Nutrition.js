@@ -15,6 +15,7 @@ import RingProgress from "../components/shared/RingProgress";
 import { useNutrition } from "../hooks/useNutrition";
 import { useProfile } from "../hooks/useProfile";
 import { invokeEdgePublic, supabase } from "../config/supabase";
+import { AlexiEvents } from "../context/AlexiVoiceContext";
 
 const C = {
   bg: "#0F0B1E",
@@ -215,6 +216,11 @@ export default function Nutrition({ navigation }) {
   useFocusEffect(useCallback(() => {
     refresh();
   }, [refresh]));
+
+  useEffect(() => {
+    const off = AlexiEvents.on('dataUpdated', () => refresh());
+    return off;
+  }, [refresh]);
 
   useEffect(() => {
     if (loading) return;
