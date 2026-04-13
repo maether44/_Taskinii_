@@ -4,7 +4,7 @@
     "slug": "mobile",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/yara_spirit.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
@@ -25,11 +25,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "permissions": [
-        "android.permission.ACTIVITY_RECOGNITION",
-        "CAMERA",
-        "RECORD_AUDIO"
-      ],
+      "permissions": ["android.permission.ACTIVITY_RECOGNITION", "CAMERA", "RECORD_AUDIO"],
       "edgeToEdgeEnabled": true
     },
     "web": {
