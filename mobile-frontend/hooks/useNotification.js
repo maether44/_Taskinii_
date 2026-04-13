@@ -24,12 +24,20 @@ const TIME_TO_HOUR = {
 const HYDRATION_ID = "hydration-5pm";
 const TEST_WORKOUT_SEND_NOW = false;
 
-const useNotification = (ml, waterGoalMl = 2000) => {
+const useNotification = (ml, waterGoalMl = 2000, enabledNotifications = {}) => {
+  const { workout: notifWorkout = true, water: notifWater = true } = enabledNotifications;
+
   // ── Notification 1: Hydration reminder TEST MODE ──────────────────────────
   // Fires in 10 seconds if the user hasn't hit 2000ml water intake.
   useEffect(() => {
     const syncHydrationReminder = async () => {
       try {
+        if (!notifWater) {
+          console.log("[HydrationReminder] Disabled in profile settings. Cancelling reminder.");
+          await Notifications.cancelScheduledNotificationAsync(HYDRATION_ID).catch(() => {});
+          return;
+        }
+
         const { status } = await Notifications.getPermissionsAsync();
         if (status !== "granted") {
           // console.log(
@@ -43,7 +51,7 @@ const useNotification = (ml, waterGoalMl = 2000) => {
           HYDRATION_ID,
         ).catch(() => {});
 
-        if (ml >= 2000) {
+        if (ml >= waterGoalMl) {
           // console.log(
           //   `[HydrationReminder] Water goal met (${ml}ml), no notification scheduled.`,
           // );
@@ -77,7 +85,7 @@ const useNotification = (ml, waterGoalMl = 2000) => {
     };
 
     syncHydrationReminder();
-  }, [ml]);
+  }, [ml, waterGoalMl, notifWater]);
 
   // ── Notification 2: Workout reminders ──────────────────────────────────────
   // Fetches the user's preferred_workout_time and workout_days_per_week from
@@ -85,6 +93,18 @@ const useNotification = (ml, waterGoalMl = 2000) => {
   useEffect(() => {
     const scheduleWorkoutReminder = async () => {
       try {
+        if (!notifWorkout) {
+          const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+          const workoutScheduled = scheduled.filter((n) => n.identifier.startsWith("workout-"));
+          await Promise.all(
+            workoutScheduled.map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier)),
+          );
+          console.log(
+            `[WorkoutReminder] Disabled in profile settings. Cancelled ${workoutScheduled.length} scheduled reminder(s).`,
+          );
+          return;
+        }
+
         const { status } = await Notifications.getPermissionsAsync();
         // console.log(
         //   "[WorkoutReminder] Notification permission status:",
@@ -172,7 +192,7 @@ const useNotification = (ml, waterGoalMl = 2000) => {
     };
 
     scheduleWorkoutReminder();
-  }, []);
+  }, [notifWorkout]);
 };
 
 export default useNotification;
