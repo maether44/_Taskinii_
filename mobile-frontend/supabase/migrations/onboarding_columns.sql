@@ -10,6 +10,7 @@ ALTER TABLE profiles
   ADD COLUMN IF NOT EXISTS onboarded       BOOLEAN DEFAULT FALSE,
   ADD COLUMN IF NOT EXISTS experience      TEXT,
   ADD COLUMN IF NOT EXISTS equipment       TEXT,
+  ADD COLUMN IF NOT EXISTS preferred_workout_time TEXT,
   ADD COLUMN IF NOT EXISTS sleep_quality   TEXT,
   ADD COLUMN IF NOT EXISTS stress_level    TEXT,
   ADD COLUMN IF NOT EXISTS diet_pref       TEXT;
