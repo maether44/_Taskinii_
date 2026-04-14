@@ -140,7 +140,7 @@ export default function App() {
               >
                 <Navigation />
               </NavigationContainer>
-              {activeRoute !== "WorkoutActive" && <YaraAssistant />}
+              {/* {activeRoute !== "WorkoutActive" && <YaraAssistant />} */}
               <AppTour activeTab={activeTab} onTabPress={setActiveTab} showOnMount={true} />
             </View>
           </TodayProvider>
