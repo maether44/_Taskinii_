@@ -111,3 +111,42 @@ export const getMuscleFatigue = async (userId: string) => {
   }
   return (data ?? []) as { muscle_name: string; fatigue_pct: number }[];
 };
+
+// ── Fetch workout history with exercises joined ───────────────
+export const fetchWorkoutHistory = async (userId: string, limit = 50) => {
+  try {
+    const { data: sessions, error } = await supabase
+      .from('workout_sessions')
+      .select(`
+        id,
+        started_at,
+        ended_at,
+        calories_burned,
+        notes,
+        created_at,
+        workout_exercises (
+          id,
+          sets,
+          reps,
+          weight_kg,
+          duration_secs,
+          posture_score,
+          exercises (
+            id,
+            name,
+            category,
+            muscle_group
+          )
+        )
+      `)
+      .eq('user_id', userId)
+      .order('started_at', { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+    return sessions ?? [];
+  } catch (err: any) {
+    warn('[workoutService] fetchWorkoutHistory error:', err.message);
+    return [];
+  }
+};
