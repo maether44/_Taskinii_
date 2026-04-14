@@ -21,7 +21,8 @@ import PostureAI from '../screens/PostureAI';
 import EditProfileScreen from '../screens/Editprofilescreen';
 import WorkoutHistoryScreen from '../screens/Workouthistoryscreen';
 import HelpCenter from '../screens/settings/HelpCenter';
-import Report from '../screens/settings/ReportProblem';
+import ReportProblem from '../screens/settings/ReportProblem';
+import TermsPolicies from '../screens/settings/TermsPolicies';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -54,8 +55,8 @@ function ProfileStack() {
       <Stack.Screen name="Settings" component={Settings} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       <Stack.Screen name="HelpCenter" component={HelpCenter} />
-      <Stack.Screen name="ReportProblem" component={Report} />
-      <Stack.Screen name="TermsPolicies" component={TermsPolicies} />
+      <Stack.Screen name="ReportProblem" component={ReportProblem} />
+      {/* <Stack.Screen name="TermsPolicies" component={TermsPolicies} /> */}
       <Stack.Screen name="WorkoutHistory" component={WorkoutHistoryScreen} />
     </Stack.Navigator>
   );

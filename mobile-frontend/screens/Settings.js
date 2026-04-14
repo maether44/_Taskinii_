@@ -39,7 +39,7 @@ export default function Settings() {
         title: 'Report',
         subtitle: 'Send a bug report or issue',
         icon: 'bug-outline',
-        onPress: () => navigation.navigate('Report'),
+        onPress: () => navigation.navigate('ReportProblem'),
       },
       {
         key: 'terms',
