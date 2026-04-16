@@ -33,6 +33,7 @@ import FoodDetail from "./screens/nutrition/FoodDetail";
 import SleepLog from "./screens/sleep/SleepLog";
 import FoodScannerScreen from "./components/food-scanner/FoodScannerScreen";
 import WorkoutSummary from "./screens/workout/WorkoutSummary";
+import { scheduleStore } from './store/scheduleStore';
 
 // Global Components
 import YaraAssistant from "./components/YaraAssistant";
@@ -104,6 +105,7 @@ export default function App() {
           "Inter-SemiBold": Inter_600SemiBold,
         });
         await supabase.auth.getSession();
+        await scheduleStore.hydrate();
       } catch (e) {
         warn(e);
       } finally {

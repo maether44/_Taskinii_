@@ -473,8 +473,7 @@ export default function YaraAssistant({ onOpenSchedule }) {
           // response_format: json_object guarantees valid JSON — just parse it
           const parsed = JSON.parse(reply);
           if (parsed?.schedule?.days) {
-            scheduleStore.set({ ...parsed.schedule, generated_at: new Date().toISOString() });
-            const responseText = parsed.response || "Here's your weekly plan!";
+await scheduleStore.set({ ...parsed.schedule, generated_at: new Date().toISOString() });            const responseText = parsed.response || "Here's your weekly plan!";
             setAndPersist(prev => prev.map(c => c.id !== activeConvId ? c : {
               ...c,
               messages: [...c.messages, {

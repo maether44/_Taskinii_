@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import motivationalQuotes from '../data/motivationalQuotes.json';
+import TodayScheduleWidget from '../components/home/TodayScheduleWidget';
 
 import useNotification from '../hooks/useNotification';
 import { useDashboard } from '../hooks/useDashboard';
@@ -342,6 +343,7 @@ export default function Home({ navigation }) {
             ))}
           </BentoCard>
         )}
+              <TodayScheduleWidget navigation={navigation} />
 
         {/* 6. LAST SESSION / GO TRAIN */}
         <BentoCard delay={700} style={styles.workoutCard}>
