@@ -1,29 +1,28 @@
 import { supabase } from '../lib/supabase';
 import { warn } from '../lib/logger';
-
 // ── Exercise key (HTML camelCase) → muscles worked ────────────
 const EXERCISE_MUSCLES: Record<string, string[]> = {
-  squat:         ['Quads', 'Glutes', 'Hamstrings'],
-  pushup:        ['Chest', 'Triceps', 'Shoulders'],
-  bicepCurl:     ['Biceps', 'Forearms'],
+  squat: ['Quads', 'Glutes', 'Hamstrings'],
+  pushup: ['Chest', 'Triceps', 'Shoulders'],
+  bicepCurl: ['Biceps', 'Forearms'],
   shoulderPress: ['Shoulders', 'Triceps'],
-  deadlift:      ['Back', 'Hamstrings', 'Glutes'],
-  lunge:         ['Quads', 'Glutes'],
-  plank:         ['Core', 'Shoulders'],
+  deadlift: ['Back', 'Hamstrings', 'Glutes'],
+  lunge: ['Quads', 'Glutes'],
+  plank: ['Core', 'Shoulders'],
 };
 
 // ── High-fatigue muscle → recovery focus suggestion ───────────
 export const RECOVERY_MAP: Record<string, string> = {
-  Chest:      'Legs or Back',
-  Triceps:    'Back or Biceps',
-  Shoulders:  'Legs or Core',
-  Quads:      'Upper Body',
-  Glutes:     'Upper Body',
+  Chest: 'Legs or Back',
+  Triceps: 'Back or Biceps',
+  Shoulders: 'Legs or Core',
+  Quads: 'Upper Body',
+  Glutes: 'Upper Body',
   Hamstrings: 'Upper Body',
-  Biceps:     'Chest or Back',
-  Forearms:   'Legs or Core',
-  Back:       'Chest or Legs',
-  Core:       'Legs or Upper Body',
+  Biceps: 'Chest or Back',
+  Forearms: 'Legs or Core',
+  Back: 'Chest or Legs',
+  Core: 'Legs or Upper Body',
 };
 
 const FATIGUE_PER_SESSION = 20; // % added per workout
@@ -37,29 +36,28 @@ export const saveWorkoutSession = async ({
   postureScore,
   caloriesBurned,
 }: {
-  userId:          string;
-  exerciseKey:     string;
-  exerciseName:    string;
-  reps:            number;
-  postureScore:    number;
-  caloriesBurned:  number;
+  userId: string;
+  exerciseKey: string;
+  exerciseName: string;
+  reps: number;
+  postureScore: number;
+  caloriesBurned: number;
 }): Promise<string | null> => {
   // 1. Insert workout_sessions row (trigger handles daily_activity update)
   // Schema: id, user_id, started_at, ended_at, calories_burned, notes, ai_feedback
   // exercise_name/reps/posture_score are stored in `notes` as a readable summary
   const now = new Date().toISOString();
-  const notesValue = reps > 0
-    ? `${exerciseName} · ${reps} reps · ${postureScore}% form`
-    : exerciseName;
+  const notesValue =
+    reps > 0 ? `${exerciseName} · ${reps} reps · ${postureScore}% form` : exerciseName;
 
   const { data, error } = await supabase
     .from('workout_sessions')
     .insert({
-      user_id:         userId,
-      notes:           notesValue,
+      user_id: userId,
+      notes: notesValue,
       calories_burned: caloriesBurned,
-      started_at:      now,
-      ended_at:        now,
+      started_at: now,
+      ended_at: now,
     })
     .select('id')
     .single();
@@ -84,13 +82,16 @@ export const saveWorkoutSession = async ({
 
         const newPct = Math.min(100, (row?.fatigue_pct ?? 0) + FATIGUE_PER_SESSION);
 
-        await supabase
-          .from('muscle_fatigue')
-          .upsert(
-            { user_id: userId, muscle_name: muscle, fatigue_pct: newPct, last_updated: new Date().toISOString() },
-            { onConflict: 'user_id,muscle_name' }
-          );
-      })
+        await supabase.from('muscle_fatigue').upsert(
+          {
+            user_id: userId,
+            muscle_name: muscle,
+            fatigue_pct: newPct,
+            last_updated: new Date().toISOString(),
+          },
+          { onConflict: 'user_id,muscle_name' },
+        );
+      }),
     );
   }
 
@@ -117,7 +118,8 @@ export const fetchWorkoutHistory = async (userId: string, limit = 50) => {
   try {
     const { data: sessions, error } = await supabase
       .from('workout_sessions')
-      .select(`
+      .select(
+        `
         id,
         started_at,
         ended_at,
@@ -138,7 +140,8 @@ export const fetchWorkoutHistory = async (userId: string, limit = 50) => {
             muscle_group
           )
         )
-      `)
+      `,
+      )
       .eq('user_id', userId)
       .order('started_at', { ascending: false })
       .limit(limit);

@@ -7,10 +7,10 @@ import { Outfit_400Regular, Outfit_500Medium, Outfit_600SemiBold, Outfit_700Bold
 import { Inter_400Regular, Inter_600SemiBold } from "@expo-google-fonts/inter";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { NavigationContainer } from "@react-navigation/native";
+import { NavigationContainer, createNavigationContainerRef } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
 import { registerRootComponent } from "expo";
-
+import ScheduleScreen from "./screens/ScheduleScreen";
 // Context & Supabase
 import { supabase } from "./lib/supabase";
 import { AuthProvider, useAuth } from "./context/AuthContext";
@@ -41,6 +41,8 @@ import { warn } from './lib/logger';
 
 SplashScreen.preventAutoHideAsync();
 const Stack = createStackNavigator();
+
+const navigationRef = createNavigationContainerRef(); // ← add this
 
 function getActiveRouteName(state) {
   if (!state) return null;
@@ -77,6 +79,7 @@ function Navigation() {
           <Stack.Screen name="SleepLog" component={SleepLog} />
           <Stack.Screen name="FoodScanner" component={FoodScannerScreen} />
           <Stack.Screen name="WorkoutSummary" component={WorkoutSummary} />
+          <Stack.Screen name="Schedule" component={ScheduleScreen} />
         </>
       )}
     </Stack.Navigator>
@@ -135,12 +138,12 @@ export default function App() {
           <TodayProvider>
             <View style={styles.container} onLayout={onLayoutRootView}>
               <StatusBar style="light" />
-              <NavigationContainer
-                onStateChange={(state) => setActiveRoute(getActiveRouteName(state))}
-              >
+              <NavigationContainer ref={navigationRef} onStateChange={(state) => setActiveRoute(getActiveRouteName(state))}>
                 <Navigation />
               </NavigationContainer>
-              {activeRoute !== "WorkoutActive" && <YaraAssistant />}
+              {activeRoute !== "WorkoutActive" && (
+              <YaraAssistant onOpenSchedule={() => navigationRef.current?.navigate('Schedule')} />
+            )}
               <AppTour activeTab={activeTab} onTabPress={setActiveTab} showOnMount={true} />
             </View>
           </TodayProvider>
