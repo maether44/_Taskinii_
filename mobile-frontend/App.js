@@ -1,46 +1,52 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { View, StyleSheet, ActivityIndicator } from "react-native";
-import { StatusBar } from "expo-status-bar";
-import * as SplashScreen from "expo-splash-screen";
-import * as Font from "expo-font";
-import { Outfit_400Regular, Outfit_500Medium, Outfit_600SemiBold, Outfit_700Bold } from "@expo-google-fonts/outfit";
-import { Inter_400Regular, Inter_600SemiBold } from "@expo-google-fonts/inter";
-import { SafeAreaProvider } from "react-native-safe-area-context";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { NavigationContainer } from "@react-navigation/native";
-import { createStackNavigator } from "@react-navigation/stack";
-import { registerRootComponent } from "expo";
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import * as SplashScreen from 'expo-splash-screen';
+import * as Font from 'expo-font';
+import {
+  Outfit_400Regular,
+  Outfit_500Medium,
+  Outfit_600SemiBold,
+  Outfit_700Bold,
+} from '@expo-google-fonts/outfit';
+import { Inter_400Regular, Inter_600SemiBold } from '@expo-google-fonts/inter';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { NavigationContainer } from '@react-navigation/native';
+import { createStackNavigator } from '@react-navigation/stack';
+import { registerRootComponent } from 'expo';
 
 // Context & Supabase
-import { supabase } from "./lib/supabase";
-import { AuthProvider, useAuth } from "./context/AuthContext";
-import { TodayProvider } from "./context/TodayContext";
+import { supabase } from './lib/supabase';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { TodayProvider } from './context/TodayContext';
 
 // ✅ Custom splash screen
-import CustomSplashScreen from "./components/CustomSplashScreen";
+import CustomSplashScreen from './components/CustomSplashScreen';
 
 // Screens - Auth & Onboarding
-import SignIn from "./auth/SignIn";
-import SignUp from "./auth/SignUp";
-import OnBoardingGoal from "./screens/OnBoardingGoal";
+import SignIn from './auth/SignIn';
+import SignUp from './auth/SignUp';
+import OnBoardingGoal from './screens/OnBoardingGoal';
 
 // Navigation Hub
-import NavBar from "./components/NavBar";
+import NavBar from './components/NavBar';
 
 // Sub-Screens
-import MealLogger from "./screens/nutrition/MealLogger";
-import FoodDetail from "./screens/nutrition/FoodDetail";
-import SleepLog from "./screens/sleep/SleepLog";
-import FoodScannerScreen from "./components/food-scanner/FoodScannerScreen";
-import WorkoutSummary from "./screens/workout/WorkoutSummary";
+import MealLogger from './screens/nutrition/MealLogger';
+import FoodDetail from './screens/nutrition/FoodDetail';
+import SleepLog from './screens/sleep/SleepLog';
+import FoodScannerScreen from './components/food-scanner/FoodScannerScreen';
+import WorkoutSummary from './screens/workout/WorkoutSummary';
 
 // Global Components
-import YaraAssistant from "./components/YaraAssistant";
-import AppTour from "./components/onBoarding/AppTour";
+import YaraAssistant from './components/YaraAssistant';
+import AppTour from './components/onBoarding/AppTour';
 import { warn } from './lib/logger';
 
 SplashScreen.preventAutoHideAsync();
 const Stack = createStackNavigator();
+const YARA_ALLOWED_ROUTES = new Set(['Home', 'Fuel', 'TrainingHub', 'Insights']);
 
 function getActiveRouteName(state) {
   if (!state) return null;
@@ -86,19 +92,20 @@ function Navigation() {
 export default function App() {
   const [appIsReady, setAppIsReady] = useState(false);
   const [splashDone, setSplashDone] = useState(false); // ✅ NEW
-  const [activeTab, setActiveTab] = useState("Home");
+  const [activeTab, setActiveTab] = useState('Home');
   const [activeRoute, setActiveRoute] = useState(null);
+  const showYaraAssistant = YARA_ALLOWED_ROUTES.has(activeRoute);
 
   useEffect(() => {
     async function prepare() {
       try {
         await Font.loadAsync({
-          "Outfit-Regular": Outfit_400Regular,
-          "Outfit-Medium": Outfit_500Medium,
-          "Outfit-SemiBold": Outfit_600SemiBold,
-          "Outfit-Bold": Outfit_700Bold,
-          "Inter-Regular": Inter_400Regular,
-          "Inter-SemiBold": Inter_600SemiBold,
+          'Outfit-Regular': Outfit_400Regular,
+          'Outfit-Medium': Outfit_500Medium,
+          'Outfit-SemiBold': Outfit_600SemiBold,
+          'Outfit-Bold': Outfit_700Bold,
+          'Inter-Regular': Inter_400Regular,
+          'Inter-SemiBold': Inter_600SemiBold,
         });
         await supabase.auth.getSession();
       } catch (e) {
@@ -140,7 +147,7 @@ export default function App() {
               >
                 <Navigation />
               </NavigationContainer>
-              {activeRoute !== "WorkoutActive" && <YaraAssistant />}
+              {showYaraAssistant && <YaraAssistant />}
               <AppTour activeTab={activeTab} onTabPress={setActiveTab} showOnMount={true} />
             </View>
           </TodayProvider>
@@ -151,8 +158,8 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0F0B1E" },
-  centered: { justifyContent: "center", alignItems: "center" },
+  container: { flex: 1, backgroundColor: '#0F0B1E' },
+  centered: { justifyContent: 'center', alignItems: 'center' },
 });
 
 registerRootComponent(App);

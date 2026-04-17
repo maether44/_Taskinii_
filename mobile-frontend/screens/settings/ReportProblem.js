@@ -1,16 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import {
-  Alert,
-  Linking,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../context/AuthContext';
 
 const C = {
   bg: '#0F0B1E',
@@ -23,8 +16,6 @@ const C = {
   danger: '#FF6B6B',
 };
 
-const ISSUE_TRACKER_URL = 'https://github.com/maether44/BodyQ/issues/new';
-
 const ISSUE_TYPES = [
   { id: 'bug', label: 'Bug' },
   { id: 'ui', label: 'UI Problem' },
@@ -35,19 +26,21 @@ const ISSUE_TYPES = [
 
 export default function Report() {
   const navigation = useNavigation();
+  const { user } = useAuth();
   const [issueType, setIssueType] = useState('bug');
   const [issueTypeOpen, setIssueTypeOpen] = useState(false);
   const [subject, setSubject] = useState('');
   const [details, setDetails] = useState('');
   const [email, setEmail] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const selectedIssueType = useMemo(() => {
     return ISSUE_TYPES.find((type) => type.id === issueType) || ISSUE_TYPES[0];
   }, [issueType]);
 
   const canSubmit = useMemo(() => {
-    return subject.trim().length >= 4 && details.trim().length >= 12;
-  }, [subject, details]);
+    return !isSubmitting && subject.trim().length >= 4 && details.trim().length >= 12;
+  }, [subject, details, isSubmitting]);
 
   const onSubmit = async () => {
     const trimmedSubject = subject.trim();
@@ -64,36 +57,44 @@ export default function Report() {
       return;
     }
 
-    const title = `[${issueType.toUpperCase()}] ${trimmedSubject}`;
-    const bodyLines = [
-      `Issue type: ${issueType}`,
-      trimmedEmail ? `Contact email: ${trimmedEmail}` : 'Contact email: not provided',
-      '',
-      'Problem details:',
-      trimmedDetails,
-      '',
-      'Expected result:',
-      '- ',
-      '',
-      'Steps to reproduce:',
-      '1. ',
-      '2. ',
-    ];
+    if (!user?.id) {
+      Alert.alert('Not signed in', 'Please sign in to submit a report.');
+      return;
+    }
 
-    const url = `${ISSUE_TRACKER_URL}?title=${encodeURIComponent(title)}&body=${encodeURIComponent(
-      bodyLines.join('\n'),
-    )}`;
+    const detailsToSave = trimmedEmail
+      ? `${trimmedDetails}\n\nContact email: ${trimmedEmail}`
+      : trimmedDetails;
 
     try {
-      await Linking.openURL(url);
-      Alert.alert('Report draft opened', 'We opened the issue page with your report pre-filled.');
+      setIsSubmitting(true);
+      const { error } = await supabase.from('reports').insert({
+        user_id: user.id,
+        issue_type: issueType,
+        subject: trimmedSubject,
+        details: detailsToSave,
+        status: 'open',
+      });
+
+      if (error) {
+        throw error;
+      }
+
       setSubject('');
       setDetails('');
       setEmail('');
       setIssueType('bug');
       setIssueTypeOpen(false);
+      Alert.alert('Report submitted', 'Thanks, your report has been saved.', [
+        {
+          text: 'OK',
+          onPress: () => navigation.navigate('Settings'),
+        },
+      ]);
     } catch {
-      Alert.alert('Unable to open report page', 'Please try again later.');
+      Alert.alert('Submission failed', 'We could not save your report. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -182,20 +183,7 @@ export default function Report() {
             maxLength={1200}
           />
 
-          <Text style={[styles.sectionTitle, styles.withTopSpace]}>Email (optional)</Text>
-          <TextInput
-            value={email}
-            onChangeText={setEmail}
-            placeholder="you@example.com"
-            placeholderTextColor={C.sub}
-            style={styles.input}
-            autoCapitalize="none"
-            keyboardType="email-address"
-          />
-
-          <Text style={styles.note}>
-            Your report opens as a pre-filled issue so you can review and submit it.
-          </Text>
+          <Text style={styles.note}>Your report is sent directly to our support system.</Text>
 
           <Pressable
             style={[styles.submitBtn, !canSubmit && styles.submitBtnDisabled]}
@@ -203,7 +191,9 @@ export default function Report() {
             disabled={!canSubmit}
           >
             <Ionicons name="send" size={16} color="#fff" />
-            <Text style={styles.submitBtnText}>Create Report</Text>
+            <Text style={styles.submitBtnText}>
+              {isSubmitting ? 'Submitting...' : 'Submit Report'}
+            </Text>
           </Pressable>
 
           {!canSubmit ? (

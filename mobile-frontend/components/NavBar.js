@@ -23,6 +23,7 @@ import WorkoutHistoryScreen from '../screens/Workouthistoryscreen';
 import HelpCenter from '../screens/settings/HelpCenter';
 import ReportProblem from '../screens/settings/ReportProblem';
 import TermsPolicies from '../screens/settings/TermsPolicies';
+import TrustCenter from '../screens/settings/TrustCenter';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -56,7 +57,8 @@ function ProfileStack() {
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       <Stack.Screen name="HelpCenter" component={HelpCenter} />
       <Stack.Screen name="ReportProblem" component={ReportProblem} />
-      {/* <Stack.Screen name="TermsPolicies" component={TermsPolicies} /> */}
+       <Stack.Screen name="TermsPolicies" component={TermsPolicies} />
+      <Stack.Screen name="TrustCenter" component={TrustCenter} />
       <Stack.Screen name="WorkoutHistory" component={WorkoutHistoryScreen} />
     </Stack.Navigator>
   );
