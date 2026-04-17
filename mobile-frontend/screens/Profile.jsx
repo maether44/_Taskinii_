@@ -22,6 +22,7 @@ import {
   Switch,
   Text,
   TextInput,
+  Linking,
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
@@ -81,6 +82,9 @@ const TIME_TO_HOUR = {
   evening: 18,
   any: 8,
 };
+
+const HELP_CENTER_URL = 'https://github.com/maether44/BodyQ#readme';
+const REPORT_ISSUE_URL = 'https://github.com/maether44/BodyQ/issues/new';
 
 const NOTIFICATION_PREFS_KEY = 'bodyq_notification_prefs';
 
@@ -649,6 +653,13 @@ export default function Profile({ replayTour }) {
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
         <View style={s.header}>
           <Text style={s.title}>Profile</Text>
+          <TouchableOpacity
+            style={s.headerSettingsBtn}
+            onPress={() => navigation.navigate('Settings')}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="settings-outline" size={20} color={C.text} />
+          </TouchableOpacity>
         </View>
 
         {/* ── Profile card ── */}
@@ -1004,8 +1015,23 @@ export default function Profile({ replayTour }) {
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
   scroll: { paddingHorizontal: 16, paddingTop: 52, paddingBottom: 20 },
-  header: { marginBottom: 20 },
+  header: {
+    marginBottom: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   title: { color: C.text, fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
+  headerSettingsBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
   // Profile card
   profileCard: {
@@ -1268,6 +1294,21 @@ const s = StyleSheet.create({
   },
   settingRowBorder: { borderBottomWidth: 1, borderBottomColor: C.border },
   settingLabel: { color: C.text, fontSize: 14 },
+
+  supportBtn: {
+    backgroundColor: C.bg,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  supportBtnSpacing: { marginTop: 10 },
+  supportBtnTitle: { color: C.text, fontSize: 14, fontWeight: '700' },
+  supportBtnSub: { color: C.sub, fontSize: 11, marginTop: 3 },
 
   changePwBtn: {
     backgroundColor: C.card,
