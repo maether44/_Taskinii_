@@ -1,5 +1,12 @@
 const GROQ_API_KEY = process.env.EXPO_PUBLIC_GROQ_API_KEY!;
 
+const INTERNAL_LINE_RE = /^[^\n]*(COMMAND\s*:|MEMORIES\s*:|log_water|log_sleep|log_weight|log_food|log_workout|forget_fact|navigate)[^\n]*$/gim;
+
+function cleanAiText(text: string): string {
+  if (!text) return text;
+  return text.replace(INTERNAL_LINE_RE, '').replace(/\n{3,}/g, '\n\n').trim();
+}
+
 function buildPrompt(answers) {
   const {
     goal, gender, age, height, weight, targetW, activity, experience,
@@ -162,8 +169,8 @@ export async function callYara(history, profile) {
 
   const body = await res.json();
   if (!res.ok) throw new Error(JSON.stringify(body?.error ?? body));
-  return body.choices?.[0]?.message?.content
-    ?? "I'm having trouble connecting. Try again in a moment.";
+  return cleanAiText(body.choices?.[0]?.message?.content
+    ?? "I'm having trouble connecting. Try again in a moment.");
 }
 
 // ─── Yara coach (Supabase profile shape) ─────────────────────────────────────
@@ -238,6 +245,6 @@ export async function callYaraCoach(
 
   const body = await res.json();
   if (!res.ok) throw new Error(JSON.stringify(body?.error ?? body));
-  return body.choices?.[0]?.message?.content
-    ?? "I'm having trouble connecting. Try again in a moment.";
+  return cleanAiText(body.choices?.[0]?.message?.content
+    ?? "I'm having trouble connecting. Try again in a moment.");
 }

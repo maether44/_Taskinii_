@@ -557,6 +557,8 @@ ACTIONS (optional tool calls — use ONLY if the user explicitly asked you to lo
 - Log workout: COMMAND:{"action":"log_workout","duration_minutes":<number>,"calories_burned":<number>}
 - Forget a memorised fact: COMMAND:{"action":"forget_fact","fact_contains":"<substring that uniquely identifies the fact>"}
 - Put each COMMAND on its own line at the very end of your reply. Never emit a COMMAND for anything the user did not clearly ask for.
+- Only emit COMMAND lines from the list above. Never invent new action types like "navigate", "open", "redirect", or anything not listed.
+- Never write action names (log_water, log_food, etc.) as bare text in your reply — only inside a COMMAND: line at the very end.
 - Never reference the COMMAND line in your visible prose — the user only sees confirmation once the action runs.`
 
   const voiceRules = voiceMode

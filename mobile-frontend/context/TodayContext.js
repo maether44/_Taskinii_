@@ -211,24 +211,21 @@ export function TodayProvider({ children }) {
     // Optimistic
     setWaterMl(prev => Math.max(0, prev + mlDelta));
     try {
-      const today = todayString();
-      const { data: existing } = await supabase
-        .from('daily_activity')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('date', today)
-        .maybeSingle();
-
-      const newMl = Math.max(0, (existing?.water_ml || 0) + mlDelta);
-      if (existing?.id) {
-        await supabase.from('daily_activity').update({ water_ml: newMl }).eq('id', existing.id);
-      } else {
-        await supabase.from('daily_activity').insert({ user_id: userId, date: today, water_ml: newMl });
+      const { data: newMl, error } = await supabase.rpc('log_water_ml', {
+        p_user_id: userId,
+        p_delta:   mlDelta,
+        p_date:    todayString(),
+      });
+      if (error) {
+        logError('[TodayContext] log_water_ml error:', error);
+        loadToday();
+        return;
       }
+      if (typeof newMl === 'number') setWaterMl(newMl);
       emit(AppEvents.WATER_LOGGED, { waterMl: newMl });
     } catch (error) {
       logError('[TodayContext] logWater error:', error);
-      loadToday(); // revert optimistic on failure
+      loadToday();
     }
   }, [userId, loadToday]);
 
@@ -238,13 +235,17 @@ export function TodayProvider({ children }) {
     setSleepHours(hours);
     setSleepQuality(quality ?? null);
     try {
-      const { error } = await supabase
-        .from('daily_activity')
-        .upsert(
-          { user_id: userId, date: todayString(), sleep_hours: hours, sleep_quality: quality ?? null },
-          { onConflict: 'user_id,date' },
-        );
-      if (error) { loadToday(); return false; }
+      const { error } = await supabase.rpc('log_sleep_data', {
+        p_user_id: userId,
+        p_hours:   hours,
+        p_quality: quality ?? null,
+        p_date:    todayString(),
+      });
+      if (error) {
+        logError('[TodayContext] log_sleep_data error:', error);
+        loadToday();
+        return false;
+      }
       emit(AppEvents.SLEEP_LOGGED, { hours, quality });
       return true;
     } catch (e) {
