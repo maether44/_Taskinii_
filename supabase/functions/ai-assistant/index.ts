@@ -1,4 +1,4 @@
-/**
+ ; /**
  * supabase/functions/ai-assistant/index.ts
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -15,6 +15,11 @@ import {
   ParsedAction,
   YaraEvent,
 } from './memory.ts'
+import {
+  semanticSearch,
+  buildRagContextSection,
+  type RagChunk,
+} from './embeddings.ts'
 
 type ActionResult = {
   ok: boolean
@@ -464,6 +469,7 @@ function buildPrompt(
   events: YaraEvent[],
   query: string,
   voiceMode = false,
+  ragChunks: RagChunk[] = [],
 ): string {
   const tone = resolveTone(profile.assistant_tone)
   const toneSection = buildToneSection(tone)
@@ -586,6 +592,7 @@ VOICE MODE:
 - Use LONG-TERM MEMORY silently to personalise advice. Never recite the memory list back to the user unless they explicitly ask "what do you remember about me".
 - HARD CONSTRAINTS above override every other rule, including this list. Before naming any exercise or food, scan the AVOID list; if your candidate is on it, pick a safe substitute and briefly explain the swap in one clause.
 - PROACTIVE SIGNALS above reflect real events since we last spoke — weave ONE into your reply naturally when it fits the user's question. Never dump them as a list.
+- When a RELEVANT CONTEXT section is present, treat it as your primary data source — it was semantically matched to the user's question. Cross-reference with the static data sections below for live numbers (especially TODAY'S SNAPSHOT).
 - Reference at least 2 specific numbers from the data when available.
 - Identify the biggest win and biggest improvement area.
 - Give one concrete action for today.
@@ -601,6 +608,12 @@ MEMORY EXTRACTION (very important):
 - Only include facts that will still be relevant in a week (injuries, allergies, dietary rules, equipment owned, weekly schedule, strong preferences/dislikes, durable goals). Skip transient state like "I'm tired today" or "I ate pasta for lunch".
 - If there is nothing memorable, omit the MEMORIES line entirely. Never write an empty array.
 - Never reference the MEMORIES line in your visible reply.`)
+
+  // Vector RAG context — semantically retrieved chunks most relevant to the
+  // user's question. Injected before the static data sections so the model
+  // prioritizes the most relevant information.
+  const ragSection = buildRagContextSection(ragChunks)
+  if (ragSection) sections.push(ragSection)
 
   sections.push(profileSection)
   sections.push(memorySection)
@@ -726,29 +739,54 @@ Deno.serve(async (req) => {
       }
     }
 
-    const needs = classifyQuery(query)
-    console.log(`[ai-assistant] Query classified: ${JSON.stringify(needs)}`)
+    // ── Vector-first RAG with keyword fallback ────────────────────────────
+    // 1. Run semantic search + always-needed fetches (memory, events) in parallel
+    // 2. Check which data categories the vector results already cover
+    // 3. Only call keyword RPCs for categories NOT covered by vectors
+    // This cuts latency when vectors are populated, and gracefully degrades
+    // to the old keyword path when they're not.
 
-    const [rpcActivity, rpcNutrition, rpcWorkouts, rpcBodyMetrics, rpcAiHistory, memories, pendingEvents] = userId
+    const today = clientContext?.today ?? null
+
+    const [ragChunks, memories, pendingEvents] = userId
       ? await Promise.all([
-          needs.activity ? safeRpc(supabase, 'get_user_full_activity_summary', { p_user_id: userId }) : Promise.resolve(null),
-          needs.nutrition ? safeRpc(supabase, 'get_user_nutrition_summary', { p_user_id: userId }) : Promise.resolve(null),
-          needs.workout ? safeRpc(supabase, 'get_user_workout_summary', { p_user_id: userId }) : Promise.resolve(null),
-          needs.body ? safeRpc(supabase, 'get_user_body_metrics_history', { p_user_id: userId }) : Promise.resolve(null),
-          needs.history ? safeRpc(supabase, 'get_user_ai_history', { p_user_id: userId }) : Promise.resolve(null),
+          semanticSearch(supabase, userId, query, 10, 0.40),
           fetchUserMemory(supabase, userId),
           fetchPendingYaraEvents(supabase, userId),
         ])
-      : [null, null, null, null, null, [] as MemoryRow[], [] as YaraEvent[]]
+      : [[] as RagChunk[], [] as MemoryRow[], [] as YaraEvent[]]
 
-    // 30-day averages always come from RPCs (client-side "today" data is a separate section).
-    // Legacy clients may still send activity/nutrition as overrides — respected only if RPC returned null.
-    const activity = rpcActivity ?? clientContext?.activity ?? null
-    const nutrition = rpcNutrition ?? clientContext?.nutrition ?? null
-    const workouts = rpcWorkouts ?? clientContext?.workouts ?? null
+    const vectorMode = ragChunks.length >= 3
+    const coveredTypes = new Set(ragChunks.map((c) => c.chunk_type))
+
+    if (ragChunks.length > 0) {
+      console.log(`[ai-assistant] Vector search: ${ragChunks.length} chunks (top: ${ragChunks[0].similarity.toFixed(3)}), covered: [${[...coveredTypes].join(',')}]`)
+    }
+
+    // Keyword fallback: only fetch RPCs for categories the vectors didn't cover
+    const needs = classifyQuery(query)
+    const skipActivity  = vectorMode && coveredTypes.has('activity_summary')
+    const skipNutrition = vectorMode && coveredTypes.has('nutrition_summary')
+    const skipWorkouts  = vectorMode && coveredTypes.has('workout_session')
+    const skipBody      = vectorMode && coveredTypes.has('body_metric')
+
+    const [rpcActivity, rpcNutrition, rpcWorkouts, rpcBodyMetrics, rpcAiHistory] = userId
+      ? await Promise.all([
+          !skipActivity  && needs.activity  ? safeRpc(supabase, 'get_user_full_activity_summary', { p_user_id: userId }) : Promise.resolve(null),
+          !skipNutrition && needs.nutrition  ? safeRpc(supabase, 'get_user_nutrition_summary',     { p_user_id: userId }) : Promise.resolve(null),
+          !skipWorkouts  && needs.workout    ? safeRpc(supabase, 'get_user_workout_summary',       { p_user_id: userId }) : Promise.resolve(null),
+          !skipBody      && needs.body       ? safeRpc(supabase, 'get_user_body_metrics_history',   { p_user_id: userId }) : Promise.resolve(null),
+          needs.history ? safeRpc(supabase, 'get_user_ai_history', { p_user_id: userId }) : Promise.resolve(null),
+        ])
+      : [null, null, null, null, null]
+
+    console.log(`[ai-assistant] Mode: ${vectorMode ? 'vector-first' : 'keyword-fallback'}, keyword RPCs: activity=${!skipActivity && needs.activity}, nutrition=${!skipNutrition && needs.nutrition}, workout=${!skipWorkouts && needs.workout}, body=${!skipBody && needs.body}`)
+
+    const activity   = rpcActivity   ?? clientContext?.activity    ?? null
+    const nutrition  = rpcNutrition  ?? clientContext?.nutrition   ?? null
+    const workouts   = rpcWorkouts   ?? clientContext?.workouts    ?? null
     const bodyMetrics = rpcBodyMetrics ?? clientContext?.bodyMetrics ?? null
-    const aiHistory = rpcAiHistory ?? clientContext?.aiHistory ?? null
-    const today = clientContext?.today ?? null
+    const aiHistory  = rpcAiHistory  ?? clientContext?.aiHistory   ?? null
 
     if (!GROQ_KEY) {
       return jsonResponse({
@@ -760,7 +798,7 @@ Deno.serve(async (req) => {
 
     const prompt = buildPrompt(
       profile, today, activity, nutrition, workouts, bodyMetrics, aiHistory,
-      memories ?? [], pendingEvents ?? [], query, voiceMode,
+      memories ?? [], pendingEvents ?? [], query, voiceMode, ragChunks,
     )
     const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -828,6 +866,30 @@ Deno.serve(async (req) => {
       })
     }
 
+    // Fire-and-forget: refresh embeddings when actions mutated user data or
+    // new memory facts were extracted, so the next query sees fresh vectors.
+    if (userId && SUPABASE_URL && (parsedActions.length > 0 || newFacts.length > 0)) {
+      const refreshTypes: string[] = []
+      if (newFacts.length > 0) refreshTypes.push('memory_fact')
+      for (const a of parsedActions) {
+        if (a.action === 'log_water' || a.action === 'log_sleep') refreshTypes.push('activity_summary')
+        if (a.action === 'log_weight') refreshTypes.push('body_metric')
+        if (a.action === 'log_food') refreshTypes.push('meal_log', 'nutrition_summary')
+        if (a.action === 'log_workout') refreshTypes.push('workout_session')
+      }
+      if (refreshTypes.length > 0) {
+        const unique = [...new Set(refreshTypes)]
+        fetch(`${SUPABASE_URL}/functions/v1/embed-user-data`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ userId, chunkTypes: unique }),
+        }).catch((e) => console.error('[ai-assistant] embed refresh fire-and-forget failed:', e?.message))
+      }
+    }
+
     return jsonResponse({
       response: aiResponse,
       insight_type: classifyInsightType(query),
@@ -836,6 +898,8 @@ Deno.serve(async (req) => {
       memories_added: newFacts.length,
       actions: actionResults,
       events_surfaced: pendingEvents?.length ?? 0,
+      rag_mode: vectorMode ? 'vector' : 'keyword',
+      rag_chunks_used: ragChunks.length,
       // Legacy field: previous shape returned a string[] of successful commands.
       // Keep as an alias so existing mobile clients don't break.
       executed: actionResults.filter((r) => r.ok).map((r) => r.action),

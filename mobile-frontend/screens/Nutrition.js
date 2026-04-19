@@ -108,7 +108,11 @@ async function invokeYaraPlan(body) {
     return data;
   } catch (error) {
     const message = error?.message || "";
-    if (/invalid jwt/i.test(message) || /non-2xx/i.test(message)) {
+    if (
+      /invalid jwt/i.test(message) ||
+      /unsupported jwt algorithm/i.test(message) ||
+      /non-2xx/i.test(message)
+    ) {
       return invokeEdgePublic("ai-assistant", body);
     }
     throw error;
