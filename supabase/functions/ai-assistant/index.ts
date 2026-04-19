@@ -332,11 +332,24 @@ ${aiHistory.slice(0, 3).map((h: any) => {
 
   const voiceRules = voiceMode
     ? `
-VOICE MODE:
-- You are a fast system controller.
-- Respond in LESS THAN 15 WORDS.
-- Use COMMAND:{"action":"navigate","target":"ScreenName"} or logging commands.
-- If the user says "Profile", just say "Opening profile" and emit command.`
+VOICE MODE — SYSTEM CONTROLLER:
+- Respond in LESS THAN 12 WORDS. No greetings, no filler.
+- You MUST use COMMAND:{"action":"navigate","target":"<Screen>"} for any navigation request.
+- EXACT screen name targets (only these, no others):
+    MainApp       → home / dashboard / main screen
+    MealLogger    → log a meal / add food / food log
+    FoodScanner   → scan / barcode / take a photo / scan this / scan food
+    SleepLog      → log sleep / sleep tracker
+    WorkoutActive → start workout / begin workout / let's train / any specific exercise (squats, bench, deadlift…)
+    Train         → training page / exercise library / workout list
+    Fuel          → nutrition / macros / food page
+    Insights      → stats / analytics / progress / charts
+    Profile       → profile / account / settings
+- "scan" or "barcode" or "take a photo" → ALWAYS target FoodScanner.
+- Any exercise name (squats, push-ups, deadlifts, bench press…) → ALWAYS target WorkoutActive.
+- Say the spoken confirmation BEFORE the COMMAND line.
+- Example: "Opening the scanner. COMMAND:{"action":"navigate","target":"FoodScanner"}"
+- Example: "Let's do squats! COMMAND:{"action":"navigate","target":"WorkoutActive"}"`
     : ''
 
   return `You are Alexi, a personal AI system assistant inside the BodyQ fitness app.

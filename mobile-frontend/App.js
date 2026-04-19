@@ -122,12 +122,28 @@ export default function App() {
 
   // Route navigation commands emitted by AlexiVoiceContext
   useEffect(() => {
-    const off = AlexiEvents.on('navigate', ({ screen, params }) => {
-      if (navigationRef.isReady()) {
+    const offNav = AlexiEvents.on('navigate', ({ screen, params }) => {
+      try {
+        if (!navigationRef.isReady()) {
+          console.warn('[Alexi] navigationRef not ready — queued screen:', screen);
+          return;
+        }
+        console.log('[Alexi] → navigate(', screen, params ? JSON.stringify(params) : '', ')');
         navigationRef.navigate(screen, params);
+      } catch (e) {
+        console.error('[Alexi] Navigation failed for screen "' + screen + '":', e?.message);
       }
     });
-    return off;
+    const offBack = AlexiEvents.on('go_back', () => {
+      try {
+        if (navigationRef.isReady() && navigationRef.canGoBack()) {
+          navigationRef.goBack();
+        }
+      } catch (e) {
+        console.error('[Alexi] goBack failed:', e?.message);
+      }
+    });
+    return () => { offNav(); offBack(); };
   }, []);
   if (!appIsReady) return null;
 

@@ -136,12 +136,15 @@ export const AlexiEvents = {
 // ─── L1: Phonetic snap ────────────────────────────────────────────────────────
 // Fixes short (≤ 3-word) Whisper hallucinations before command parsing.
 const NAV_SNAP = [
-  { screen: 'Profile',   words: ['profile','profiles','account','settings','video','video file','for file','pro file'] },
-  { screen: 'Fuel',      words: ['fuel','food','nutrition','full','few','feel','fell'] },
-  { screen: 'Insights',  words: ['insights','insight','inside','incite','in sites'] },
-  { screen: 'Train',     words: ['train','training','workout','workouts','exercise','trim','trend'] },
-  { screen: 'Home',      words: ['home','home screen','homes'] },
-  { screen: 'PostureAI', words: ['posture','form check','camera','check form','posture check'] },
+  { screen: 'Profile',     words: ['profile','profiles','account','settings','video','video file','for file','pro file'] },
+  { screen: 'Fuel',        words: ['fuel','food','nutrition','full','few','feel','fell'] },
+  { screen: 'Insights',    words: ['insights','insight','inside','incite','in sites'] },
+  { screen: 'Train',       words: ['train','training','workout','workouts','exercise','trim','trend'] },
+  { screen: 'Home',        words: ['home','home screen','homes'] },
+  { screen: 'PostureAI',   words: ['posture','form check','check form','posture check'] },
+  { screen: 'FoodScanner', words: ['scan','scanner','barcode','scan food','scan this','take a photo'] },
+  { screen: 'MealLogger',  words: ['log meal','add food','meal logger','food log','add a meal'] },
+  { screen: 'SleepLog',    words: ['sleep log','log sleep','sleep tracker'] },
 ];
 
 function snapShortTranscript(text) {
@@ -168,19 +171,60 @@ function applyHallucMap(text) {
 }
 
 // ─── L2: Command parser ────────────────────────────────────────────────────────
+// APP_MAP keys must match the actual screen names used in navigate().
+// ROOT screens: navigate(screen) directly from the root Stack.
+// TAB screens:  navigate('MainApp', { screen }) — inside the NavBar tab navigator.
+// TRAIN screens: navigate('MainApp', { screen:'Train', params:{ screen } }) — nested.
 const APP_MAP = {
-  Home:          ['home', 'dashboard', 'main', 'summary', 'overview', 'start page'],
-  Fuel:          ['fuel', 'nutrition', 'meals', 'macros', 'eating', 'diet', 'food'],
-  Train:         ['train', 'training', 'workout', 'workouts', 'exercise', 'exercises', 'gym', 'lift', 'library', 'moves'],
+  // Tab screens inside MainApp
+  Home:          ['home', 'dashboard', 'main', 'summary', 'overview', 'start page', 'go home', 'home screen'],
+  Fuel:          ['fuel', 'nutrition', 'meals', 'macros', 'eating', 'diet', 'food page', 'nutrition page'],
+  Train:         ['train', 'training', 'workout page', 'exercise page', 'gym page', 'library', 'moves'],
   Insights:      ['insights', 'stats', 'analytics', 'progress', 'charts', 'data', 'history', 'trends', 'performance'],
   Profile:       ['profile', 'account', 'settings', 'my info', 'targets'],
-  WorkoutActive: ['active workout', 'start workout', 'begin workout', "let's go", 'start a workout'],
-  PostureAI:     ['posture', 'posture check', 'posture ai', 'check form', 'check my form'],
+  // Root Stack screens
+  FoodScanner:   ['scan', 'scanner', 'barcode', 'scan food', 'scan this', 'take a photo', 'take photo', 'food scanner', 'camera scan'],
+  MealLogger:    ['log meal', 'add food', 'meal logger', 'food log', 'log a meal', 'add a meal', 'add meal'],
+  SleepLog:      ['sleep log', 'log sleep', 'sleep tracker', 'sleep entry', 'log my sleep'],
+  // Nested inside Train tab stack
+  WorkoutActive: ['active workout', 'start workout', 'begin workout', "let's go", 'start a workout', 'start training', 'begin training'],
+  PostureAI:     ['posture', 'posture check', 'posture ai', 'check form', 'check my form', 'form check'],
 };
+
+// resolveNavigation — maps a logical screen name to { screen, params } for navigationRef.
+// The app has three levels:
+//   Root stack (App.js)  → MainApp, MealLogger, FoodScanner, SleepLog, WorkoutSummary
+//   Tab navigator        → Home, Fuel, Train, Insights, Profile  (inside MainApp)
+//   Train stack          → WorkoutActive, PostureAI, ExerciseList (inside Train tab)
+function resolveNavigation(screen, extraParams) {
+  const ROOT_SCREENS  = ['FoodScanner', 'MealLogger', 'FoodDetail', 'SleepLog', 'WorkoutSummary'];
+  const TAB_SCREENS   = ['Home', 'Fuel', 'Train', 'Insights', 'Profile'];
+  const TRAIN_SCREENS = ['WorkoutActive', 'PostureAI', 'ExerciseList', 'ExerciseInfo', 'FlappyBirdGame'];
+
+  if (ROOT_SCREENS.includes(screen)) {
+    return { screen, params: extraParams || undefined };
+  }
+  if (TAB_SCREENS.includes(screen)) {
+    return { screen: 'MainApp', params: { screen } };
+  }
+  if (TRAIN_SCREENS.includes(screen)) {
+    return {
+      screen: 'MainApp',
+      params: { screen: 'Train', params: { screen, ...(extraParams ? { params: extraParams } : {}) } },
+    };
+  }
+  // Unknown screen — try direct navigate and let React Navigation handle it
+  console.warn('[Alexi] resolveNavigation: unknown screen', screen);
+  return { screen, params: extraParams || undefined };
+}
 
 function parseCommand(text) {
   const t = text.toLowerCase().trim();
   if (!t) return { type: 'AI_QUERY', query: text };
+
+  // ── Go back / close ────────────────────────────────────────────────────────
+  if (/\b(go back|go backwards?|back|close|dismiss|cancel|exit screen)\b/i.test(t))
+    return { type: 'GO_BACK' };
 
   // ── Utility ────────────────────────────────────────────────────────────────
   if (/show.*move|instructions?|form (guide|check|tip)|how to do (this|it)|help( me)?$/.test(t))
@@ -226,6 +270,21 @@ function parseCommand(text) {
       fat_g:     fatM  ? parseInt(fatM[1])  : 0,
       meal_type: mealM?.[1] ?? 'snack',
     };
+  }
+
+  // ── Exercise intent — "let's do squats", "start push-ups", "do deadlifts" ──
+  // Fires BEFORE generic nav so "do training" doesn't get swallowed here.
+  const exMatch = t.match(
+    /\b(?:let'?s?\s+do|do\s+some|start\s+(?:a\s+|some\s+)?|begin\s+(?:a\s+)?)\s*([a-z][a-z -]{1,24}?)(?:\s+(?:exercise|workout|session|sets?|reps?))?\s*[!.?]?\s*$/i,
+  );
+  if (exMatch) {
+    const ex = exMatch[1].trim();
+    // Don't intercept pure navigation words like "training", "workout page"
+    const isNavAlias = Object.values(APP_MAP).flat().some(a => a === ex);
+    if (!isNavAlias) {
+      console.log('[Alexi] Exercise intent detected:', ex);
+      return { type: 'NAVIGATE', screen: 'WorkoutActive', params: { exercise: ex } };
+    }
   }
 
   // ── Navigation: intent verb first (highest priority) ───────────────────────
@@ -480,15 +539,27 @@ export function AlexiVoiceProvider({ children }) {
         await AsyncStorage.setItem(MUTE_KEY, 'true');
         break;
 
+      case 'GO_BACK':
+        await speak('Going back.');
+        AlexiEvents.emit('go_back');
+        hideAlexiAfter(2000);
+        break;
+
       case 'NAVIGATE': {
         const labels = {
-          Home: 'home', Profile: 'your profile', Fuel: 'nutrition',
+          Home: 'the home screen', Profile: 'your profile', Fuel: 'nutrition',
           Insights: 'your insights', Train: 'your training plan',
           WorkoutActive: 'your workout', PostureAI: 'posture check',
+          FoodScanner: 'the food scanner', MealLogger: 'the meal logger',
+          SleepLog: 'sleep log',
         };
-        const label = labels[cmd.screen] ?? cmd.screen.toLowerCase();
-        await speak(`Opening ${label}.`);
-        AlexiEvents.emit('navigate', { screen: cmd.screen });
+        const exercise = cmd.params?.exercise;
+        const label    = labels[cmd.screen] ?? cmd.screen.toLowerCase();
+        const phrase   = exercise ? `Let's do ${exercise}. Starting your workout.` : `Opening ${label}.`;
+        await speak(phrase);
+        const navArgs = resolveNavigation(cmd.screen, cmd.params);
+        console.log('[Alexi] Emitting navigate:', JSON.stringify(navArgs));
+        AlexiEvents.emit('navigate', navArgs);
         hideAlexiAfter(3000);
         break;
       }
