@@ -12,7 +12,7 @@ import { Pedometer } from 'expo-sensors';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import { getMuscleFatigue } from '../services/workoutService';
-import { AppEvents, emit, on } from '../lib/eventBus';
+import { AppEvents, emit } from '../lib/eventBus';
 import { DEFAULT_TARGETS, computeWaterTarget } from '../constants/targets';
 import { error as logError } from '../lib/logger';
 
@@ -47,15 +47,12 @@ export function TodayProvider({ children }) {
   const [sleepQuality, setSleepQuality] = useState(null);
   const [caloriesBurned, setCaloriesBurned] = useState(0);
   const [muscleFatigue, setMuscleFatigue] = useState([]);
-  // Steps: DB-persisted base + live pedometer delta (unsynced portion)
+  // Steps: DB-persisted base + live pedometer count since context mounted
   const [dbSteps, setDbSteps] = useState(0);
-  // Cumulative steps reported by Pedometer.watchStepCount (state for re-renders)
-  const [cumulativeSteps, setCumulativeSteps] = useState(0);
+  const [liveSteps, setLiveSteps] = useState(0);
   const [pedometerAvailable, setPedometerAvailable] = useState(true);
   const [pedometerPermission, setPedometerPermission] = useState(null);
-  // How many of those cumulative steps have already been synced to the DB
-  const syncedStepsRef = useRef(0);
-  const cumulativeRef = useRef(0);
+  const pendingSyncRef = useRef(0);
   const syncTimerRef = useRef(null);
   // Tracks the user id we've already completed an initial fetch for. We only
   // flip the global `loading` flag when we've never loaded data for the
@@ -122,10 +119,6 @@ export function TodayProvider({ children }) {
       setSleepHours(activity?.sleep_hours ?? null);
       setSleepQuality(activity?.sleep_quality ?? null);
       setDbSteps(activity?.steps || 0);
-      // DB total already includes all previously synced steps, so snap the
-      // synced watermark to the current cumulative pedometer count to avoid
-      // double-counting the unsynced delta.
-      syncedStepsRef.current = cumulativeRef.current;
       setMuscleFatigue(fatigue ?? []);
       loadedForUserRef.current = userId;
     } catch (error) {
@@ -151,10 +144,10 @@ export function TodayProvider({ children }) {
   useEffect(() => {
     const unsub = [];
     unsub.push(
-      on(AppEvents.REFRESH_TODAY, loadToday),
-      on(AppEvents.MEAL_LOGGED, loadToday),
-      on(AppEvents.WORKOUT_COMPLETED, loadToday),
-      on(AppEvents.TARGETS_UPDATED, loadToday),
+      require('../lib/eventBus').on(AppEvents.REFRESH_TODAY, loadToday),
+      require('../lib/eventBus').on(AppEvents.MEAL_LOGGED, loadToday),
+      require('../lib/eventBus').on(AppEvents.WORKOUT_COMPLETED, loadToday),
+      require('../lib/eventBus').on(AppEvents.TARGETS_UPDATED, loadToday),
     );
     return () => unsub.forEach(fn => fn());
   }, [loadToday]);
@@ -174,8 +167,8 @@ export function TodayProvider({ children }) {
       if (status !== 'granted') return;
 
       sub = Pedometer.watchStepCount(({ steps: count }) => {
-        cumulativeRef.current = count;
-        setCumulativeSteps(count);
+        setLiveSteps(count);
+        pendingSyncRef.current = count;
       });
     })();
 
@@ -186,18 +179,18 @@ export function TodayProvider({ children }) {
   useEffect(() => {
     if (!userId) return;
     const timer = setInterval(() => {
-      const cumulative = cumulativeRef.current;
-      const delta = cumulative - syncedStepsRef.current;
-      if (delta <= 0) return;
+      const pending = pendingSyncRef.current;
+      if (pending <= 0) return;
       const today = todayString();
       supabase.rpc('increment_steps', {
         p_user_id: userId,
-        p_steps: delta,
+        p_steps: pending,
         p_date: today,
       }).then(({ error }) => {
         if (!error) {
-          setDbSteps(prev => prev + delta);
-          syncedStepsRef.current = cumulative;
+          setDbSteps(prev => prev + pending);
+          pendingSyncRef.current = 0;
+          setLiveSteps(0);
         }
       });
     }, 30000);
@@ -205,11 +198,8 @@ export function TodayProvider({ children }) {
     return () => clearInterval(timer);
   }, [userId]);
 
-  // Total steps = persisted DB steps + unsynced pedometer delta.
-  // syncedStepsRef is only updated inside the sync interval, and that also
-  // updates dbSteps (state), so we always re-render with correct values.
-  const unsyncedSteps = Math.max(0, cumulativeSteps - syncedStepsRef.current);
-  const steps = dbSteps + unsyncedSteps;
+  // Total steps = persisted DB steps + live (unsynced) pedometer steps
+  const steps = dbSteps + liveSteps;
 
   // ── Write operations (optimistic + persist) ──────────────────────
 
@@ -245,28 +235,17 @@ export function TodayProvider({ children }) {
     setSleepHours(hours);
     setSleepQuality(quality ?? null);
     try {
-      const today = todayString();
-      const { data: existing } = await supabase
-        .from('daily_activity')
-        .select('id, sleep_hours, sleep_quality')
-        .eq('user_id', userId)
-        .eq('date', today)
-        .maybeSingle();
-
-      if (existing?.id) {
-        await supabase.from('daily_activity').update({
-          sleep_hours: hours,
-          sleep_quality: quality ?? null,
-        }).eq('id', existing.id);
-      } else {
-        await supabase.from('daily_activity').insert({
-          user_id: userId,
-          date: today,
-          sleep_hours: hours,
-          sleep_quality: quality ?? null,
-        });
+      const { error } = await supabase.rpc('log_sleep_data', {
+        p_user_id: userId,
+        p_hours:   hours,
+        p_quality: quality ?? null,
+        p_date:    todayString(),
+      });
+      if (error) {
+        logError('[TodayContext] log_sleep_data error:', error);
+        loadToday();
+        return false;
       }
-
       emit(AppEvents.SLEEP_LOGGED, { hours, quality });
       return true;
     } catch (e) {

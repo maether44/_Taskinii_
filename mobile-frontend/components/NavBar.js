@@ -3,7 +3,9 @@ import { View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useTheme } from '../context/ThemeContext';
 
+// Screens
 import Home from '../screens/Home';
 import Nutrition from '../screens/Nutrition';
 import Insights from '../screens/Insights';
@@ -14,15 +16,15 @@ import ExerciseList from '../screens/ExerciseList';
 import ExerciseInfo from '../screens/ExerciseInfo';
 import WorkoutActive from '../screens/workout/WorkoutActive';
 import WorkoutSummary from '../screens/workout/WorkoutSummary';
-import FlappyBirdGame from '../screens/workout/FlappyBirdGame';
 import PostureAI from '../screens/PostureAI';
+
+// New screens
 import EditProfileScreen from '../screens/Editprofilescreen';
 import WorkoutHistoryScreen from '../screens/Workouthistoryscreen';
 import HelpCenter from '../screens/settings/HelpCenter';
 import ReportProblem from '../screens/settings/ReportProblem';
 import TermsPolicies from '../screens/settings/TermsPolicies';
 import TrustCenter from '../screens/settings/TrustCenter';
-import WatchFaceScreen from '../screens/WatchFaceScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -36,7 +38,6 @@ function TrainingStack() {
       <Stack.Screen name="PostureAI" component={PostureAI} />
       <Stack.Screen name="WorkoutActive" component={WorkoutActive} options={{ tabBarStyle: { display: 'none' } }} />
       <Stack.Screen name="WorkoutSummary" component={WorkoutSummary} options={{ tabBarStyle: { display: 'none' } }} />
-      <Stack.Screen name="FlappyBirdGame" component={FlappyBirdGame} options={{ tabBarStyle: { display: 'none' } }} />
     </Stack.Navigator>
   );
 }
@@ -52,41 +53,68 @@ function ProfileStack() {
       <Stack.Screen name="TermsPolicies" component={TermsPolicies} />
       <Stack.Screen name="TrustCenter" component={TrustCenter} />
       <Stack.Screen name="WorkoutHistory" component={WorkoutHistoryScreen} />
-      <Stack.Screen name="WatchFace" component={WatchFaceScreen} />
     </Stack.Navigator>
   );
 }
 
+
+
 export default function NavBar() {
+  const { colors } = useTheme();
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <Tab.Navigator
         screenOptions={{
           headerShown: false,
-          tabBarActiveTintColor: '#C8F135',
-          tabBarInactiveTintColor: '#6B5F8A',
+          tabBarActiveTintColor: colors.tabActive,
+          tabBarInactiveTintColor: colors.tabInactive,
           tabBarStyle: {
-            backgroundColor: '#0F0B1E',
-            borderTopColor: '#1E1A35',
+            backgroundColor: colors.tabBar,
+            borderTopColor: colors.tabBorder,
             height: 85,
             paddingBottom: 20,
           },
         }}
       >
-        <Tab.Screen name="Home" component={Home}
-          options={{ tabBarIcon: ({ color }) => <Ionicons name="flash" size={24} color={color} /> }} />
+        <Tab.Screen
+          name="Home"
+          component={Home}
+          options={{ tabBarIcon: ({ color }) => <Ionicons name="flash" size={24} color={color} /> }}
+        />
 
-        <Tab.Screen name="Fuel" component={Nutrition}
-          options={{ tabBarIcon: ({ color }) => <MaterialCommunityIcons name="food-apple" size={24} color={color} /> }} />
+        <Tab.Screen
+          name="Fuel"
+          component={Nutrition}
+          options={{
+            tabBarIcon: ({ color }) => (
+              <MaterialCommunityIcons name="food-apple" size={24} color={color} />
+            ),
+          }}
+        />
 
-        <Tab.Screen name="Train" component={TrainingStack}
-          options={{ tabBarIcon: ({ color }) => <Ionicons name="barbell" size={24} color={color} /> }} />
+        <Tab.Screen
+          name="Train"
+          component={TrainingStack}
+          options={{
+            tabBarIcon: ({ color }) => <Ionicons name="barbell" size={24} color={color} />,
+          }}
+        />
 
-        <Tab.Screen name="Insights" component={Insights}
-          options={{ tabBarIcon: ({ color }) => <Ionicons name="analytics" size={24} color={color} /> }} />
+        <Tab.Screen
+          name="Insights"
+          component={Insights}
+          options={{
+            tabBarIcon: ({ color }) => <Ionicons name="analytics" size={24} color={color} />,
+          }}
+        />
 
-        <Tab.Screen name="Profile" component={ProfileStack}
-          options={{ tabBarIcon: ({ color }) => <Ionicons name="person" size={24} color={color} /> }} />
+        <Tab.Screen
+          name="Profile"
+          component={ProfileStack}
+          options={{
+            tabBarIcon: ({ color }) => <Ionicons name="person" size={24} color={color} />,
+          }}
+        />
       </Tab.Navigator>
     </View>
   );

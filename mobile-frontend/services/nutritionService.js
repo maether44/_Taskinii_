@@ -2,7 +2,6 @@
 // All nutrition DB operations — matches the exact Supabase schema
 import { supabase } from '../lib/supabase';
 import { DEFAULT_TARGETS } from '../constants/targets';
-import { refreshAfterFoodLog, refreshAfterWaterLog } from './embeddingService';
 
 const TODAY = () => new Date().toISOString().split('T')[0];
 

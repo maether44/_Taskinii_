@@ -187,7 +187,7 @@ Your expertise: fitness programming, progressive overload, nutrition, macros,
 sports performance, recovery, sleep, motivation, mindset.
 
 Rules:
-- Give thorough, detailed replies. Use multiple paragraphs when helpful.
+- Keep replies to 2-4 short paragraphs unless a plan is requested.
 - NEVER ask the user for info already in their profile below.
 - Always reference their profile when giving advice.
 - Never give dangerous medical advice. Refer to a physio for serious pain.${

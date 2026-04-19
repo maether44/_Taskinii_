@@ -1,5 +1,4 @@
 import React, { useMemo, useState } from 'react';
-import { FS } from '../../constants/typography';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -222,8 +221,8 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   headerTextWrap: { flex: 1 },
-  title: { color: C.text, fontSize: FS.screenTitle, fontWeight: '800', letterSpacing: -0.4 },
-  subtitle: { color: C.sub, fontSize: FS.sub, marginTop: 4 },
+  title: { color: C.text, fontSize: 26, fontWeight: '800', letterSpacing: -0.4 },
+  subtitle: { color: C.sub, fontSize: 13, marginTop: 4 },
   sectionCard: {
     backgroundColor: C.card,
     borderRadius: 20,
@@ -233,7 +232,7 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     paddingBottom: 14,
   },
-  sectionTitle: { color: C.text, fontSize: FS.btnSecondary, fontWeight: '800', marginBottom: 8 },
+  sectionTitle: { color: C.text, fontSize: 14, fontWeight: '800', marginBottom: 8 },
   dropdownAnchor: { position: 'relative', zIndex: 20 },
   dropdownTrigger: {
     borderWidth: 1,
@@ -246,7 +245,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  dropdownTriggerText: { color: C.text, fontSize: FS.sub, fontWeight: '700' },
+  dropdownTriggerText: { color: C.text, fontSize: 13, fontWeight: '700' },
   dropdownMenu: {
     position: 'absolute',
     top: 50,
@@ -272,7 +271,7 @@ const styles = StyleSheet.create({
   },
   dropdownOptionHover: { backgroundColor: '#3F3378' },
   dropdownBorder: { borderBottomWidth: 1, borderBottomColor: C.border },
-  dropdownOptionText: { color: C.text, fontSize: FS.sub },
+  dropdownOptionText: { color: C.text, fontSize: 13 },
   dropdownOptionTextActive: { color: C.lime, fontWeight: '700' },
   input: {
     borderWidth: 1,
@@ -280,13 +279,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: C.bg,
     color: C.text,
-    fontSize: FS.sub,
+    fontSize: 13,
     paddingHorizontal: 12,
     paddingVertical: 11,
   },
   textArea: { minHeight: 130, lineHeight: 19 },
   withTopSpace: { marginTop: 14 },
-  note: { color: C.sub, fontSize: FS.badge, lineHeight: 17, marginTop: 12 },
+  note: { color: C.sub, fontSize: 12, lineHeight: 17, marginTop: 12 },
   submitBtn: {
     marginTop: 14,
     backgroundColor: C.purple,
@@ -298,6 +297,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   submitBtnDisabled: { opacity: 0.5 },
-  submitBtnText: { color: '#fff', fontSize: FS.btnSecondary, fontWeight: '800' },
-  validation: { color: C.danger, fontSize: FS.badge, marginTop: 10 },
+  submitBtnText: { color: '#fff', fontSize: 14, fontWeight: '800' },
+  validation: { color: C.danger, fontSize: 12, marginTop: 10 },
 });

@@ -2,26 +2,31 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { FS } from '../../constants/typography';
 import {
-  View, StyleSheet, TouchableOpacity, Text,
+  View, StyleSheet, TouchableOpacity, Text, Alert,
   StatusBar, Animated, Platform, Dimensions, ScrollView,
 } from 'react-native';
 import Reanimated, {
   useSharedValue, useAnimatedStyle, withSpring, interpolate,
 } from 'react-native-reanimated';
 import { WebView } from 'react-native-webview';
+import * as Speech from 'expo-speech';
 import { Camera } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useAuth } from '../../context/AuthContext';
 import { saveWorkoutSession } from '../../services/workoutService';
 import { supabase } from '../../lib/supabase';
-import * as Speech from 'expo-speech';
-import { AlexiEvents } from '../../context/AlexiVoiceContext';
 import { AppEvents, emit } from '../../lib/eventBus';
-import { error as logError, log } from '../../lib/logger';
+import { log, error as logError } from '../../lib/logger';
+import { Asset } from 'expo-asset';
 
 const { height: SH } = Dimensions.get('window');
-const coachHtml = require('../../assets/ai_coach.html');
+
+// ── Yara encouragement phrases ─────────────────────────────────
+const REP_PHRASES = [
+  'Nice work!', 'Power up!', 'Keep going!', 'Strong!',
+  'You got it!', 'One more!', 'Beast mode!', 'Perfect!',
+];
 
 // ── Yara breathing tips (every 3 reps) ────────────────────────
 const BREATHING_TIPS = [
@@ -318,10 +323,6 @@ function formatTimer(secs) {
 // ─────────────────────────────────────────────────────────────
 export default function WorkoutActive({ route, navigation }) {
   const { user } = useAuth();
-  // speakYara: lightweight TTS wrapper (replaces old Yara voice system)
-  const speakYara = useCallback((text) => {
-    Speech.speak(text, { language: 'en-US', rate: 1.0 });
-  }, []);
   const rawKey      = route.params?.exerciseKey || route.params?.exerciseName || 'squat';
   const isPostureMode = rawKey === 'posture_check' || route.params?.mode === 'posture';
   const htmlKey     = isPostureMode ? 'posture_check' : resolveHtmlKey(rawKey);
@@ -343,6 +344,8 @@ export default function WorkoutActive({ route, navigation }) {
   const isMountedRef      = useRef(true);
   const pulseLoopActive   = useRef(false);
   const timerIntervalRef  = useRef(null);
+  const restIntervalRef   = useRef(null);
+  const lastSpeechTimeRef = useRef(0);
   const lastCueRef        = useRef('');
   const repTimestampsRef  = useRef([]);
   const tapCountRef       = useRef(0);
@@ -390,28 +393,12 @@ export default function WorkoutActive({ route, navigation }) {
   const [isHelpVisible,   setIsHelpVisible]  = useState(false);
   // Whether SpeechRecognition is supported in this WebView
   const [srSupported,     setSrSupported]    = useState(true);
-  // ── Rest timer between circuit exercises ────────────────────
+  const [htmlContent,     setHtmlContent]    = useState(null);
   const [showRest,        setShowRest]       = useState(false);
-  const [restSecs,        setRestSecs]       = useState(0);
-  const [isMicReleased,   setIsMicReleased]  = useState(false);
-  const restIntervalRef = useRef(null);
-  const REST_DURATION = 60;
+  const [restSecs,        setRestSecs]       = useState(30);
+  const isMicReleased = true;
 
-  // ── Hardware gate — AlexiVoiceContext self-gates when it sees this route,
-  // but we wait 800ms before allowing the WebView/camera to mount so the
-  // loop has time to detect the route and release the mic hardware.
-  useEffect(() => {
-    const t = setTimeout(() => setIsMicReleased(true), 800);
-    return () => clearTimeout(t);
-  }, []);
-
-  // ── Subscribe to global Alexi commands (e.g. triggered by other paths) ───────
-  useEffect(() => {
-    const unsub = AlexiEvents.on('command', (cmd) => {
-      if (cmd.type === 'SHOW_INSTRUCTIONS') setIsHelpVisible(true);
-    });
-    return () => unsub();
-  }, []);
+  const coachHtml = htmlContent ? { html: htmlContent } : null;
 
   // ── Cleanup on unmount ──────────────────────────────────────
   useEffect(() => {
@@ -423,7 +410,8 @@ export default function WorkoutActive({ route, navigation }) {
       clearInterval(restIntervalRef.current);
       clearTimeout(tapTimerRef.current);
       Speech.stop().catch(() => {});
-      wv?.injectJavaScript(
+      // Tell the WebView to stop speech recognition to save battery
+      webViewRef.current?.injectJavaScript(
         'if(window.onRNMessage) window.onRNMessage(\'{"type":"STOP_VOICE"}\'); true;'
       );
     };
@@ -444,8 +432,17 @@ export default function WorkoutActive({ route, navigation }) {
 
   // ── Camera permission ────────────────────────────────────────
   useEffect(() => {
-    Camera.requestCameraPermissionsAsync().then(({ status }) => {
+    Camera.requestCameraPermissionsAsync().then(async ({ status }) => {
       setHasPermission(status === 'granted');
+      try {
+        const asset = Asset.fromModule(require('../../assets/ai_coach.html'));
+        await asset.downloadAsync();
+        const res  = await fetch(asset.localUri || asset.uri);
+        const text = await res.text();
+        setHtmlContent(text);
+      } catch (err) {
+        logError('[BodyQ] HTML Load Error:', err);
+      }
     });
   }, []);
 
@@ -481,6 +478,15 @@ export default function WorkoutActive({ route, navigation }) {
     loop.start();
     return () => loop.stop();
   }, [micPulseAnim]);
+
+  // ── Yara's voice ─────────────────────────────────────────────
+  const speakYara = useCallback((text) => {
+    const now = Date.now();
+    if (now - lastSpeechTimeRef.current < 2800) return;
+    lastSpeechTimeRef.current = now;
+    Speech.stop().catch(() => {});
+    Speech.speak(text, { language: 'en-US', pitch: 1.1, rate: 0.88 });
+  }, []);
 
   // ── IN SYNC detection ────────────────────────────────────────
   const updateSync = useCallback((count) => {
@@ -541,6 +547,7 @@ export default function WorkoutActive({ route, navigation }) {
         setTimerRunning(true);
         // Smooth fade-in instead of abrupt opacity flip
         cameraAlpha.value = withSpring(1, { damping: 22, stiffness: 120 });
+        setTimeout(() => speakYara('Follow the hologram. Match the tempo.'), 600);
         return;
       }
       const val = steps[i];
@@ -566,7 +573,7 @@ export default function WorkoutActive({ route, navigation }) {
     };
 
     showStep();
-  }, [countScaleAnim, countOpacityAnim, speakYara, cameraAlpha]);
+  }, [countScaleAnim, countOpacityAnim, speakYara]);
 
   useEffect(() => { if (isMicReleased) startCountdown(); }, [isMicReleased, startCountdown]);
 
@@ -578,6 +585,7 @@ export default function WorkoutActive({ route, navigation }) {
       if (isPostureMode) {
         webViewRef.current?.injectJavaScript('window.startPostureMode && window.startPostureMode(); true;');
         webViewRef.current?.injectJavaScript('window.startAI && window.startAI(); true;');
+        setTimeout(() => speakYara('Stand straight and face the camera. I will scan your posture.'), 400);
       } else {
         if (htmlKey) {
           webViewRef.current?.injectJavaScript(
@@ -585,6 +593,7 @@ export default function WorkoutActive({ route, navigation }) {
           );
         }
         webViewRef.current?.injectJavaScript('window.startAI && window.startAI(); true;');
+        setTimeout(() => speakYara("I'm watching your form. Begin when you are ready."), 400);
       }
       return;
     }
@@ -602,6 +611,7 @@ export default function WorkoutActive({ route, navigation }) {
         const isBadForm = msg.text && !msg.text.includes('Great form') && !msg.text.includes('Detecting');
         if (isBadForm && msg.text !== lastCueRef.current) {
           lastCueRef.current = msg.text;
+          speakYara(msg.text);
         }
       }
 
@@ -610,17 +620,20 @@ export default function WorkoutActive({ route, navigation }) {
         repTimestampsRef.current = [...repTimestampsRef.current.slice(-4), Date.now()];
         updateSync(msg.count);
         if (msg.count % 3 === 0) {
-          setCue(BREATHING_TIPS[Math.floor(msg.count / 3 - 1) % BREATHING_TIPS.length]);
+          speakYara(BREATHING_TIPS[Math.floor(msg.count / 3 - 1) % BREATHING_TIPS.length]);
+        } else {
+          speakYara(REP_PHRASES[(msg.count - 1) % REP_PHRASES.length]);
         }
       }
 
       if (msg.type === 'CALIBRATED') {
-        setCue(isPostureMode ? 'Body detected. Hold still for your posture scan.' : 'Body detected. Calibration complete.');
+        speakYara(isPostureMode ? 'Body detected. Hold still for your posture scan.' : 'Body detected. Calibration complete.');
       }
 
       if (msg.type === 'POSTURE_SCORE') {
         setFormScore(msg.score);
         setCue(msg.verdict);
+        speakYara(msg.verdict);
       }
 
       if (msg.type === 'VOICE_COMMAND') {
@@ -646,7 +659,8 @@ export default function WorkoutActive({ route, navigation }) {
         const calories = Math.max(1, msg.reps * 5);
 
         setTimerRunning(false);
-        setCue(msg.reps > 0 ? `Session complete! ${msg.reps} reps. Incredible work!` : 'Session saved. Great effort!');
+        Speech.stop().catch(() => {});
+        speakYara(msg.reps > 0 ? `Session complete! ${msg.reps} reps. Incredible work!` : 'Session saved. Great effort!');
 
         (async () => {
           let sessionId = null;
@@ -704,7 +718,16 @@ export default function WorkoutActive({ route, navigation }) {
               if (achError) logError('[BodyQ] check_achievements:', achError);
               else if (achievementsResult?.awarded?.length > 0) {
                 log('[BodyQ] Achievements awarded:', achievementsResult.awarded);
-                emit(AppEvents.ACHIEVEMENT_AWARDED, { awarded: achievementsResult.awarded });
+                const newAchievements = achievementsResult.awarded;
+                emit(AppEvents.ACHIEVEMENT_AWARDED, { awarded: newAchievements });
+                if (newAchievements.length > 0) {
+                  const achievement = newAchievements[0]; // Show first new achievement
+                  Alert.alert(
+                    '🏆 Achievement Unlocked!',
+                    `${achievement.achievement || achievement.name}\n${achievement.description || ''}\n+${achievement.xp_reward || 0} XP`,
+                    [{ text: 'Awesome!' }]
+                  );
+                }
               }
             } catch (e) {
               logError('[BodyQ] check_achievements exception:', e);
@@ -734,28 +757,32 @@ export default function WorkoutActive({ route, navigation }) {
                   .from('muscle_fatigue')
                   .upsert(upserts, { onConflict: 'user_id,muscle_name' });
               } catch (e) {
-                console.error('[BodyQ] muscle_fatigue:', e.message);
+                logError('[BodyQ] muscle_fatigue:', e.message);
               }
             }
-          }
 
-          if (hasNext) {
-            startRestTimer();
-          } else {
-            navigation.replace('WorkoutSummary', {
-              exerciseName: displayName,
-              repCount:     msg.reps,
-              formScore:    avgFormScore,
-              elapsed,
+            // Signal: workout is done — refresh TodayContext + any other subscribers
+            emit(AppEvents.WORKOUT_COMPLETED, {
               sessionId,
-              circuit,
-              circuitIndex,
+              exerciseKey: htmlKey ?? rawKey,
+              exerciseName: msg.exercise || displayName,
+              reps: msg.reps,
+              calories,
+              postureScore: avgFormScore,
             });
           }
+
+          navigation.replace('WorkoutSummary', {
+            exerciseName: displayName,
+            repCount:     msg.reps,
+            formScore:    avgFormScore,
+            elapsed,
+            sessionId,
+          });
         })();
       }
     } catch (_) {}
-  }, [navigation, displayName, htmlKey, rawKey, user, speakYara, updateSync, syncScaleAnim, hasNext, startRestTimer, circuit, circuitIndex, isPostureMode]);
+  }, [navigation, displayName, htmlKey, rawKey, user, speakYara, updateSync, syncScaleAnim]);
 
   const handleFinish = useCallback(() => {
     webViewRef.current?.injectJavaScript('if (window.getSessionState) window.getSessionState(); true;');
@@ -770,41 +797,12 @@ export default function WorkoutActive({ route, navigation }) {
     } else if (tapCountRef.current >= 2) {
       clearTimeout(tapTimerRef.current);
       tapCountRef.current = 0;
-      setCue('Finishing session…');
+      speakYara('Finishing session.');
       setTimeout(() => {
         webViewRef.current?.injectJavaScript('if (window.getSessionState) window.getSessionState(); true;');
       }, 800);
     }
-  }, [isCountingDown]);
-
-  // ── Circuit: advance to next exercise ──────────────────────
-  const advanceToNext = useCallback(() => {
-    if (!hasNext || !circuit) return;
-    clearInterval(restIntervalRef.current);
-    setShowRest(false);
-    const nextEx = circuit[circuitIndex + 1];
-    navigation.replace('WorkoutActive', {
-      exerciseName: nextEx.key,
-      circuit,
-      circuitIndex: circuitIndex + 1,
-    });
-  }, [hasNext, circuit, circuitIndex, navigation]);
-
-  const startRestTimer = useCallback(() => {
-    setRestSecs(REST_DURATION);
-    setShowRest(true);
-    speakYara('Great work! Rest up. Next exercise coming soon.');
-    restIntervalRef.current = setInterval(() => {
-      setRestSecs(prev => {
-        if (prev <= 1) {
-          clearInterval(restIntervalRef.current);
-          advanceToNext();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  }, [REST_DURATION, speakYara, advanceToNext]);
+  }, [isCountingDown, speakYara]);
 
   // ── Unsupported / No permission screens ────────────────────
   if (htmlKey === null && !isPostureMode) {
@@ -838,7 +836,7 @@ export default function WorkoutActive({ route, navigation }) {
       <StatusBar hidden />
 
       {/* ══ FULL-SCREEN AI CAMERA ══════════════════════════════ */}
-      {isMicReleased && (
+      {isMicReleased && coachHtml && (
         <Reanimated.View style={[StyleSheet.absoluteFillObject, cameraStyle]}>
           <WebView
             ref={webViewRef}
@@ -847,18 +845,8 @@ export default function WorkoutActive({ route, navigation }) {
             style={StyleSheet.absoluteFillObject}
             allowsInlineMediaPlayback
             mediaPlaybackRequiresUserAction={false}
-            mediaCapturePermissionGrantType="manual"
             startInLoadingState={false}
-            onPermissionRequest={e => {
-              // Grant camera only — Alexi (native) owns the mic exclusively.
-              // Filtering out RECORD_AUDIO prevents the WebView from fighting
-              // the native audio session for the microphone on Android.
-              const cameraResources = (e.resources ?? []).filter(
-                r => !r.toLowerCase().includes('audio') && !r.toLowerCase().includes('record')
-              );
-              if (cameraResources.length > 0) e.grant(cameraResources);
-              else e.deny();
-            }}
+            onPermissionRequest={e => e.grant(e.resources)}
             javaScriptEnabled
             domStorageEnabled
             scrollEnabled={false}
@@ -901,6 +889,7 @@ export default function WorkoutActive({ route, navigation }) {
             style={s.micGuideBtn}
             onPress={() => {
               setIsHelpVisible(true);
+              speakYara('Here are the steps for correct form.');
             }}
             activeOpacity={0.8}
           >

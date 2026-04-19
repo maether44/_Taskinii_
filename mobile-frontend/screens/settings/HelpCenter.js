@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { FS } from '../../constants/typography';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -112,8 +111,8 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   headerTextWrap: { flex: 1 },
-  title: { color: C.text, fontSize: FS.screenTitle, fontWeight: '800', letterSpacing: -0.4 },
-  subtitle: { color: C.sub, fontSize: FS.sub, marginTop: 4 },
+  title: { color: C.text, fontSize: 26, fontWeight: '800', letterSpacing: -0.4 },
+  subtitle: { color: C.sub, fontSize: 13, marginTop: 4 },
   sectionCard: {
     backgroundColor: C.card,
     borderRadius: 20,
@@ -123,8 +122,8 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     paddingBottom: 12,
   },
-  sectionTitle: { color: C.text, fontSize: FS.btnPrimary, fontWeight: '800' },
-  sectionSubtitle: { color: C.sub, fontSize: FS.badge, marginTop: 5 },
+  sectionTitle: { color: C.text, fontSize: 16, fontWeight: '800' },
+  sectionSubtitle: { color: C.sub, fontSize: 12, marginTop: 5 },
   sectionBody: { marginTop: 12, gap: 10 },
   faqCard: {
     borderRadius: 14,
@@ -140,8 +139,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 10,
   },
-  faqQuestion: { color: C.text, fontSize: FS.sub, fontWeight: '700', flex: 1 },
-  faqAnswer: { color: C.sub, fontSize: FS.badge, lineHeight: 18, marginTop: 8 },
+  faqQuestion: { color: C.text, fontSize: 13, fontWeight: '700', flex: 1 },
+  faqAnswer: { color: C.sub, fontSize: 12, lineHeight: 18, marginTop: 8 },
   stepRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   stepBadge: {
     width: 24,
@@ -151,9 +150,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  stepBadgeText: { color: C.text, fontSize: FS.badge, fontWeight: '800' },
-  stepText: { color: C.text, fontSize: FS.sub, flex: 1, lineHeight: 18 },
+  stepBadgeText: { color: C.text, fontSize: 12, fontWeight: '800' },
+  stepText: { color: C.text, fontSize: 13, flex: 1, lineHeight: 18 },
   noteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   dot: { marginTop: 5 },
-  noteText: { color: C.text, fontSize: FS.badge, lineHeight: 18, flex: 1 },
+  noteText: { color: C.text, fontSize: 12.5, lineHeight: 18, flex: 1 },
 });

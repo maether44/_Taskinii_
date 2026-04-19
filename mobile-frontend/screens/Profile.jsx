@@ -1,12 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useNavigation } from '@react-navigation/native';
-import { decode } from 'base64-arraybuffer';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { AppEvents, emit, on } from '../lib/eventBus';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystemLegacy from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import {
@@ -31,8 +30,12 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { error as logError } from '../lib/logger';
 import { calcMacroTargets, normalizeGoal } from '../lib/calculations';
-import { AVATAR_BUCKET, buildAvatarPath, getLocalAvatarForUser, saveLocalAvatarForUser } from '../lib/avatar';
-import { refreshAfterProfileUpdate } from '../services/embeddingService';
+import {
+  AVATAR_BUCKET,
+  buildAvatarPath,
+  getLocalAvatarForUser,
+  saveLocalAvatarForUser,
+} from '../lib/avatar';
 
 const C = {
   bg: '#0F0B1E',
@@ -550,7 +553,6 @@ export default function Profile({ replayTour }) {
       setEditVisible(false);
       emit(AppEvents.PROFILE_UPDATED, { userId: authUser.id });
       emit(AppEvents.TARGETS_UPDATED, { userId: authUser.id });
-      refreshAfterProfileUpdate(authUser.id);
       Alert.alert('Saved', 'Your profile has been updated.');
     } catch (error) {
       Alert.alert('Save failed', error?.message || 'Could not update your profile.');
@@ -610,15 +612,10 @@ export default function Profile({ replayTour }) {
     try {
       const asset = result.assets[0];
       let base64 = asset.base64;
-      if (!base64) {
-        base64 = await FileSystemLegacy.readAsStringAsync(asset.uri, {
-          encoding: 'base64',
+      if (!base64)
+        base64 = await FileSystem.readAsStringAsync(asset.uri, {
+          encoding: FileSystem.EncodingType.Base64,
         });
-      }
-      if (!base64 || !String(base64).trim()) {
-        throw new Error('Selected image is empty. Please pick another photo.');
-      }
-
       const mimeType = asset.mimeType || 'image/jpeg';
       const dataUri = `data:${mimeType};base64,${base64}`;
       const extension = (mimeType.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
@@ -628,18 +625,11 @@ export default function Profile({ replayTour }) {
       setProfileAvatarUri(dataUri);
       setProfile((prev) => ({ ...prev, avatar_url: dataUri, avatar_path: path }));
 
-      const arrayBuffer = decode(base64);
-      const bytes = new Uint8Array(arrayBuffer);
-      if (!bytes.length) {
-        throw new Error('Image bytes are empty after decode. Please pick another photo.');
-      }
-
+      const response = await fetch(dataUri);
+      const blob = await response.blob();
       const { error: uploadError } = await supabase.storage
         .from(AVATAR_BUCKET)
-        .upload(path, bytes, {
-          contentType: asset.mimeType || 'image/jpeg',
-          upsert: false,
-        });
+        .upload(path, blob, { contentType: asset.mimeType || 'image/jpeg' });
       if (uploadError) throw uploadError;
 
       const { error: profileError } = await supabase
@@ -807,15 +797,9 @@ export default function Profile({ replayTour }) {
           <View style={s.badgesGrid}>
             {(showAllAchievements ? achievements : achievements.slice(0, 6)).map((a) => (
               <View key={a.id} style={[s.badge, !a.earned && s.badgeLocked]}>
-                <View style={[s.badgeIconWrap, a.earned && s.badgeIconWrapEarned]}>
-                  <Ionicons
-                    name={a.earned ? (a.icon || 'trophy-outline') : 'lock-closed-outline'}
-                    size={22}
-                    color={a.earned ? C.purple : C.sub}
-                  />
-                </View>
-                <Text style={[s.badgeLabel, !a.earned && s.badgeLabelLocked]}>{a.name}</Text>
-                <Text style={[s.badgeXP, !a.earned && s.badgeXPLocked]}>+{a.xp_reward} XP</Text>
+                <Text style={s.badgeIcon}>{a.earned ? a.icon : '🔒'}</Text>
+                <Text style={[s.badgeLabel, !a.earned && { opacity: 0.4 }]}>{a.name}</Text>
+                <Text style={[s.badgeXP, !a.earned && { opacity: 0.4 }]}>+{a.xp_reward} XP</Text>
               </View>
             ))}
           </View>
@@ -1233,34 +1217,19 @@ const s = StyleSheet.create({
   badgesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   badge: {
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
     backgroundColor: C.border,
-    borderRadius: 16,
-    paddingVertical: 14,
-    paddingHorizontal: 8,
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
     width: '30%',
     borderWidth: 1,
     borderColor: C.purple + '40',
   },
-  badgeLocked: { borderColor: C.border, opacity: 0.45 },
-  badgeIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  badgeIconWrapEarned: {
-    backgroundColor: C.purple + '18',
-    borderColor: C.purple + '50',
-  },
-  badgeLabel: { color: C.sub, fontSize: 9, fontWeight: '700', textAlign: 'center', lineHeight: 13 },
-  badgeLabelLocked: { opacity: 0.5 },
-  badgeXP: { color: C.lime, fontSize: 9, fontWeight: '800' },
-  badgeXPLocked: { opacity: 0.4 },
+  badgeLocked: { borderColor: C.border, opacity: 0.5 },
+  badgeIcon: { fontSize: 22 },
+  badgeLabel: { color: C.sub, fontSize: 9, fontWeight: '600', textAlign: 'center' },
+  badgeXP: { color: C.lime, fontSize: 9, fontWeight: '700' },
   seeMoreBtn: {
     alignSelf: 'center',
     backgroundColor: C.purple + '20',

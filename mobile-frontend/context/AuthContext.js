@@ -3,8 +3,6 @@ import { supabase } from "../lib/supabase";
 import { getProfile } from "../services/profileService";
 import { getLocalAvatarForUser } from "../lib/avatar";
 import { warn } from "../lib/logger";
-import { AppEvents, emit } from "../lib/eventBus";
-import { refreshAll } from "../services/embeddingService";
 
 const AuthContext = createContext();
 
@@ -39,9 +37,6 @@ export function AuthProvider({ children }) {
       setLoading(false);
     }
 
-    // Refresh RAG embeddings in the background so Yara has fresh vectors
-    refreshAll(sessionUser.id);
-
     // Persistent login-streak bookkeeping — deferred to the next tick and
     // wrapped in Promise.resolve(...) so PostgrestFilterBuilder rejections
     // can't propagate into the auth flow. Runs AFTER setLoading(false) so
@@ -54,19 +49,6 @@ export function AuthProvider({ children }) {
         .then((res) => {
           if (res?.error) {
             warn("[AuthContext] record_user_visit:", res.error.message);
-            return;
-          }
-          // Check if this visit unlocked a new milestone
-          if (res?.data?.visit_counted) {
-            supabase.rpc("check_milestone_unlocks", { p_user_id: sessionUser.id })
-              .then(({ data, error }) => {
-                if (error) { warn("[AuthContext] check_milestone_unlocks:", error.message); return; }
-                const newMilestones = data?.new_milestones ?? [];
-                if (newMilestones.length > 0) {
-                  emit(AppEvents.STREAK_MILESTONE, newMilestones[0]);
-                }
-              })
-              .catch(e => warn("[AuthContext] check_milestone_unlocks threw:", e?.message ?? e));
           }
         })
         .catch((e) => {

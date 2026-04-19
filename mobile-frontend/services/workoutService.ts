@@ -1,7 +1,5 @@
 import { supabase } from '../lib/supabase';
 import { warn } from '../lib/logger';
-import { refreshAfterWorkout } from './embeddingService';
-
 // ── Exercise key (HTML camelCase) → muscles worked ────────────
 const EXERCISE_MUSCLES: Record<string, string[]> = {
   squat: ['Quads', 'Glutes', 'Hamstrings'],
@@ -116,39 +114,43 @@ export const getMuscleFatigue = async (userId: string) => {
   return (data ?? []) as { muscle_name: string; fatigue_pct: number }[];
 };
 
-// ── Fetch workout history for a user ─────────────────────────
+// ── Fetch workout history with exercises joined ───────────────
 export const fetchWorkoutHistory = async (userId: string, limit = 50) => {
-  const { data, error } = await supabase
-    .from('workout_sessions')
-    .select(`
-      id,
-      started_at,
-      ended_at,
-      calories_burned,
-      notes,
-      created_at,
-      workout_exercises (
+  try {
+    const { data: sessions, error } = await supabase
+      .from('workout_sessions')
+      .select(
+        `
         id,
-        sets,
-        reps,
-        weight_kg,
-        duration_secs,
-        posture_score,
-        exercises (
+        started_at,
+        ended_at,
+        calories_burned,
+        notes,
+        created_at,
+        workout_exercises (
           id,
-          name,
-          category,
-          muscle_group
+          sets,
+          reps,
+          weight_kg,
+          duration_secs,
+          posture_score,
+          exercises (
+            id,
+            name,
+            category,
+            muscle_group
+          )
         )
+      `,
       )
-    `)
-    .eq('user_id', userId)
-    .order('started_at', { ascending: false })
-    .limit(limit);
+      .eq('user_id', userId)
+      .order('started_at', { ascending: false })
+      .limit(limit);
 
-  if (error) {
-    warn('[BodyQ] fetchWorkoutHistory error:', error.message);
+    if (error) throw error;
+    return sessions ?? [];
+  } catch (err: any) {
+    warn('[workoutService] fetchWorkoutHistory error:', err.message);
     return [];
   }
-  return data ?? [];
 };
