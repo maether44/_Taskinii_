@@ -100,19 +100,27 @@ async function executeVoiceCommands(supabase: any, userId: string, aiText: strin
       } else if (cmd.action === 'log_food') {
         // Schema: foods(id, name, calories_per_100g, protein_per_100g, carbs_per_100g, fat_per_100g)
         //         food_logs(user_id, food_id, consumed_at, meal_type, quantity_grams, ...)
+        // Use AI-estimated macros when present; fall back to sensible single-serving
+        // defaults so we never log a zero-calorie entry.
         const NOW_TS = new Date().toISOString()
+        const foodName     = cmd.name      || 'Unknown Food'
+        const foodCalories = cmd.calories  ?? 250   // ~1 average serving
+        const foodProtein  = cmd.protein_g ?? 10
+        const foodCarbs    = cmd.carbs_g   ?? 30
+        const foodFat      = cmd.fat_g     ?? 8
+
         let foodId: string | null = null
         const { data: existing } = await supabase
-          .from('foods').select('id').ilike('name', cmd.name).maybeSingle()
+          .from('foods').select('id').ilike('name', foodName).maybeSingle()
         if (existing) {
           foodId = existing.id
         } else {
           const { data: newFood } = await supabase.from('foods').insert({
-            name: cmd.name,
-            calories_per_100g: cmd.calories ?? 0,
-            protein_per_100g:  cmd.protein_g ?? 0,
-            carbs_per_100g:    cmd.carbs_g ?? 0,
-            fat_per_100g:      cmd.fat_g ?? 0,
+            name:              foodName,
+            calories_per_100g: foodCalories,
+            protein_per_100g:  foodProtein,
+            carbs_per_100g:    foodCarbs,
+            fat_per_100g:      foodFat,
             source: 'alexi_voice',
           }).select('id').single()
           foodId = newFood?.id ?? null
@@ -324,42 +332,11 @@ ${aiHistory.slice(0, 3).map((h: any) => {
 
   const voiceRules = voiceMode
     ? `
-VOICE MODE — SYSTEM CONTROLLER:
-You are a system controller, not a chatbot. Your PRIMARY job is to move the user to the correct screen or log their data.
-- Keep spoken reply under 20 words. No bullets, no markdown, no emojis.
-- For navigation: say where you're going in ≤8 words, append the COMMAND. Done.
-- For logging: confirm in ≤10 words, append the COMMAND. Done.
-- NEVER suggest opening a chat window.
-
-AVAILABLE COMMANDS (append after spoken reply, one per line):
-  Navigate:     COMMAND:{"action":"navigate","target":"<route>"}
-  Log water:    COMMAND:{"action":"log_water","amount":<ml, default 250>}
-  Log sleep:    COMMAND:{"action":"log_sleep","hours":<number>}
-  Log food:     COMMAND:{"action":"log_food","name":"<food>","calories":<kcal>,"protein_g":<g>,"carbs_g":<g>,"fat_g":<g>,"meal_type":"breakfast|lunch|dinner|snack"}
-  Log weight:   COMMAND:{"action":"log_weight","weight_kg":<number>}
-  Log body fat: COMMAND:{"action":"log_metric","body_fat":<percent>}
-  Log workout:  COMMAND:{"action":"log_workout","exercise_name":"<name>","duration_minutes":<n>,"intensity":"low|medium|high","calories_burned":<n>}
-  Check status: COMMAND:{"action":"check_status"}
-- Only append a COMMAND when the user explicitly asked for that action. Never guess.
-
-━━━ STRICT_MAP — NO EXCEPTIONS ━━━
-You MUST use exact target values. Pattern-match the user's words to the map below.
-Do NOT infer. Do NOT pick a "close" route. If you see the keyword → use that target.
-
-  Keyword(s) heard           → target value (copy exactly)
-  ─────────────────────────────────────────────────────
-  profile / account / my account / settings / my settings  → "Profile"
-  train / workout / exercise / gym / lift / workouts        → "Train"
-  fuel / food / nutrition / eating / diet / meals           → "Fuel"
-  insights / stats / analytics / analysis / data            → "Insights"
-  home / dashboard / main screen / overview                 → "Home"
-  progress / metrics / body metrics / weight history        → "Progress"
-  start workout / begin workout / let's train / start a workout → "WorkoutActive"
-
-EXAMPLE: user says "take me to my profile" → COMMAND:{"action":"navigate","target":"Profile"}
-EXAMPLE: user says "open my workout" → COMMAND:{"action":"navigate","target":"Train"}
-EXAMPLE: user says "I weigh 74kg" → COMMAND:{"action":"log_weight","weight_kg":74}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
+VOICE MODE:
+- You are a fast system controller.
+- Respond in LESS THAN 15 WORDS.
+- Use COMMAND:{"action":"navigate","target":"ScreenName"} or logging commands.
+- If the user says "Profile", just say "Opening profile" and emit command.`
     : ''
 
   return `You are Alexi, a personal AI system assistant inside the BodyQ fitness app.
@@ -420,64 +397,77 @@ Deno.serve(async (req) => {
     body = await req.json()
 
     if (body.audioBase64) {
-      // Prefer OpenAI Whisper-1 (higher accuracy) when key is present;
-      // fall back to Groq whisper-large-v3-turbo when only GROQ_KEY is set.
+      // ── Key guard ────────────────────────────────────────────────────────────
       const useOpenAI = !!OPENAI_KEY
       if (!useOpenAI && !GROQ_KEY) {
-        return jsonResponse({ error: 'Speech transcription is not configured yet.' }, 503)
+        console.error('[ai-assistant] Missing AI API keys — set GROQ_API_KEY or OPENAI_API_KEY in Supabase secrets')
+        return jsonResponse({ error: 'Missing AI API Keys — configure GROQ_API_KEY in Supabase secrets.' }, 500)
+      }
+
+      // ── Audio size guard ─────────────────────────────────────────────────────
+      // A valid 3-second m4a clip is at least ~3 KB. Anything smaller is a
+      // silent/empty file that Whisper will reject with a 400. Return a clean
+      // empty transcript so the passive loop retries instead of crashing.
+      if (!body.audioBase64 || body.audioBase64.length < 4000) {
+        console.log('[ai-assistant] Audio too short, skipping transcription (bytes:', body.audioBase64?.length ?? 0, ')')
+        return jsonResponse({ transcript: '' })
       }
 
       // Audio is 16 kHz mono m4a from the VAD recording — Whisper's native format.
       const bytes = Uint8Array.from(atob(body.audioBase64), (c) => c.charCodeAt(0))
       const mime  = body.mimeType ?? 'audio/m4a'
       const ext   = mime.includes('webm') ? 'webm' : mime.includes('wav') ? 'wav' : 'm4a'
-      const blob  = new Blob([bytes], { type: mime })
 
-      const form = new FormData()
-      form.append('file', blob, `audio.${ext}`)
-      form.append('model', useOpenAI ? 'whisper-1' : 'whisper-large-v3-turbo')
-      form.append('language', 'en')
-      form.append('response_format', 'json')
-      form.append('temperature', '0')  // deterministic — prevents creative hallucinations
-
-      // Vocabulary hint: forces Whisper to snap to app-specific words rather than
-      // phonetically similar alternatives ("Profile" not "Video file", etc.)
-      form.append(
-        'prompt',
-        'The user is Maether. Commands: Profile, Fuel, Train, Insights, Log Water, Log Food, Log Weight.',
-      )
-
-      const sttEndpoint = useOpenAI
-        ? 'https://api.openai.com/v1/audio/transcriptions'
-        : 'https://api.groq.com/openai/v1/audio/transcriptions'
-      const sttKey = useOpenAI ? OPENAI_KEY : GROQ_KEY
-
-      const sttRes = await fetch(sttEndpoint, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${sttKey}` },
-        body: form,
-      })
-
-      const sttData = await sttRes.json().catch(() => ({}))
-      if (!sttRes.ok) {
-        // If OpenAI fails, try Groq as fallback before giving up
-        if (useOpenAI && GROQ_KEY) {
-          console.warn('[ai-assistant] OpenAI Whisper failed, falling back to Groq:', sttData?.error?.message)
-          const fallbackRes  = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${GROQ_KEY}` },
-            body: form,
-          })
-          const fallbackData = await fallbackRes.json().catch(() => ({}))
-          if (!fallbackRes.ok) {
-            return jsonResponse({ error: fallbackData?.error?.message ?? 'Speech transcription failed.' }, 503)
-          }
-          return jsonResponse({ transcript: fallbackData.text ?? '' })
-        }
-        return jsonResponse({ error: sttData?.error?.message ?? 'Speech transcription failed.' }, 503)
+      // ── Build FormData once per provider (FormData body is consumed on first fetch) ──
+      function buildForm(model: string) {
+        const blob = new Blob([bytes], { type: mime })
+        const f = new FormData()
+        f.append('file', blob, `audio.${ext}`)
+        f.append('model', model)
+        f.append('language', 'en')
+        f.append('response_format', 'json')
+        f.append('temperature', '0')
+        f.append('prompt', 'BodyQ app. Commands: Alexi, Profile, Fuel, Train, Insights, Log Water, Log Food, Log Weight.')
+        return f
       }
 
-      return jsonResponse({ transcript: sttData.text ?? '' })
+      // ── Primary: OpenAI Whisper-1 ────────────────────────────────────────────
+      if (useOpenAI) {
+        try {
+          const sttRes  = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${OPENAI_KEY}` },
+            body: buildForm('whisper-1'),
+          })
+          const sttData = await sttRes.json().catch(() => ({}))
+          console.log('[ai-assistant] OpenAI STT status:', sttRes.status, 'error:', sttData?.error?.message ?? 'none')
+          if (sttRes.ok) return jsonResponse({ transcript: sttData.text ?? '' })
+          // Fall through to Groq if key is also available
+          console.warn('[ai-assistant] OpenAI Whisper failed, trying Groq fallback')
+        } catch (e: any) {
+          console.error('[ai-assistant] OpenAI Whisper fetch crashed:', e?.message)
+        }
+        if (!GROQ_KEY) return jsonResponse({ error: 'Speech transcription failed (OpenAI error, no Groq fallback).' }, 503)
+      }
+
+      // ── Primary (or fallback): Groq whisper-large-v3-turbo ──────────────────
+      try {
+        const sttRes  = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${GROQ_KEY}` },
+          body: buildForm('whisper-large-v3-turbo'),
+        })
+        const sttData = await sttRes.json().catch(() => ({}))
+        console.log('[ai-assistant] Groq STT status:', sttRes.status, 'error:', sttData?.error?.message ?? 'none')
+        if (!sttRes.ok) {
+          console.error('[ai-assistant] Groq Whisper error body:', JSON.stringify(sttData))
+          return jsonResponse({ error: sttData?.error?.message ?? 'Groq speech transcription failed.' }, 503)
+        }
+        return jsonResponse({ transcript: sttData.text ?? '' })
+      } catch (e: any) {
+        console.error('[ai-assistant] Groq Whisper fetch crashed:', e?.message)
+        return jsonResponse({ error: `Groq fetch crashed: ${e?.message}` }, 503)
+      }
     }
 
     if (Array.isArray(body.messages)) {
@@ -555,7 +545,10 @@ Deno.serve(async (req) => {
     const needs = classifyQuery(query)
     console.log(`[ai-assistant] Query classified: ${JSON.stringify(needs)}`)
 
-    const [rpcActivity, rpcNutrition, rpcWorkouts, rpcBodyMetrics, rpcAiHistory] = userId
+    // Voice mode skips all DB fetches — responses must be ≤20 words and instant.
+    // Data-heavy queries via voice (e.g. "how many calories") get the profile only;
+    // the user can open the chat for deep analysis.
+    const [rpcActivity, rpcNutrition, rpcWorkouts, rpcBodyMetrics, rpcAiHistory] = (!voiceMode && userId)
       ? await Promise.all([
           needs.activity ? safeRpc(supabase, 'get_user_full_activity_summary', { p_user_id: userId }) : Promise.resolve(null),
           needs.nutrition ? safeRpc(supabase, 'get_user_nutrition_summary', { p_user_id: userId }) : Promise.resolve(null),
@@ -580,6 +573,10 @@ Deno.serve(async (req) => {
     }
 
     const prompt = buildPrompt(profile, activity, nutrition, workouts, bodyMetrics, aiHistory, query, voiceMode)
+    // Voice mode: use the 8B instant model — fast enough for real-time speech.
+    // Chat mode: use 70B for deeper, higher-quality coaching answers.
+    const llmModel    = voiceMode ? 'llama-3.1-8b-instant'    : 'llama-3.3-70b-versatile'
+    const llmMaxTok   = voiceMode ? 100                        : 400
     const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -587,8 +584,8 @@ Deno.serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        max_tokens: 400,
+        model: llmModel,
+        max_tokens: llmMaxTok,
         temperature: 0,
         messages: [{ role: 'user', content: prompt }],
       }),

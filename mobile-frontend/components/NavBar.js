@@ -14,6 +14,7 @@ import ExerciseList from "../screens/ExerciseList";
 import ExerciseInfo from "../screens/ExerciseInfo";
 import WorkoutActive from "../screens/workout/WorkoutActive";
 import WorkoutSummary from "../screens/workout/WorkoutSummary";
+import FlappyBirdGame from "../screens/workout/FlappyBirdGame";
 import PostureAI from "../screens/PostureAI";
 
 const Tab = createBottomTabNavigator();
@@ -34,6 +35,11 @@ function TrainingStack() {
       <Stack.Screen
         name="WorkoutSummary"
         component={WorkoutSummary}
+        options={{ tabBarStyle: { display: 'none' } }}
+      />
+      <Stack.Screen
+        name="FlappyBirdGame"
+        component={FlappyBirdGame}
         options={{ tabBarStyle: { display: 'none' } }}
       />
     </Stack.Navigator>
