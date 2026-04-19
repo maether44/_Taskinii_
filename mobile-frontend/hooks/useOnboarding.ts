@@ -15,10 +15,12 @@ import {
   saveOnboardingProfile,
   saveCalorieTargets,
 } from "../services/profileService";
-import { saveAIPlan } from "../services/aiPlanService";
 import { supabase } from "../lib/supabase";
+import { useAuth } from "../context/AuthContext";
+import { error as logError } from '../lib/logger';
 
 export function useOnboarding() {
+  const { user: authUser } = useAuth();
   const [step, setStep] = useState(0);
   const [aiPlan, setAiPlan] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -154,7 +156,7 @@ export function useOnboarding() {
         const plan = await generateAIPlan(getAnswers());
         setAiPlan(plan);
       } catch (err) {
-        console.error("AI plan error:", err);
+        logError("AI plan error:", err);
         setLoadError("Could not generate your plan. Tap retry.");
       } finally {
         setLoading(false);
@@ -171,23 +173,29 @@ export function useOnboarding() {
     setSavingProfile(true);
     setLoadError(null);
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
+      if (!authUser) {
         throw new Error("No authenticated user found");
       }
+      const user = authUser;
 
       const answers = getAnswers();
 
       await saveOnboardingProfile(user.id, answers); // → profiles
-      await saveCalorieTargets(user.id, answers); // → calorie_targets
-      // await saveAIPlan(user.id, aiPlan, answers);       // → once you create ai_plans table
+      await saveCalorieTargets(user.id, answers); // �� calorie_targets
+
+      // Save AI plan to training_plans table if one was generated
+      if (aiPlan?.days?.length) {
+        await supabase
+          .from('training_plans')
+          .upsert(
+            { user_id: user.id, plan_json: aiPlan, created_at: new Date().toISOString() },
+            { onConflict: 'user_id' },
+          );
+      }
 
       onComplete?.();
     } catch (err) {
-      console.error("Failed to save onboarding:", err);
+      logError("Failed to save onboarding:", err);
       setLoadError(
         err.message || "Failed to save your profile. Please try again.",
       );

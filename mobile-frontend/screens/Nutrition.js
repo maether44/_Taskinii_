@@ -12,9 +12,11 @@ import {
 } from "react-native";
 import MacroBar from "../components/shared/MacroBar";
 import RingProgress from "../components/shared/RingProgress";
+import { StepCounter } from "../components/StepCounter";
 import { useNutrition } from "../hooks/useNutrition";
 import { useProfile } from "../hooks/useProfile";
-import { invokeEdgePublic, supabase } from "../config/supabase";
+import { invokeEdgePublic, supabase } from "../lib/supabase";
+import { DEFAULT_TARGETS } from "../constants/targets";
 
 const C = {
   bg: "#0F0B1E",
@@ -95,6 +97,13 @@ async function extractEdgeFunctionMessage(error) {
   return error?.message || "";
 }
 
+const INTERNAL_LINE_RE = /^[^\n]*(COMMAND\s*:|MEMORIES\s*:|log_water|log_sleep|log_weight|log_food|log_workout|forget_fact|navigate)[^\n]*$/gim;
+
+function cleanAiResponse(text) {
+  if (!text) return text;
+  return text.replace(INTERNAL_LINE_RE, "").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 async function invokeYaraPlan(body) {
   try {
     const { data, error } = await supabase.functions.invoke("ai-assistant", { body });
@@ -105,7 +114,7 @@ async function invokeYaraPlan(body) {
     return data;
   } catch (error) {
     const message = error?.message || "";
-    if (/invalid jwt/i.test(message) || /non-2xx/i.test(message)) {
+    if (/invalid jwt/i.test(message) || /non-2xx/i.test(message) || /unsupported jwt/i.test(message) || /ES256/i.test(message)) {
       return invokeEdgePublic("ai-assistant", body);
     }
     throw error;
@@ -128,10 +137,10 @@ function buildClientNutritionContext({ goals, eaten, protein, carbs, fat, waterM
       avg_carbs_g: carbs || 0,
       avg_fat_g: fat || 0,
       logged_days: recentMeals.length ? 1 : 0,
-      daily_calorie_target: goals?.calorie_target || 2000,
-      protein_target: goals?.protein_target || 150,
-      carbs_target: goals?.carbs_target || 250,
-      fat_target: goals?.fat_target || 65,
+      daily_calorie_target: goals?.calorie_target || DEFAULT_TARGETS.calorie_target,
+      protein_target: goals?.protein_target || DEFAULT_TARGETS.protein_target,
+      carbs_target: goals?.carbs_target || DEFAULT_TARGETS.carbs_target,
+      fat_target: goals?.fat_target || DEFAULT_TARGETS.fat_target,
       recent_meals: recentMeals,
     },
     activity: {
@@ -192,13 +201,13 @@ export default function Nutrition({ navigation }) {
         resolvedData = await invokeYaraPlan({ query: prompt, clientContext });
       }
       if (resolvedData?.fallback) {
-        setMealPlan(resolvedData?.response || fallbackMealPlan);
+        setMealPlan(cleanAiResponse(resolvedData?.response) || fallbackMealPlan);
         setMealPlanError(resolvedData?.reason
           ? `Yara is using fallback mode right now: ${resolvedData.reason}`
           : "Yara is using fallback mode right now.");
         return;
       }
-      setMealPlan(resolvedData?.response || "");
+      setMealPlan(cleanAiResponse(resolvedData?.response) || "");
     } catch (error) {
       const detail = await extractEdgeFunctionMessage(error);
       setMealPlan(fallbackMealPlan);
@@ -448,6 +457,8 @@ export default function Nutrition({ navigation }) {
             </TouchableOpacity>
           </View>
         </View>
+
+        <StepCounter />
 
         <View style={s.yaraCard}>
           <Text style={s.cardLabel}>YARA</Text>

@@ -1,53 +1,55 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { View, StyleSheet, ActivityIndicator } from "react-native";
-import { StatusBar } from "expo-status-bar";
-import * as SplashScreen from "expo-splash-screen";
-import * as Font from "expo-font";
-import { Outfit_400Regular, Outfit_500Medium, Outfit_600SemiBold, Outfit_700Bold } from "@expo-google-fonts/outfit";
-import { Inter_400Regular, Inter_600SemiBold } from "@expo-google-fonts/inter";
-import { SafeAreaProvider } from "react-native-safe-area-context";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { NavigationContainer } from "@react-navigation/native";
-import { createStackNavigator } from "@react-navigation/stack";
-import { registerRootComponent } from "expo";
-
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import * as SplashScreen from 'expo-splash-screen';
+import * as Font from 'expo-font';
+import {
+  Outfit_400Regular,
+  Outfit_500Medium,
+  Outfit_600SemiBold,
+  Outfit_700Bold,
+} from '@expo-google-fonts/outfit';
+import { Inter_400Regular, Inter_600SemiBold } from '@expo-google-fonts/inter';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
+import { createStackNavigator } from '@react-navigation/stack';
+import { registerRootComponent } from 'expo';
+import ScheduleScreen from './screens/ScheduleScreen';
 // Context & Supabase
-import { supabase } from "./lib/supabase";
-import { AuthProvider, useAuth } from "./context/AuthContext";
-import { AriaVoiceProvider, AriaVoiceOrb, AriaScreenBorder, AriaSiriGlow, AriaEarDot, AriaDebugOverlay, AriaEvents } from "./context/AriaVoiceContext";
-import { navigationRef } from "./lib/navigationRef";
+import { supabase } from './lib/supabase';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { TodayProvider } from './context/TodayContext';
 
 // ✅ Custom splash screen
-import CustomSplashScreen from "./components/CustomSplashScreen";
+import CustomSplashScreen from './components/CustomSplashScreen';
 
 // Screens - Auth & Onboarding
-import SignIn from "./auth/SignIn";
-import SignUp from "./auth/SignUp";
-import OnBoardingGoal from "./screens/OnBoardingGoal";
+import SignIn from './auth/SignIn';
+import SignUp from './auth/SignUp';
+import OnBoardingGoal from './screens/OnBoardingGoal';
 
 // Navigation Hub
-import NavBar from "./components/NavBar";
+import NavBar from './components/NavBar';
 
 // Sub-Screens
-import MealLogger from "./screens/nutrition/MealLogger";
-import FoodDetail from "./screens/nutrition/FoodDetail";
-import SleepLog from "./screens/sleep/SleepLog";
-import FoodScannerScreen from "./components/food-scanner/FoodScannerScreen";
-import WorkoutSummary from "./screens/workout/WorkoutSummary";
+import MealLogger from './screens/nutrition/MealLogger';
+import FoodDetail from './screens/nutrition/FoodDetail';
+import SleepLog from './screens/sleep/SleepLog';
+import FoodScannerScreen from './components/food-scanner/FoodScannerScreen';
+import WorkoutSummary from './screens/workout/WorkoutSummary';
+import { scheduleStore } from './store/scheduleStore';
 
 // Global Components
-import AriaAssistant from "./components/AriaAssistant";
-import AppTour from "./components/onBoarding/AppTour";
-import { useAriaVoice } from "./context/AriaVoiceContext";
-
-// AriaGatedAssistant — must be inside AriaVoiceProvider to read isAriaVisible
-function AriaGatedAssistant({ activeRoute }) {
-  if (activeRoute === 'WorkoutActive') return null;
-  return <AriaAssistant />;
-}
+import YaraAssistant from './components/YaraAssistant';
+import AppTour from './components/onBoarding/AppTour';
+import { warn } from './lib/logger';
 
 SplashScreen.preventAutoHideAsync();
 const Stack = createStackNavigator();
+const YARA_ALLOWED_ROUTES = new Set(['Home', 'Fuel', 'TrainingHub', 'Insights']);
+
+const navigationRef = createNavigationContainerRef(); // ← add this
 
 function getActiveRouteName(state) {
   if (!state) return null;
@@ -84,6 +86,7 @@ function Navigation() {
           <Stack.Screen name="SleepLog" component={SleepLog} />
           <Stack.Screen name="FoodScanner" component={FoodScannerScreen} />
           <Stack.Screen name="WorkoutSummary" component={WorkoutSummary} />
+          <Stack.Screen name="Schedule" component={ScheduleScreen} />
         </>
       )}
     </Stack.Navigator>
@@ -93,23 +96,25 @@ function Navigation() {
 export default function App() {
   const [appIsReady, setAppIsReady] = useState(false);
   const [splashDone, setSplashDone] = useState(false); // ✅ NEW
-  const [activeTab, setActiveTab] = useState("Home");
+  const [activeTab, setActiveTab] = useState('Home');
   const [activeRoute, setActiveRoute] = useState(null);
+  const showYaraAssistant = YARA_ALLOWED_ROUTES.has(activeRoute);
 
   useEffect(() => {
     async function prepare() {
       try {
         await Font.loadAsync({
-          "Outfit-Regular": Outfit_400Regular,
-          "Outfit-Medium": Outfit_500Medium,
-          "Outfit-SemiBold": Outfit_600SemiBold,
-          "Outfit-Bold": Outfit_700Bold,
-          "Inter-Regular": Inter_400Regular,
-          "Inter-SemiBold": Inter_600SemiBold,
+          'Outfit-Regular': Outfit_400Regular,
+          'Outfit-Medium': Outfit_500Medium,
+          'Outfit-SemiBold': Outfit_600SemiBold,
+          'Outfit-Bold': Outfit_700Bold,
+          'Inter-Regular': Inter_400Regular,
+          'Inter-SemiBold': Inter_600SemiBold,
         });
         await supabase.auth.getSession();
+        await scheduleStore.hydrate();
       } catch (e) {
-        console.warn(e);
+        warn(e);
       } finally {
         setAppIsReady(true);
       }
@@ -121,15 +126,7 @@ export default function App() {
     if (appIsReady) await SplashScreen.hideAsync();
   }, [appIsReady]);
 
-  // Route navigation commands emitted by AriaVoiceContext
-  useEffect(() => {
-    const off = AriaEvents.on('navigate', ({ screen, params }) => {
-      if (navigationRef.isReady()) {
-        navigationRef.navigate(screen, params);
-      }
-    });
-    return off;
-  }, []);
+  // Fonts still loading — show nothing
   if (!appIsReady) return null;
 
   // ✅ Fonts ready → show custom splash
@@ -147,26 +144,18 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AuthProvider>
-          {/* AriaVoiceProvider runs the global passive listening loop.
-              Must be inside AuthProvider so its Supabase calls have a session. */}
-          <AriaVoiceProvider>
+          <TodayProvider>
             <View style={styles.container} onLayout={onLayoutRootView}>
               <StatusBar style="light" />
-              <NavigationContainer
-                ref={navigationRef}
-                onStateChange={(state) => setActiveRoute(getActiveRouteName(state))}
-              >
+              <NavigationContainer ref={navigationRef} onStateChange={(state) => setActiveRoute(getActiveRouteName(state))}>
                 <Navigation />
               </NavigationContainer>
-              <AriaGatedAssistant activeRoute={activeRoute} />
+              {showYaraAssistant && (
+                <YaraAssistant onOpenSchedule={() => navigationRef.current?.navigate('Schedule')} />
+              )}
               <AppTour activeTab={activeTab} onTabPress={setActiveTab} showOnMount={true} />
-              {activeRoute !== 'WorkoutActive' && <AriaVoiceOrb />}
-              <AriaScreenBorder />
-              <AriaSiriGlow />
-              <AriaEarDot />
-              <AriaDebugOverlay />
             </View>
-          </AriaVoiceProvider>
+          </TodayProvider>
         </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
@@ -174,8 +163,8 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0F0B1E" },
-  centered: { justifyContent: "center", alignItems: "center" },
+  container: { flex: 1, backgroundColor: '#0F0B1E' },
+  centered: { justifyContent: 'center', alignItems: 'center' },
 });
 
 registerRootComponent(App);

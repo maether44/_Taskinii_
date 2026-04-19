@@ -40,8 +40,7 @@
                                  "expo-asset"
                              ],
                  "extra":  {
-                               "supabaseUrl":  "https://pxupvxhjrpemthzntrwe.supabase.co",
-                               "supabaseAnonKey":  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB4dXB2eGhqcnBlbXRoem50cndlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEwOTA3NDQsImV4cCI6MjA4NjY2Njc0NH0.yB2USWhCUK3K61BnBATK2mOZm6wGoRY4GY5F7dIRJ9s"
+                               "eas": { "projectId": "bodyq" }
                            }
              }
 }

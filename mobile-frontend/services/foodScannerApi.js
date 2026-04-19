@@ -9,6 +9,10 @@ const RAW_GEMINI_KEY = (process.env.EXPO_PUBLIC_GEMINI_API_KEY || '').trim();
 const GEMINI_KEY = RAW_GEMINI_KEY.includes('PASTE_YOUR_GEMINI_API_KEY_HERE') ? '' : RAW_GEMINI_KEY;
 const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-001'];
 
+import commonFoods from '../data/commonFoods.json';
+import comprehensiveFoods from '../data/comprehensiveFoods.json';
+import { log } from '../lib/logger';
+
 function unique(values) {
   const out = [];
   const seen = new Set();
@@ -180,6 +184,136 @@ function cacheKey(base64) {
   const len = base64?.length ?? 0;
   const head = (base64 || '').slice(0, 120);
   return `${len}-${head}`;
+}
+
+function parseOpenFoodFactsProduct(p) {
+  const n = p.nutriments ?? {};
+  const calories100 = roundInt(n["energy-kcal_100g"] || n["energy-kcal_value"] || 0);
+  const protein100 = roundInt(n["proteins_100g"] || n["protein_100g"] || 0);
+  const carbs100 = roundInt(n["carbohydrates_100g"] || n["carbohydrates_value"] || 0);
+  const fat100 = roundInt(n["fat_100g"] || n["fat_value"] || 0);
+  const fiber100 = roundInt(n["fiber_100g"] || n["fiber_value"] || 0);
+
+  return {
+    id: String(p.code || p._id || `${p.product_name || 'food'}-${Math.random().toString(36).slice(2, 8)}`),
+    name: p.product_name || p.product_name_en || p.generic_name || "Food item",
+    brand: p.brands || "",
+    barcode: p.code || null,
+    calories_per_100g: calories100,
+    protein_per_100g: protein100,
+    carbs_per_100g: carbs100,
+    fat_per_100g: fat100,
+    fiber_per_100g: fiber100,
+    unit: "g",
+    serving: Math.max(100, parseFloat(p.serving_quantity) || 100),
+  };
+}
+
+export async function searchFoodLibrary(query) {
+  if (!query || !query.trim()) return [];
+  try {
+    // Try OpenFoodFacts v2 first
+    const params = new URLSearchParams({
+      q: query.trim(),
+      page: "1",
+      size: "24",
+      fields: "code,product_name,brands,nutriments,serving_quantity",
+    });
+    const url = `https://world.openfoodfacts.org/api/v2/search?${params.toString()}`;
+    const res = await fetch(url, {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "Expo/ReactNative",
+      },
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      throw new Error(`OpenFoodFacts v2 failed: ${res.status}`);
+    }
+
+    let json;
+    try {
+      json = JSON.parse(text);
+    } catch (err) {
+      throw new Error(`Unable to parse OpenFoodFacts v2 response: ${err.message}`);
+    }
+
+    const products = Array.isArray(json?.products) ? json.products : [];
+    if (products.length > 0) {
+      const unique = new Map();
+      for (const product of products) {
+        const parsed = parseOpenFoodFactsProduct(product);
+        if (!unique.has(parsed.id)) unique.set(parsed.id, parsed);
+      }
+      return Array.from(unique.values());
+    }
+    // If no results from v2, fall through to v0
+  } catch (e) {
+    log("OpenFoodFacts v2 failed, trying v0:", e.message);
+  }
+
+  try {
+    // Fallback to OpenFoodFacts v0 (legacy API)
+    const params = new URLSearchParams({
+      search_terms: query.trim(),
+      search_simple: "1",
+      action: "process",
+      json: "1",
+      page_size: "24",
+    });
+    const url = `https://world.openfoodfacts.org/cgi/search.pl?${params.toString()}`;
+    const res = await fetch(url, {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "Expo/ReactNative",
+      },
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      throw new Error(`OpenFoodFacts v0 failed: ${res.status}`);
+    }
+
+    let json;
+    try {
+      json = JSON.parse(text);
+    } catch (err) {
+      throw new Error(`Unable to parse OpenFoodFacts v0 response: ${err.message}`);
+    }
+
+    const products = Array.isArray(json?.products) ? json.products : [];
+    if (products.length > 0) {
+      const unique = new Map();
+      for (const product of products) {
+        const parsed = parseOpenFoodFactsProduct(product);
+        if (!unique.has(parsed.id)) unique.set(parsed.id, parsed);
+      }
+      return Array.from(unique.values());
+    }
+    // If no results from v0, fall through to local
+  } catch (e) {
+    log("OpenFoodFacts v0 failed, trying local databases:", e.message);
+  }
+
+  // Fallback to comprehensive + common foods databases
+  const lowerQuery = query.toLowerCase().trim();
+  const allFoods = [...comprehensiveFoods, ...commonFoods];
+  const matches = allFoods.filter(food =>
+    food.name.toLowerCase().includes(lowerQuery) ||
+    food.brand?.toLowerCase().includes(lowerQuery)
+  );
+  if (matches.length > 0) {
+    // Deduplicate by name
+    const seen = new Map();
+    for (const food of matches) {
+      const key = `${food.name.toLowerCase()}::${(food.brand || '').toLowerCase()}`;
+      if (!seen.has(key)) seen.set(key, food);
+    }
+    return Array.from(seen.values()).slice(0, 24); // Limit to 24 results
+  }
+  // If no matches in local database either, show unavailable message
+  throw new Error("Food library temporarily unavailable. Please try again later!");
 }
 
 export async function lookupBarcode(barcode) {

@@ -1,4 +1,5 @@
 import localExercises from '../data/exercises.json';
+import { warn } from '../lib/logger';
 
 const GITHUB_URL =
   'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/dist/exercises.json';
@@ -19,7 +20,7 @@ export const fetchExercises = async (): Promise<any[]> => {
     if (Array.isArray(data) && data.length > 0) return data;
     throw new Error('Empty response');
   } catch (err) {
-    console.warn('[BodyQ] Remote fetch failed, using local data:', err);
+    warn('[BodyQ] Remote fetch failed, using local data:', err);
     return localExercises as any[];
   }
 };

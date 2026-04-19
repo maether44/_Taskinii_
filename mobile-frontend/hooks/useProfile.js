@@ -3,9 +3,12 @@
  * Reads the logged-in user's profile, calorie targets, and body metrics.
  * Tables: profiles, calorie_targets, body_metrics
  */
-import { useCallback, useEffect, useState } from 'react';
-import { supabase } from '../config/supabase';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { supabase } from '../lib/supabase';
 import { normalizeGoal } from '../lib/calculations';
+import { useAuth } from '../context/AuthContext';
+import { DEFAULT_TARGETS, computeWaterTarget } from '../constants/targets';
+import { error as logError } from '../lib/logger';
 
 const ACTIVITY_MULTIPLIERS = {
     sedentary: 1.2,
@@ -26,14 +29,8 @@ export function useProfile() {
     const [loading, setLoading] = useState(true);
     const [profile, setProfile] = useState(null);
     const [targets, setTargets] = useState(null);
-    const [userId, setUserId] = useState(null);
-
-    // Get session user once
-    useEffect(() => {
-        supabase.auth.getUser().then(({ data }) => {
-            if (data?.user) setUserId(data.user.id);
-        });
-    }, []);
+    const { user: authUser } = useAuth();
+    const userId = authUser?.id ?? null;
 
     const load = useCallback(async () => {
         if (!userId) return;
@@ -86,7 +83,7 @@ export function useProfile() {
                 setTargets(created ?? auto);
             }
         } catch (e) {
-            console.error('useProfile load error:', e);
+            logError('useProfile load error:', e);
         } finally {
             setLoading(false);
         }
@@ -94,13 +91,18 @@ export function useProfile() {
 
     useEffect(() => { load(); }, [load]);
 
-    // Derived values screens need
-    const bmr = calcBMR(profile);
-    const tdee = Math.round(bmr * (ACTIVITY_MULTIPLIERS[profile?.activity_level] ?? 1.55));
-    const name = profile?.full_name?.split(' ')[0] ?? 'there';
-    const age = profile?.date_of_birth
-        ? new Date().getFullYear() - new Date(profile.date_of_birth).getFullYear()
-        : null;
+    // Derived values screens need — memoized to avoid recalculating on every render
+    const { bmr, tdee, name, age } = useMemo(() => {
+        const _bmr = calcBMR(profile);
+        return {
+            bmr: _bmr,
+            tdee: Math.round(_bmr * (ACTIVITY_MULTIPLIERS[profile?.activity_level] ?? 1.55)),
+            name: profile?.full_name?.split(' ')[0] ?? 'there',
+            age: profile?.date_of_birth
+                ? new Date().getFullYear() - new Date(profile.date_of_birth).getFullYear()
+                : null,
+        };
+    }, [profile]);
 
     return {
         loading,
@@ -112,11 +114,12 @@ export function useProfile() {
         age,
         bmr,
         tdee,
-        calorieTarget: targets?.daily_calories ?? 2000,
-        proteinTarget: targets?.protein_target ?? 150,
-        carbsTarget: targets?.carbs_target ?? 250,
-        fatTarget: targets?.fat_target ?? 65,
-        waterTargetMl: 2500,
+        calorieTarget: targets?.daily_calories ?? DEFAULT_TARGETS.calorie_target,
+        proteinTarget: targets?.protein_target ?? DEFAULT_TARGETS.protein_target,
+        carbsTarget: targets?.carbs_target ?? DEFAULT_TARGETS.carbs_target,
+        fatTarget: targets?.fat_target ?? DEFAULT_TARGETS.fat_target,
+        waterTargetMl: targets?.water_target_ml ?? computeWaterTarget(profile?.weight_kg),
+        stepsTarget: targets?.steps_target ?? DEFAULT_TARGETS.steps_target,
         refresh: load,
     };
 }

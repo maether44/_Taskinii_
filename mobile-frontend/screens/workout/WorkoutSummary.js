@@ -7,6 +7,7 @@ import Svg, { Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { CommonActions } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
+import { warn } from '../../lib/logger';
 
 // ── Design tokens ─────────────────────────────────────────────
 const C = {
@@ -151,7 +152,7 @@ export default function WorkoutSummary({ route, navigation }) {
         if (data.calories_burned != null) setCalories(data.calories_burned);
         if (data.exercise_name)           setExName(data.exercise_name);
       } else {
-        console.warn('[BodyQ] Session fetch error:', error?.message);
+        warn('[BodyQ] Session fetch error:', error?.message);
       }
       setDbLoading(false);
       runEntrance();

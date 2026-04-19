@@ -11,8 +11,9 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { supabase } from "../../config/supabase";
+import { searchFoodLibrary } from "../../services/foodScannerApi";
 import { useNutrition } from "../../hooks/useNutrition";
+import { error as logError } from '../../lib/logger';
 
 const C = {
   bg: "#0F0B1E",
@@ -61,33 +62,54 @@ export default function MealLogger() {
   const { saveMealEntries, refresh } = useNutrition();
 
   const [foods, setFoods] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
+  const [searchError, setSearchError] = useState("");
   const [added, setAdded] = useState([]);
   const [tab, setTab] = useState("search");
 
   useEffect(() => {
-    let mounted = true;
-    supabase
-      .from("foods")
-      .select("id, name, brand, barcode, calories_per_100g, protein_per_100g, carbs_per_100g, fat_per_100g, fiber_per_100g")
-      .order("name")
-      .then(({ data }) => {
-        if (mounted) {
-          setFoods(data ?? []);
-          setLoading(false);
-        }
-      });
-    return () => { mounted = false; };
-  }, []);
+    if (!search.trim()) {
+      setFoods([]);
+      setSearchError("");
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setSearchError("");
+    const timeout = setTimeout(async () => {
+      try {
+        const results = await searchFoodLibrary(search.trim());
+        setFoods(results);
+      } catch (error) {
+        logError("MealLogger food library search failed:", error);
+        setFoods([]);
+        setSearchError(error?.message || "Food library search failed.");
+      } finally {
+        setLoading(false);
+      }
+    }, 350);
+
+    return () => clearTimeout(timeout);
+  }, [search]);
+
+  const uniqueFoods = useMemo(() => {
+    const seen = new Map();
+    for (const food of foods) {
+      const key = `${food.name?.trim().toLowerCase() || ""}::${(food.brand || "").trim().toLowerCase()}`;
+      if (!seen.has(key)) seen.set(key, food);
+    }
+    return Array.from(seen.values());
+  }, [foods]);
 
   const filtered = useMemo(() => {
-    return foods.filter((food) => {
+    return uniqueFoods.filter((food) => {
       const haystack = `${food.name} ${food.brand || ""}`.toLowerCase();
       return haystack.includes(search.toLowerCase());
     });
-  }, [foods, search]);
+  }, [uniqueFoods, search]);
 
   const addFood = (food) => {
     setAdded((prev) => prev.find((item) => item.foodId === food.id)
@@ -143,7 +165,7 @@ export default function MealLogger() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={s.title}>{mealSlot.icon} {mealSlot.label}</Text>
-          <Text style={s.subtitle}>Build this meal from your saved foods</Text>
+          <Text style={s.subtitle}>Build this meal from the food library</Text>
         </View>
         <TouchableOpacity style={[s.saveBtn, (!added.length || saving) && s.saveBtnOff]} onPress={handleSave} disabled={!added.length || saving}>
           <Text style={s.saveTxt}>{saving ? "Saving" : "Save"}</Text>
@@ -166,7 +188,7 @@ export default function MealLogger() {
 
       <View style={s.tabs}>
         {[
-          { id: "search", label: "Search foods" },
+          { id: "search", label: "Food library" },
           { id: "added", label: `Added (${added.length})` },
         ].map((item) => (
           <TouchableOpacity key={item.id} style={[s.tab, tab === item.id && s.tabActive]} onPress={() => setTab(item.id)}>
@@ -183,7 +205,7 @@ export default function MealLogger() {
               style={s.searchInput}
               value={search}
               onChangeText={setSearch}
-              placeholder="Search saved foods"
+              placeholder="Search the food library"
               placeholderTextColor={C.dim}
             />
             {!!search && (
@@ -192,6 +214,8 @@ export default function MealLogger() {
               </TouchableOpacity>
             )}
           </View>
+
+          {searchError ? <Text style={s.searchError}>{searchError}</Text> : null}
 
           {loading ? (
             <View style={s.centered}>
@@ -205,8 +229,17 @@ export default function MealLogger() {
               contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
               ListEmptyComponent={(
                 <View style={s.emptyState}>
-                  <Text style={s.emptyTitle}>{search ? "No matching foods" : "No saved foods yet"}</Text>
-                  <Text style={s.emptySub}>Scan a product first and it will appear here for future meals.</Text>
+                  <Text style={s.emptyTitle}>{search ? "No matching foods" : "Search our food library"}</Text>
+                  <Text style={s.emptySub}>{search ? "Try a different food name or brand." : "Tap a suggestion or type a food to search OpenFoodFacts."}</Text>
+                  {!search && (
+                    <View style={s.suggestionRow}>
+                      {["Banana", "Greek Yogurt", "Chicken Breast", "Oats", "Eggs"].map((term) => (
+                        <TouchableOpacity key={term} style={s.suggestionChip} onPress={() => setSearch(term)}>
+                          <Text style={s.suggestionTxt}>{term}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
                 </View>
               )}
               renderItem={({ item }) => {
@@ -216,7 +249,7 @@ export default function MealLogger() {
                     <View style={{ flex: 1 }}>
                       <Text style={s.foodName}>{item.name}</Text>
                       <Text style={s.foodMeta}>
-                        {Math.round(item.calories_per_100g || 0)} kcal • {Math.round(item.protein_per_100g || 0)}g P • {Math.round(item.carbs_per_100g || 0)}g C • {Math.round(item.fat_per_100g || 0)}g F
+                        {Math.round(item.calories_per_100g || 0)} kcal per 100g • {Math.round(item.protein_per_100g || 0)}g P • {Math.round(item.carbs_per_100g || 0)}g C • {Math.round(item.fat_per_100g || 0)}g F
                       </Text>
                     </View>
                     <TouchableOpacity style={[s.addBtn, isAdded && s.addBtnDone]} onPress={() => isAdded ? removeFood(item.id) : addFood(item)}>
@@ -293,6 +326,9 @@ const s = StyleSheet.create({
   saveBtn: { backgroundColor: C.purple, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10 },
   saveBtnOff: { opacity: 0.45 },
   saveTxt: { color: "#fff", fontSize: 13, fontWeight: "800" },
+  suggestionRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 12, paddingHorizontal: 8 },
+  suggestionChip: { backgroundColor: "#1B1637", borderRadius: 14, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: "#2D2850" },
+  suggestionTxt: { color: "#C8F135", fontSize: 12, fontWeight: "700" },
   totalsBar: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -339,6 +375,7 @@ const s = StyleSheet.create({
     gap: 8,
   },
   searchInput: { flex: 1, color: C.text, fontSize: 15 },
+  searchError: { color: "#FF8787", fontSize: 12, marginHorizontal: 16, marginTop: 8 },
   loadingTxt: { color: C.sub, fontSize: 13, marginTop: 10 },
   emptyState: { alignItems: "center", paddingTop: 48, paddingHorizontal: 24 },
   emptyTitle: { color: C.text, fontSize: 17, fontWeight: "700", textAlign: "center" },

@@ -6,6 +6,7 @@ import { useCallback, useState } from 'react';
 import { useExercises } from '../hooks/useExercises';
 import ExerciseCard    from '../components/ExerciseCard';
 import { supabase }   from '../lib/supabase';
+import { useAuth }    from '../context/AuthContext';
 
 const C = {
   bg: '#0F0B1E', card: '#161230', border: '#1E1A35',
@@ -15,17 +16,18 @@ const C = {
 export default function ExerciseList() {
   const navigation = useNavigation();
   const { filtered, loading, refreshing, error, query, setQuery, onRefresh, retry } = useExercises();
+  const { user: authUser } = useAuth();
+  const authUserId = authUser?.id ?? null;
 
   // Map: exerciseKey → { formScore, isNew } for Personal Best badges
   const [personalBests, setPersonalBests] = useState({});
 
   const loadPersonalBests = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!authUserId) return;
     const { data: sessions } = await supabase
       .from('workout_sessions')
       .select('notes, created_at')
-      .eq('user_id', user.id)
+      .eq('user_id', authUserId)
       .order('created_at', { ascending: false });
     if (!sessions) return;
 
@@ -45,7 +47,7 @@ export default function ExerciseList() {
       }
     }
     setPersonalBests(bests);
-  }, []);
+  }, [authUserId]);
 
   useFocusEffect(useCallback(() => { loadPersonalBests(); }, [loadPersonalBests]));
 

@@ -5,6 +5,8 @@ import {
     ActivityIndicator, Animated, ScrollView,
     StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
+import { DEFAULT_TARGETS } from '../../constants/targets';
+import { error as logError } from '../../lib/logger';
 
 const C = {
     bg: '#0E0C15', surface: '#18152A', card: '#201C35', border: '#2D2850',
@@ -38,16 +40,16 @@ export default function OnboardingDone({ plan = {}, profile = {}, onComplete }) 
         try {
             await onComplete?.({ plan, profile });
         } catch (e) {
-            console.error('OnboardingDone onComplete error:', e);
+            logError('OnboardingDone onComplete error:', e);
         } finally {
             setSaving(false);
         }
     };
 
-    const dailyCals = plan.dailyCalories || 2000;
-    const proteinG = plan.proteinG || 150;
-    const carbsG = plan.carbsG || 250;
-    const fatG = plan.fatG || 65;
+    const dailyCals = plan.dailyCalories || DEFAULT_TARGETS.calorie_target;
+    const proteinG = plan.proteinG || DEFAULT_TARGETS.protein_target;
+    const carbsG = plan.carbsG || DEFAULT_TARGETS.carbs_target;
+    const fatG = plan.fatG || DEFAULT_TARGETS.fat_target;
     const workoutDays = plan.workoutDaysPerWeek || 4;
     const workoutMins = plan.workoutDuration || 45;
 
