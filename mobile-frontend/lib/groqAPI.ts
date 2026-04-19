@@ -220,7 +220,7 @@ Use this to give precise, personalised advice every time.`;
 }
 
 // callAriaCoach — identical to callYaraCoach but under the Aria brand name.
-// useAriaChat.ts and AriaAssistant.js import this.
+// useAlexiChat.ts and AlexiAssistant.js import this.
 export async function callAriaCoach(
   history: { role: string; content: string }[],
   profile: any,

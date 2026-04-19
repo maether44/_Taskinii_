@@ -11,11 +11,11 @@ function fmtTime() {
 
 function buildWelcome(profile) {
   return profile
-    ? `Hey — I'm Aria, your personal coach. I already know your profile so ask me anything about your training, nutrition or recovery. What's on your mind?`
-    : "Hey! I'm Aria — your personal coach. I'm here for everything: training, nutrition, recovery, mindset. What's on your mind today?";
+    ? `Hey — I'm Alexi, your personal coach. I already know your profile so ask me anything about your training, nutrition or recovery. What's on your mind?`
+    : "Hey! I'm Alexi — your personal coach. I'm here for everything: training, nutrition, recovery, mindset. What's on your mind today?";
 }
 
-export function useAriaChat(profile) {
+export function useAlexiChat(profile) {
   const { user }                    = useAuth();
   const [messages,  setMessages]    = useState([]);
   const [input,     setInput]       = useState('');
@@ -27,7 +27,7 @@ export function useAriaChat(profile) {
   useEffect(() => {
     const loadHistory = async () => {
       // Always show welcome message first
-      const welcome = { from: 'aria', text: buildWelcome(profile), time: fmtTime() };
+      const welcome = { from: 'alexi', text: buildWelcome(profile), time: fmtTime() };
 
       if (!user) { setMessages([welcome]); return; }
 
@@ -39,7 +39,7 @@ export function useAriaChat(profile) {
         } else {
           // Rebuild UI messages from DB history
           const uiMessages = safeHistory.map(m => ({
-            from: m.role === 'assistant' ? 'aria' : 'user',
+            from: m.role === 'assistant' ? 'alexi' : 'user',
             text: m.content,
             time: '',
           }));
@@ -71,15 +71,15 @@ export function useAriaChat(profile) {
       const reply = await callAriaCoach(apiHistory.current, profile, null);
       apiHistory.current = [...apiHistory.current, { role: 'assistant', content: reply }];
 
-      // Save Aria's reply to DB
+      // Save Alexi's reply to DB
       if (user) await saveMessage(user.id, 'assistant', reply).catch(console.error);
 
-      setMessages(prev => [...prev, { from: 'aria', text: reply, time: fmtTime() }]);
+      setMessages(prev => [...prev, { from: 'alexi', text: reply, time: fmtTime() }]);
     } catch (err) {
-      console.error('Aria error:', err);
+      console.error('[AlexiChat] error:', err);
       apiHistory.current = apiHistory.current.slice(0, -1);
       setMessages(prev => [...prev, {
-        from: 'aria',
+        from: 'alexi',
         text: 'Sorry, connection issue. Try again!',
         time: fmtTime(),
       }]);

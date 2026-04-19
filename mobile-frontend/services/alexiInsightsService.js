@@ -1,5 +1,5 @@
 /**
- * mobile-frontend/services/ariaInsightsService.js
+ * mobile-frontend/services/alexiInsightsService.js
  *
  * Generates and caches personalised AI fitness insight cards for the Insights screen.
  * Calls the `yara-insights` Supabase Edge Function (which holds the Groq key server-side).
@@ -86,15 +86,15 @@ function rowToInsight(row) {
 // The Groq API key lives in Supabase secrets; it never reaches the client.
 // =============================================================================
 async function callEdgeFunction(stats, period) {
-  console.log('[ariaInsightsService] Invoking yara-insights Edge Function for period:', period);
+  console.log('[alexiInsightsService] Invoking yara-insights Edge Function for period:', period);
   const { data, error } = await supabase.functions.invoke('yara-insights', {
     body: { period, stats },
   });
   if (error) {
-    console.error('[ariaInsightsService] Edge Function error:', error);
+    console.error('[alexiInsightsService] Edge Function error:', error);
     throw error;
   }
-  console.log('[ariaInsightsService] Edge Function returned', Array.isArray(data) ? data.length : 0, 'insights');
+  console.log('[alexiInsightsService] Edge Function returned', Array.isArray(data) ? data.length : 0, 'insights');
   return Array.isArray(data) ? data : [];
 }
 
@@ -119,34 +119,34 @@ async function _generateAndCacheInsights(userId, rawStats, period) {
   try {
     // ── Step 1: Cache check ────────────────────────────────────────────────
     const since = new Date(Date.now() - CACHE_TTL_MS).toISOString();
-    console.log('[ariaInsightsService] Checking ai_insights cache — userId:', userId, 'period:', period, 'since:', since);
+    console.log('[alexiInsightsService] Checking ai_insights cache — userId:', userId, 'period:', period, 'since:', since);
 
     const { data: cached, error: cacheErr } = await supabase
       .from('ai_insights')
       .select('*')
       .eq('user_id', userId)
       .eq('period',  period)
-      .eq('source',  'aria')
+      .eq('source',  'alexi')
       .gte('created_at', since)
       .order('created_at', { ascending: false })
       .limit(4);
 
     if (cacheErr) {
-      console.error('[ariaInsightsService] Cache read error:', cacheErr);
+      console.error('[alexiInsightsService] Cache read error:', cacheErr);
     } else {
-      console.log('[ariaInsightsService] Cache returned', cached?.length ?? 0, 'rows');
+      console.log('[alexiInsightsService] Cache returned', cached?.length ?? 0, 'rows');
     }
 
     if (cached?.length >= 4) {
-      console.log('[ariaInsightsService] Cache HIT — returning', cached.length, 'cached insights');
+      console.log('[alexiInsightsService] Cache HIT — returning', cached.length, 'cached insights');
       return cached.slice(0, 4).map(rowToInsight);
     }
 
     // ── Step 2: Generate via Edge Function ────────────────────────────────
-    console.log('[ariaInsightsService] Cache MISS — calling Edge Function');
+    console.log('[alexiInsightsService] Cache MISS — calling Edge Function');
     const rawInsights = await callEdgeFunction(rawStats, period);
     if (!rawInsights?.length) {
-      console.warn('[ariaInsightsService] Edge Function returned 0 insights');
+      console.warn('[alexiInsightsService] Edge Function returned 0 insights');
       return [];
     }
 
@@ -156,14 +156,14 @@ async function _generateAndCacheInsights(userId, rawStats, period) {
       insight_type: normalizeTag(ins.tag),
       message:      `${ins.title}|${ins.text}`,
       period,
-      source:       'aria',
+      source:       'alexi',
     }));
     // Delete previous rows for this user+period before inserting fresh ones
-    await supabase.from('ai_insights').delete().eq('user_id', userId).eq('period', period).eq('source', 'aria');
-    console.log('[ariaInsightsService] Inserting', rows.length, 'rows into ai_insights');
+    await supabase.from('ai_insights').delete().eq('user_id', userId).eq('period', period).eq('source', 'alexi');
+    console.log('[alexiInsightsService] Inserting', rows.length, 'rows into ai_insights');
     const { error: insertErr } = await supabase.from('ai_insights').insert(rows);
     if (insertErr) {
-      console.error('[ariaInsightsService] Insert error (non-fatal):', insertErr);
+      console.error('[alexiInsightsService] Insert error (non-fatal):', insertErr);
     }
 
     // ── Step 4: Return formatted cards ───────────────────────────────────
@@ -177,11 +177,11 @@ async function _generateAndCacheInsights(userId, rawStats, period) {
         color: INSIGHT_COLORS[tag]  ?? '#6F4BF2',
       };
     });
-    console.log('[ariaInsightsService] Returning', cards.length, 'fresh insight cards');
+    console.log('[alexiInsightsService] Returning', cards.length, 'fresh insight cards');
     return cards;
 
   } catch (e) {
-    console.error('[ariaInsightsService] generateAndCacheInsights error:', e);
+    console.error('[alexiInsightsService] generateAndCacheInsights error:', e);
     return [];
   }
 }

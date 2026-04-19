@@ -2,7 +2,7 @@
  * navigationRef.js
  *
  * Singleton navigation ref that can be used outside of React components
- * (e.g., AriaVoiceContext command handler, AriaEvents listeners).
+ * (e.g., AlexiVoiceContext command handler, AlexiEvents listeners).
  *
  * Usage:
  *   In App.js:       <NavigationContainer ref={navigationRef} ...>
