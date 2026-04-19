@@ -38,6 +38,9 @@ import FoodDetail from './screens/nutrition/FoodDetail';
 import SleepLog from './screens/sleep/SleepLog';
 import FoodScannerScreen from './components/food-scanner/FoodScannerScreen';
 import WorkoutSummary from './screens/workout/WorkoutSummary';
+import CommunityCenter from './screens/community/CommunityCenter';
+import MessagesInbox from './screens/community/MessagesInbox';
+import DMThread from './screens/community/DMThread';
 import { scheduleStore } from './store/scheduleStore';
 
 // Global Components
@@ -86,6 +89,9 @@ function Navigation() {
           <Stack.Screen name="SleepLog" component={SleepLog} />
           <Stack.Screen name="FoodScanner" component={FoodScannerScreen} />
           <Stack.Screen name="WorkoutSummary" component={WorkoutSummary} />
+          <Stack.Screen name="Community" component={CommunityCenter} />
+          <Stack.Screen name="Messages" component={MessagesInbox} />
+          <Stack.Screen name="DMThread" component={DMThread} />
           <Stack.Screen name="Schedule" component={ScheduleScreen} />
         </>
       )}
@@ -147,7 +153,10 @@ export default function App() {
           <TodayProvider>
             <View style={styles.container} onLayout={onLayoutRootView}>
               <StatusBar style="light" />
-              <NavigationContainer ref={navigationRef} onStateChange={(state) => setActiveRoute(getActiveRouteName(state))}>
+              <NavigationContainer
+                ref={navigationRef}
+                onStateChange={(state) => setActiveRoute(getActiveRouteName(state))}
+              >
                 <Navigation />
               </NavigationContainer>
               {showYaraAssistant && (

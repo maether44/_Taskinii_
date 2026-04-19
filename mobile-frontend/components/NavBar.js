@@ -1,8 +1,9 @@
 import React from 'react';
-import { View } from 'react-native';
+import { Image, View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useAuth } from '../context/AuthContext';
 
 // Screens
 import Home from '../screens/Home';
@@ -57,7 +58,7 @@ function ProfileStack() {
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       <Stack.Screen name="HelpCenter" component={HelpCenter} />
       <Stack.Screen name="ReportProblem" component={ReportProblem} />
-       <Stack.Screen name="TermsPolicies" component={TermsPolicies} />
+      <Stack.Screen name="TermsPolicies" component={TermsPolicies} />
       <Stack.Screen name="TrustCenter" component={TrustCenter} />
       <Stack.Screen name="WorkoutHistory" component={WorkoutHistoryScreen} />
     </Stack.Navigator>
@@ -65,6 +66,8 @@ function ProfileStack() {
 }
 
 export default function NavBar() {
+  const { profileAvatarUri } = useAuth();
+
   return (
     <View style={{ flex: 1 }}>
       <Tab.Navigator
@@ -116,7 +119,29 @@ export default function NavBar() {
           name="Profile"
           component={ProfileStack}
           options={{
-            tabBarIcon: ({ color }) => <Ionicons name="person" size={24} color={color} />,
+            tabBarLabel: () => null,
+            tabBarIconStyle: { marginTop: 8 },
+            tabBarIcon: ({ color, focused }) =>
+              profileAvatarUri ? (
+                <View
+                  style={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: 17,
+                    overflow: 'hidden',
+                    borderWidth: 2,
+                    borderColor: focused ? '#C8F135' : '#3d3f1e',
+                  }}
+                >
+                  <Image
+                    source={{ uri: profileAvatarUri }}
+                    style={{ width: '100%', height: '100%' }}
+                    resizeMode="cover"
+                  />
+                </View>
+              ) : (
+                <Ionicons name="person" size={24} color={color} />
+              ),
           }}
         />
       </Tab.Navigator>
