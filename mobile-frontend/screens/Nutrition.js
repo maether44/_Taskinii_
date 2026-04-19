@@ -1,9 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
+import { FS } from '../constants/typography';
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -270,12 +272,17 @@ export default function Nutrition({ navigation }) {
     <View style={s.root}>
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
         <View style={s.header}>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={s.title}>Food diary</Text>
             <Text style={s.date}>
               {new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
             </Text>
           </View>
+          <Image
+            source={require("../assets/bodyqfood.png")}
+            style={s.headerMascot}
+            resizeMode="contain"
+          />
           <TouchableOpacity onPress={refresh} style={s.refreshBtn}>
             <Ionicons name="refresh-outline" size={18} color={C.sub} />
           </TouchableOpacity>
@@ -475,11 +482,12 @@ export default function Nutrition({ navigation }) {
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
   centered: { justifyContent: "center", alignItems: "center" },
-  loadingTxt: { color: C.sub, marginTop: 12, fontSize: 13 },
+  loadingTxt: { color: C.sub, marginTop: 12, fontSize: FS.sub },
   scroll: { paddingHorizontal: 16, paddingTop: 52, paddingBottom: 24 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 18 },
-  title: { color: C.text, fontSize: 30, fontWeight: "800", letterSpacing: -0.8 },
-  date: { color: C.sub, fontSize: 13, marginTop: 2 },
+  title: { color: C.text, fontSize: FS.screenTitle, fontWeight: "800", letterSpacing: -0.8 },
+  date: { color: C.sub, fontSize: FS.btnSecondary, marginTop: 2 },
+  headerMascot: { width: 72, height: 72 },
   refreshBtn: {
     width: 38,
     height: 38,
@@ -498,9 +506,9 @@ const s = StyleSheet.create({
     alignItems: "center",
     gap: 16,
   },
-  heroEyebrow: { color: "rgba(255,255,255,0.7)", fontSize: 11, fontWeight: "800", letterSpacing: 1.2 },
-  heroTitle: { color: "#fff", fontSize: 21, fontWeight: "800", lineHeight: 27, marginTop: 6 },
-  heroSub: { color: "rgba(255,255,255,0.75)", fontSize: 13, lineHeight: 19, marginTop: 8 },
+  heroEyebrow: { color: "rgba(255,255,255,0.7)", fontSize: FS.badge, fontWeight: "800", letterSpacing: 1.2 },
+  heroTitle: { color: "#fff", fontSize: FS.sectionTitle, fontWeight: "800", lineHeight: 29, marginTop: 6 },
+  heroSub: { color: "rgba(255,255,255,0.75)", fontSize: FS.btnSecondary, lineHeight: 20, marginTop: 8 },
   heroIcon: {
     width: 56,
     height: 56,
@@ -518,11 +526,11 @@ const s = StyleSheet.create({
     marginBottom: 20,
   },
   summaryTop: { flexDirection: "row", justifyContent: "space-between", gap: 16, alignItems: "center" },
-  cardLabel: { color: C.sub, fontSize: 11, fontWeight: "800", letterSpacing: 1.1 },
-  cardTitle: { color: C.text, fontSize: 20, fontWeight: "800", marginTop: 6 },
-  cardSub: { color: C.dim, fontSize: 13, lineHeight: 19, marginTop: 6 },
-  ringValue: { color: C.text, fontSize: 22, fontWeight: "900" },
-  ringLabel: { color: C.sub, fontSize: 11 },
+  cardLabel: { color: C.sub, fontSize: FS.badge, fontWeight: "800", letterSpacing: 1.1 },
+  cardTitle: { color: C.text, fontSize: FS.sectionTitle, fontWeight: "800", marginTop: 6 },
+  cardSub: { color: C.dim, fontSize: FS.btnSecondary, lineHeight: 20, marginTop: 6 },
+  ringValue: { color: C.text, fontSize: FS.sectionTitle, fontWeight: "900" },
+  ringLabel: { color: C.sub, fontSize: FS.badge },
   summaryStats: {
     flexDirection: "row",
     marginTop: 18,
@@ -533,14 +541,14 @@ const s = StyleSheet.create({
     paddingVertical: 14,
   },
   summaryStat: { flex: 1, alignItems: "center" },
-  summaryValue: { color: C.text, fontSize: 18, fontWeight: "800" },
-  summaryLabel: { color: C.sub, fontSize: 11, marginTop: 4 },
+  summaryValue: { color: C.text, fontSize: FS.cardTitle, fontWeight: "800" },
+  summaryLabel: { color: C.sub, fontSize: FS.badge, marginTop: 4 },
   summaryDivider: { width: 1, backgroundColor: C.border },
   macroSection: { marginTop: 18 },
   sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
   sectionHeaderTight: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  sectionTitle: { color: C.text, fontSize: 22, fontWeight: "800" },
-  sectionSub: { color: C.sub, fontSize: 13, marginTop: 2 },
+  sectionTitle: { color: C.text, fontSize: FS.sectionTitle, fontWeight: "800" },
+  sectionSub: { color: C.sub, fontSize: FS.btnSecondary, marginTop: 2 },
   scanMiniBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -552,7 +560,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  scanMiniTxt: { color: C.purple, fontSize: 12, fontWeight: "700" },
+  scanMiniTxt: { color: C.purple, fontSize: FS.badge, fontWeight: "700" },
   mealCard: {
     backgroundColor: C.card,
     borderRadius: 22,
@@ -565,13 +573,13 @@ const s = StyleSheet.create({
   mealTitleRow: { flexDirection: "row", gap: 12, flex: 1 },
   mealIconWrap: { width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   mealEmoji: { fontSize: 20 },
-  mealName: { color: C.text, fontSize: 18, fontWeight: "700" },
-  mealSub: { color: C.sub, fontSize: 12, marginTop: 3 },
-  mealCalories: { color: C.lime, fontSize: 16, fontWeight: "800" },
+  mealName: { color: C.text, fontSize: FS.cardTitle, fontWeight: "700" },
+  mealSub: { color: C.sub, fontSize: FS.sub, marginTop: 3 },
+  mealCalories: { color: C.lime, fontSize: FS.bodyLarge, fontWeight: "800" },
   pillRow: { flexDirection: "row", gap: 8, marginTop: 14 },
   macroPill: { flex: 1, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 10, borderWidth: 1 },
-  macroPillValue: { fontSize: 14, fontWeight: "800" },
-  macroPillLabel: { color: C.sub, fontSize: 11, marginTop: 2 },
+  macroPillValue: { fontSize: FS.btnSecondary, fontWeight: "800" },
+  macroPillLabel: { color: C.sub, fontSize: FS.label, marginTop: 2 },
   foodList: { marginTop: 14, gap: 8 },
   foodRow: {
     flexDirection: "row",
@@ -585,9 +593,9 @@ const s = StyleSheet.create({
     paddingVertical: 11,
     gap: 10,
   },
-  foodName: { color: C.text, fontSize: 14, fontWeight: "700" },
-  foodMeta: { color: C.sub, fontSize: 11, marginTop: 2 },
-  foodCals: { color: C.accent, fontSize: 13, fontWeight: "700" },
+  foodName: { color: C.text, fontSize: FS.body, fontWeight: "700" },
+  foodMeta: { color: C.sub, fontSize: FS.badge, marginTop: 2 },
+  foodCals: { color: C.accent, fontSize: FS.btnSecondary, fontWeight: "700" },
   emptyMeal: {
     marginTop: 14,
     paddingVertical: 16,
@@ -597,7 +605,7 @@ const s = StyleSheet.create({
     backgroundColor: C.cardAlt,
     alignItems: "center",
   },
-  emptyMealTxt: { color: C.sub, fontSize: 13 },
+  emptyMealTxt: { color: C.sub, fontSize: FS.sub },
   mealActions: { flexDirection: "row", gap: 10, marginTop: 14 },
   mealPrimaryBtn: {
     flex: 1,
@@ -609,7 +617,7 @@ const s = StyleSheet.create({
     borderRadius: 14,
     paddingVertical: 13,
   },
-  mealPrimaryTxt: { color: "#fff", fontSize: 13, fontWeight: "800" },
+  mealPrimaryTxt: { color: "#fff", fontSize: FS.sub, fontWeight: "800" },
   mealSecondaryBtn: {
     flex: 1,
     alignItems: "center",
@@ -620,7 +628,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: C.border,
   },
-  mealSecondaryTxt: { color: C.text, fontSize: 13, fontWeight: "700" },
+  mealSecondaryTxt: { color: C.text, fontSize: FS.sub, fontWeight: "700" },
   waterCard: {
     backgroundColor: C.card,
     borderRadius: 22,
@@ -629,7 +637,7 @@ const s = StyleSheet.create({
     padding: 18,
     marginTop: 8,
   },
-  waterStat: { color: C.blue, fontSize: 14, fontWeight: "700" },
+  waterStat: { color: C.blue, fontSize: FS.btnSecondary, fontWeight: "700" },
   waterBar: { height: 10, borderRadius: 5, backgroundColor: `${C.blue}18`, marginTop: 14, overflow: "hidden" },
   waterFill: { height: "100%", backgroundColor: C.blue, borderRadius: 5 },
   waterBtns: { flexDirection: "row", gap: 8, marginTop: 16 },
@@ -644,7 +652,7 @@ const s = StyleSheet.create({
     borderColor: `${C.blue}30`,
   },
   waterUndo: { backgroundColor: "rgba(255,107,107,0.08)", borderColor: "rgba(255,107,107,0.25)" },
-  waterBtnTxt: { color: C.blue, fontSize: 13, fontWeight: "700" },
+  waterBtnTxt: { color: C.blue, fontSize: FS.sub, fontWeight: "700" },
   yaraCard: {
     backgroundColor: C.card,
     borderRadius: 22,
@@ -678,10 +686,10 @@ const s = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  planRefreshTxt: { color: C.lime, fontSize: 12, fontWeight: "800" },
+  planRefreshTxt: { color: C.lime, fontSize: FS.badge, fontWeight: "800" },
   planLoading: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 16 },
-  planLoadingTxt: { color: C.sub, fontSize: 13, flex: 1, lineHeight: 19 },
-  planBody: { color: C.text, fontSize: 14, lineHeight: 22, marginTop: 16 },
-  planEmpty: { color: C.sub, fontSize: 13, lineHeight: 20, marginTop: 16 },
-  planError: { color: "#FF6B6B", fontSize: 13, lineHeight: 20, marginTop: 16 },
+  planLoadingTxt: { color: C.sub, fontSize: FS.sub, flex: 1, lineHeight: 19 },
+  planBody: { color: C.text, fontSize: FS.btnSecondary, lineHeight: 22, marginTop: 16 },
+  planEmpty: { color: C.sub, fontSize: FS.sub, lineHeight: 20, marginTop: 16 },
+  planError: { color: "#FF6B6B", fontSize: FS.sub, lineHeight: 20, marginTop: 16 },
 });

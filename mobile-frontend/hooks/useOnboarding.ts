@@ -31,6 +31,7 @@ export function useOnboarding() {
   const fade = useRef(new Animated.Value(1)).current;
 
   // Step answers
+  const [coachName, setCoachName] = useState("Yara");
   const [goal, setGoal] = useState(null);
   const [gender, setGender] = useState(null);
   const [dob, setDob] = useState("");
@@ -87,6 +88,7 @@ export function useOnboarding() {
     !!(days && duration && timeOfDay),
     !!equipment,
     !!(sleep && stress && diet),
+    !!(coachName && coachName.trim().length > 0 && /^[a-zA-Z0-9 ]+$/.test(coachName.trim())),
     true,
   ][step];
 
@@ -111,6 +113,7 @@ export function useOnboarding() {
   };
 
   const getAnswers = () => ({
+    coachName: coachName.trim() || "Yara",
     goal,
     gender,
     dob,
@@ -148,8 +151,8 @@ export function useOnboarding() {
   };
 
   const goNext = async (onComplete) => {
-    if (step === 5) {
-      animateTo(6);
+    if (step === 6) {
+      animateTo(7);
       setLoading(true);
       setLoadError(null);
       try {
@@ -253,6 +256,8 @@ export function useOnboarding() {
     setStress,
     diet,
     setDiet,
+    coachName,
+    setCoachName,
     // Derived
     bmi,
     calTarget,

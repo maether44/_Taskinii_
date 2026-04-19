@@ -21,6 +21,7 @@ import useNotification from '../hooks/useNotification';
 import { useDashboard } from '../hooks/useDashboard';
 import WaterTracker from '../components/home/WaterTracker';
 import { COLORS } from '../constants/colors';
+import { FS } from '../constants/typography';
 import { supabase } from '../lib/supabase';
 import { getLocalAvatarForUser } from '../lib/avatar';
 import { useAuth } from '../context/AuthContext';
@@ -405,7 +406,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     marginTop: 8,
   },
-  retryBtnTxt: { color: '#FFF', fontSize: 14, fontWeight: '700' },
+  retryBtnTxt: { color: '#FFF', fontSize: FS.btnPrimary, fontWeight: '700' },
 
   header: {
     flexDirection: 'row',
@@ -413,8 +414,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 24,
   },
-  greeting: { color: '#FFF', fontSize: 24, fontWeight: '900' },
-  subGreeting: { color: '#6B5F8A', fontSize: 14, marginTop: 4 },
+  greeting: { color: '#FFF', fontSize: FS.screenTitle, fontWeight: '900' },
+  subGreeting: { color: '#6B5F8A', fontSize: FS.body, marginTop: 4 },
   avatar: {
     width: 44,
     height: 44,
@@ -426,7 +427,7 @@ const styles = StyleSheet.create({
     borderColor: '#C8F135',
   },
   avatarImg: { width: '100%', height: '100%', borderRadius: 22 },
-  avatarTxt: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
+  avatarTxt: { color: '#FFF', fontSize: FS.cardTitle, fontWeight: 'bold' },
 
   cardBase: {
     backgroundColor: '#161230',
@@ -444,7 +445,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 10,
   },
-  aiTitle: { color: 'rgba(255,255,255,0.6)', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
+  aiTitle: { color: 'rgba(255,255,255,0.6)', fontSize: FS.label, fontWeight: '900', letterSpacing: 1 },
   liveDot: {
     width: 8,
     height: 8,
@@ -454,7 +455,7 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     shadowOpacity: 1,
   },
-  aiText: { color: '#FFF', fontSize: 15, lineHeight: 22, fontWeight: '500' },
+  aiText: { color: '#FFF', fontSize: FS.bodyLarge, lineHeight: 22, fontWeight: '500' },
 
   bentoGrid: { flexDirection: 'row', gap: 12, marginBottom: 12 },
   mainCalorieCard: { flex: 1.2, marginBottom: 0, justifyContent: 'center' },
@@ -463,15 +464,15 @@ const styles = StyleSheet.create({
 
   cardLabel: {
     color: '#6B5F8A',
-    fontSize: 10,
+    fontSize: FS.label,
     fontWeight: '900',
     letterSpacing: 1,
     marginBottom: 8,
   },
-  bigCal: { color: '#C8F135', fontSize: 42, fontWeight: '900', marginVertical: 4 },
+  bigCal: { color: '#C8F135', fontSize: FS.hero, fontWeight: '900', marginVertical: 4 },
   calRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  calBurned: { color: '#C8F135', fontSize: 11, fontWeight: '800', marginTop: 6 },
-  calSub: { color: '#6B5F8A', fontSize: 11 },
+  calBurned: { color: '#C8F135', fontSize: FS.sub, fontWeight: '800', marginTop: 6 },
+  calSub: { color: '#6B5F8A', fontSize: FS.sub },
   dividerV: { width: 1, height: 10, backgroundColor: '#1E1A35' },
 
   logBtn: {
@@ -481,10 +482,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 15,
   },
-  logBtnTxt: { color: '#FFF', fontSize: 13, fontWeight: '700' },
+  logBtnTxt: { color: '#FFF', fontSize: FS.body, fontWeight: '700' },
 
   macroLabel: { fontSize: 9, fontWeight: '900', marginBottom: 4 },
-  macroVal: { color: '#FFF', fontSize: 15, fontWeight: '700' },
+  macroVal: { color: '#FFF', fontSize: FS.bodyLarge, fontWeight: '700' },
   barContainer: {
     height: 4,
     backgroundColor: '#0F0B1E',
@@ -496,8 +497,8 @@ const styles = StyleSheet.create({
 
   twoColumn: { flexDirection: 'row', gap: 12 },
   halfCard: { flex: 1, alignItems: 'center' },
-  statNum: { color: '#FFF', fontSize: 24, fontWeight: '900' },
-  statUnit: { color: '#6B5F8A', fontSize: 12, fontWeight: '500' },
+  statNum: { color: '#FFF', fontSize: FS.sectionTitle, fontWeight: '900' },
+  statUnit: { color: '#6B5F8A', fontSize: FS.btnSecondary, fontWeight: '500' },
   miniAdd: {
     backgroundColor: '#1E1A35',
     borderRadius: 10,
@@ -505,7 +506,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     marginTop: 10,
   },
-  miniAddTxt: { color: '#C8F135', fontSize: 11, fontWeight: '700' },
+  miniAddTxt: { color: '#C8F135', fontSize: FS.sub, fontWeight: '700' },
   miniBarBg: {
     width: '100%',
     height: 4,
@@ -515,12 +516,12 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   miniBarFill: { height: 4, borderRadius: 2 },
-  smallSub: { color: '#6B5F8A', fontSize: 10, marginTop: 5 },
+  smallSub: { color: '#6B5F8A', fontSize: FS.badge, marginTop: 5 },
 
   workoutCard: { padding: 15 },
   workoutContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  workoutTitle: { color: '#FFF', fontSize: 18, fontWeight: '800' },
-  workoutSub: { color: '#6B5F8A', fontSize: 13, marginTop: 4 },
+  workoutTitle: { color: '#FFF', fontSize: FS.cardTitle, fontWeight: '800' },
+  workoutSub: { color: '#6B5F8A', fontSize: FS.body, marginTop: 4 },
   playBtn: {
     width: 44,
     height: 44,

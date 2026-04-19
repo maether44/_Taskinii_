@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { FS } from '../../constants/typography';
 import {
-  View, StyleSheet, TouchableOpacity, Text, Alert,
+  View, StyleSheet, TouchableOpacity, Text,
   StatusBar, Animated, Platform, Dimensions, ScrollView,
 } from 'react-native';
 import Reanimated, {
@@ -300,16 +301,16 @@ const hw = StyleSheet.create({
   },
   accentBar:    { height: 3, backgroundColor: '#C6FF33', marginHorizontal: 40, borderRadius: 2, marginBottom: 0 },
   header:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 20, paddingBottom: 12 },
-  superLabel:   { color: '#C6FF33', fontSize: 10, fontWeight: '900', letterSpacing: 2, marginBottom: 4 },
-  exerciseName: { color: '#FFFFFF', fontSize: 20, fontWeight: '800', letterSpacing: -0.5 },
+  superLabel:   { color: '#C6FF33', fontSize: FS.label, fontWeight: '900', letterSpacing: 2, marginBottom: 4 },
+  exerciseName: { color: '#FFFFFF', fontSize: FS.sectionTitle, fontWeight: '800', letterSpacing: -0.5 },
   closeBtn:     { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
   stepRow:      { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingHorizontal: 20, paddingVertical: 8 },
   stepNum:      { width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(198,255,51,0.15)', borderWidth: 1, borderColor: 'rgba(198,255,51,0.5)', alignItems: 'center', justifyContent: 'center', marginTop: 1 },
-  stepNumTxt:   { color: '#C6FF33', fontSize: 11, fontWeight: '900' },
-  stepTxt:      { color: '#FFFFFF', fontSize: 14, lineHeight: 20, flex: 1 },
+  stepNumTxt:   { color: '#C6FF33', fontSize: FS.sub, fontWeight: '900' },
+  stepTxt:      { color: '#FFFFFF', fontSize: FS.btnPrimary, lineHeight: 20, flex: 1 },
   footer:       { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16, paddingHorizontal: 20 },
   voiceDot:     { width: 7, height: 7, borderRadius: 3.5, backgroundColor: '#C6FF33' },
-  footerTxt:    { color: 'rgba(255,255,255,0.4)', fontSize: 11 },
+  footerTxt:    { color: 'rgba(255,255,255,0.4)', fontSize: FS.sub },
 });
 
 function formatTimer(secs) {
@@ -697,16 +698,7 @@ export default function WorkoutActive({ route, navigation }) {
               if (achError) logError('[BodyQ] check_achievements:', achError);
               else if (achievementsResult?.awarded?.length > 0) {
                 log('[BodyQ] Achievements awarded:', achievementsResult.awarded);
-                const newAchievements = achievementsResult.awarded;
-                emit(AppEvents.ACHIEVEMENT_AWARDED, { awarded: newAchievements });
-                if (newAchievements.length > 0) {
-                  const achievement = newAchievements[0]; // Show first new achievement
-                  Alert.alert(
-                    '🏆 Achievement Unlocked!',
-                    `${achievement.achievement || achievement.name}\n${achievement.description || ''}\n+${achievement.xp_reward || 0} XP`,
-                    [{ text: 'Awesome!' }]
-                  );
-                }
+                emit(AppEvents.ACHIEVEMENT_AWARDED, { awarded: achievementsResult.awarded });
               }
             } catch (e) {
               logError('[BodyQ] check_achievements exception:', e);
@@ -1057,8 +1049,8 @@ const s = StyleSheet.create({
     zIndex: 40,
   },
   liveDot:   { width: 6, height: 6, borderRadius: 3, backgroundColor: '#C8F135', marginRight: 7, shadowColor: '#C8F135', shadowOpacity: 1, shadowRadius: 5 },
-  liveLabel: { color: '#FFF', fontSize: 10, fontWeight: '900', letterSpacing: 0.8 },
-  liveTimer: { color: 'rgba(255,255,255,0.45)', fontSize: 10, fontWeight: '700', letterSpacing: 2, marginLeft: 10, fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace' },
+  liveLabel: { color: '#FFF', fontSize: FS.label, fontWeight: '900', letterSpacing: 0.8 },
+  liveTimer: { color: 'rgba(255,255,255,0.45)', fontSize: FS.label, fontWeight: '700', letterSpacing: 2, marginLeft: 10, fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace' },
 
   // ── Top-right: Neon Lime mic button ──────────────────────────
   micGuideBtn: {
@@ -1086,7 +1078,7 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
   },
   statGap:    { width: 12 },
-  statBigNum: { fontSize: 34, fontWeight: '900', lineHeight: 36 },
+  statBigNum: { fontSize: FS.hero, fontWeight: '900', lineHeight: 36 },
   statLbl:    { color: 'rgba(255,255,255,0.4)', fontSize: 9, fontWeight: '900', letterSpacing: 1.5, marginTop: 2 },
 
   // ── Mic voice indicator (bottom-left, above bottom row) ─────
@@ -1155,7 +1147,7 @@ const s = StyleSheet.create({
     fontWeight: '900', letterSpacing: 2, textTransform: 'uppercase',
   },
   guideExName: {
-    color: '#FFF', fontSize: 18, fontWeight: '900',
+    color: '#FFF', fontSize: FS.cardTitle, fontWeight: '900',
     letterSpacing: 0.5, marginTop: 2,
   },
   guideCloseBtn: {
@@ -1180,10 +1172,10 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 8,
   },
   guideTipText: {
-    color: 'rgba(255,255,255,0.75)', fontSize: 12, fontWeight: '600',
+    color: 'rgba(255,255,255,0.75)', fontSize: FS.btnSecondary, fontWeight: '600',
   },
   guideVoiceHint: {
-    color: 'rgba(124,92,252,0.6)', fontSize: 10,
+    color: 'rgba(124,92,252,0.6)', fontSize: FS.label,
     fontWeight: '700', letterSpacing: 0.3,
   },
   guideBorder: {
@@ -1206,7 +1198,7 @@ const s = StyleSheet.create({
     borderRadius: 14, overflow: 'hidden',
     paddingHorizontal: 14, paddingVertical: 12,
   },
-  cueText: { color: '#FFF', fontSize: 12, fontWeight: '700', flex: 1 },
+  cueText: { color: '#FFF', fontSize: FS.btnSecondary, fontWeight: '700', flex: 1 },
   finishBtn: {
     width: 48, height: 48, borderRadius: 24,
     backgroundColor: '#C8F135',
@@ -1232,18 +1224,18 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   countdownExercise: {
-    color: 'rgba(255,255,255,0.25)', fontSize: 11, fontWeight: '900',
+    color: 'rgba(255,255,255,0.25)', fontSize: FS.sub, fontWeight: '900',
     letterSpacing: 4, textTransform: 'uppercase', marginBottom: 32,
   },
   countdownNum: {
-    fontSize: 160, fontWeight: '900', color: '#C8F135',
+    fontSize: 162, fontWeight: '900', color: '#C8F135',
     lineHeight: 168, letterSpacing: -8,
     textShadowColor: 'rgba(200,241,53,0.5)', textShadowRadius: 60,
     textShadowOffset: { width: 0, height: 0 },
   },
-  countdownGo: { fontSize: 80, letterSpacing: 12, lineHeight: 88 },
+  countdownGo: { fontSize: 82, letterSpacing: 12, lineHeight: 88 },
   countdownHint: {
-    color: 'rgba(255,255,255,0.35)', fontSize: 13, fontWeight: '600',
+    color: 'rgba(255,255,255,0.35)', fontSize: FS.body, fontWeight: '600',
     letterSpacing: 0.5, marginTop: 40,
   },
   skipBtn: {
@@ -1251,11 +1243,11 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 20, paddingVertical: 10,
   },
-  skipTxt: { color: 'rgba(255,255,255,0.3)', fontSize: 13, fontWeight: '600' },
+  skipTxt: { color: 'rgba(255,255,255,0.3)', fontSize: FS.body, fontWeight: '600' },
 
   // ── Fallback screens ─────────────────────────────────────────
-  errorTitle:   { color: '#FFF', fontSize: 20, fontWeight: '900', marginBottom: 10 },
-  errorSub:     { color: '#6B5F8A', fontSize: 14, textAlign: 'center', paddingHorizontal: 30 },
+  errorTitle:   { color: '#FFF', fontSize: FS.sectionTitle, fontWeight: '900', marginBottom: 10 },
+  errorSub:     { color: '#6B5F8A', fontSize: FS.btnPrimary, textAlign: 'center', paddingHorizontal: 30 },
   backLink:     { marginTop: 20, paddingHorizontal: 24, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: '#C8F135' },
   backLinkTxt:  { color: '#C8F135', fontWeight: '700' },
 });

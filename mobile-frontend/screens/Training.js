@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef } from 'react';
+import { FS } from '../constants/typography';
 import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, Dimensions, Modal, Pressable, Image,
@@ -1323,46 +1324,46 @@ const s = StyleSheet.create({
 
   // Header
   header:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
-  greeting:      { color: C.text, fontSize: 26, fontWeight: '900', letterSpacing: -0.5 },
-  subGreeting:   { color: C.sub, fontSize: 14, marginTop: 2 },
+  greeting:      { color: C.text, fontSize: FS.screenTitle, fontWeight: '900', letterSpacing: -0.5 },
+  subGreeting:   { color: C.sub, fontSize: FS.btnPrimary, marginTop: 2 },
   recoveryBadge: { backgroundColor: C.card, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, alignItems: 'center', borderWidth: 1.5, borderColor: C.lime },
-  recoveryNum:   { color: C.lime, fontSize: 20, fontWeight: '900', lineHeight: 22 },
+  recoveryNum:   { color: C.lime, fontSize: FS.sectionTitle, fontWeight: '900', lineHeight: 22 },
   recoveryLabel: { color: C.sub, fontSize: 8, fontWeight: '800', letterSpacing: 1, marginTop: 2 },
 
   // Hero
   heroCard:       { borderRadius: 28, padding: 26, marginBottom: 16, overflow: 'hidden' },
   heroAccentLine: { position: 'absolute', top: 0, left: 26, right: 26, height: 2, backgroundColor: C.lime, opacity: 0.5, borderRadius: 1 },
   heroBadge:      { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(200,241,53,0.12)', alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, marginBottom: 16, borderWidth: 1, borderColor: 'rgba(200,241,53,0.25)' },
-  heroBadgeTxt:   { color: C.lime, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
-  heroLabel:      { color: 'rgba(255,255,255,0.4)', fontSize: 10, fontWeight: '800', letterSpacing: 2, marginBottom: 6 },
-  heroTitle:      { color: C.text, fontSize: 30, fontWeight: '900', letterSpacing: -0.5, lineHeight: 34, marginBottom: 16 },
+  heroBadgeTxt:   { color: C.lime, fontSize: FS.label, fontWeight: '900', letterSpacing: 1.2 },
+  heroLabel:      { color: 'rgba(255,255,255,0.4)', fontSize: FS.label, fontWeight: '800', letterSpacing: 2, marginBottom: 6 },
+  heroTitle:      { color: C.text, fontSize: FS.screenTitle, fontWeight: '900', letterSpacing: -0.5, lineHeight: 34, marginBottom: 16 },
   heroMeta:       { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 24 },
   metaChip:       { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
-  metaChipTxt:    { color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: '600' },
-  heroLogic:       { color: 'rgba(255,255,255,0.55)', fontStyle: 'italic', fontSize: 12, lineHeight: 18, marginBottom: 0 },
+  metaChipTxt:    { color: 'rgba(255,255,255,0.6)', fontSize: FS.sub, fontWeight: '600' },
+  heroLogic:       { color: 'rgba(255,255,255,0.55)', fontStyle: 'italic', fontSize: FS.btnSecondary, lineHeight: 18, marginBottom: 0 },
   overloadBadge:   { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#C8F135', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 10, alignSelf: 'flex-start' },
-  overloadBadgeTxt: { color: '#000', fontSize: 11, fontWeight: '800', flex: 1, flexShrink: 1 },
+  overloadBadgeTxt: { color: '#000', fontSize: FS.sub, fontWeight: '800', flex: 1, flexShrink: 1 },
   nutritionTipRow:  { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8, backgroundColor: 'rgba(200,241,53,0.07)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
-  nutritionTipTxt:  { color: C.lime, fontSize: 11, fontWeight: '600', flex: 1 },
+  nutritionTipTxt:  { color: C.lime, fontSize: FS.sub, fontWeight: '600', flex: 1 },
   playCircle:     { width: 52, height: 52, backgroundColor: C.lime, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
 
   // Section row
   sectionRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  sectionTitle:{ color: C.text, fontSize: 16, fontWeight: '800' },
-  sectionLink: { color: C.lime, fontSize: 12, fontWeight: '700' },
-  sectionSub:  { color: C.sub, fontSize: 12 },
+  sectionTitle:{ color: C.text, fontSize: FS.sectionTitle, fontWeight: '800' },
+  sectionLink: { color: C.lime, fontSize: FS.btnSecondary, fontWeight: '700' },
+  sectionSub:  { color: C.sub, fontSize: FS.btnSecondary },
 
   // Heatmap
   heatmapCard:    { backgroundColor: C.card, borderRadius: 22, borderWidth: 1, borderColor: C.border, flexDirection: 'row', padding: 16, marginBottom: 10 },
   heatmapBody:    { alignItems: 'center', justifyContent: 'center', marginRight: 14 },
   heatmapList:    { flex: 1, justifyContent: 'center', gap: 6 },
-  heatmapLoading: { color: C.sub, fontSize: 12, fontStyle: 'italic' },
-  heatmapEmpty:   { color: C.text, fontSize: 13, fontWeight: '700', lineHeight: 18 },
-  heatmapEmptySub:{ color: C.lime, fontSize: 11, marginTop: 4, lineHeight: 16 },
+  heatmapLoading: { color: C.sub, fontSize: FS.btnSecondary, fontStyle: 'italic' },
+  heatmapEmpty:   { color: C.text, fontSize: FS.body, fontWeight: '700', lineHeight: 18 },
+  heatmapEmptySub:{ color: C.lime, fontSize: FS.sub, marginTop: 4, lineHeight: 16 },
   muscleRow:       { flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 3, paddingHorizontal: 4, borderRadius: 8 },
   muscleRowActive: { backgroundColor: 'rgba(200,241,53,0.08)', borderRadius: 8 },
   muscleDot:     { width: 8, height: 8, borderRadius: 4 },
-  muscleName:    { color: C.text, fontSize: 11, fontWeight: '700', marginBottom: 3 },
+  muscleName:    { color: C.text, fontSize: FS.sub, fontWeight: '700', marginBottom: 3 },
   muscleBarBg:   { height: 4, backgroundColor: C.border, borderRadius: 2, overflow: 'hidden' },
   muscleBarFill: { height: 4, borderRadius: 2 },
   muscleTag:     { fontSize: 8, fontWeight: '900', letterSpacing: 0.5, minWidth: 52, textAlign: 'right' },
@@ -1376,25 +1377,25 @@ const s = StyleSheet.create({
   yaraHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   yaraTitle:   { color: 'rgba(255,255,255,0.6)', fontSize: 9, fontWeight: '900', letterSpacing: 1.5 },
   yaraLiveDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: '#C8F135', shadowColor: '#C8F135', shadowRadius: 8, shadowOpacity: 1 },
-  yaraText:    { color: '#FFF', fontSize: 13, lineHeight: 20, fontWeight: '500' },
+  yaraText:    { color: '#FFF', fontSize: FS.body, lineHeight: 20, fontWeight: '500' },
 
   // Streak
   streakCard:   { backgroundColor: C.card, borderRadius: 20, padding: 18, marginBottom: 24, borderWidth: 1, borderColor: C.border, marginTop: 16 },
   streakHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 16 },
-  streakTitle:  { color: C.text, fontSize: 14, fontWeight: '800', flex: 1 },
-  streakSub:    { color: C.lime, fontSize: 12, fontWeight: '700' },
+  streakTitle:  { color: C.text, fontSize: FS.btnPrimary, fontWeight: '800', flex: 1 },
+  streakSub:    { color: C.lime, fontSize: FS.btnSecondary, fontWeight: '700' },
   weekRow:      { flexDirection: 'row', justifyContent: 'space-between' },
   dayCol:       { alignItems: 'center', gap: 6 },
   dayDot:       { width: 34, height: 34, borderRadius: 17, backgroundColor: C.border, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#2A2548' },
   dayDotDone:   { backgroundColor: C.lime, borderColor: C.lime, shadowColor: C.lime, shadowOpacity: 0.6, shadowRadius: 8, elevation: 6 },
-  dayLabel:     { color: C.sub, fontSize: 11, fontWeight: '600' },
+  dayLabel:     { color: C.sub, fontSize: FS.sub, fontWeight: '600' },
   dayLabelDone: { color: C.lime },
 
   // Quick Actions
   actionRow:      { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 24 },
   actionBtn:      { width: (width - 56) / 3, backgroundColor: C.card, paddingVertical: 16, borderRadius: 20, alignItems: 'center', borderWidth: 1, borderColor: C.border },
   actionIconWrap: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(200,241,53,0.08)', alignItems: 'center', justifyContent: 'center', marginBottom: 8, borderWidth: 1, borderColor: 'rgba(200,241,53,0.2)' },
-  actionTxt:      { color: C.text, fontSize: 11, fontWeight: '700' },
+  actionTxt:      { color: C.text, fontSize: FS.sub, fontWeight: '700' },
 
   // ── Machine Intelligence Hub ─────────────────────────────
   hubBadge:     { backgroundColor: 'rgba(200,241,53,0.12)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: 'rgba(200,241,53,0.3)' },
@@ -1423,7 +1424,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  machineName:   { color: C.text, fontSize: 12, fontWeight: '800', marginBottom: 2 },
+  machineName:   { color: C.text, fontSize: FS.btnSecondary, fontWeight: '800', marginBottom: 2 },
   machineMuscle: { color: 'rgba(255,255,255,0.55)', fontSize: 9 },
   machineAiBadge:{ position: 'absolute', top: 10, right: 10, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(200,241,53,0.18)', paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: 'rgba(200,241,53,0.4)' },
   machineAiTxt:  { color: C.lime, fontSize: 8, fontWeight: '900', letterSpacing: 0.8 },
@@ -1476,13 +1477,13 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(200,241,53,0.25)',
   },
-  modalTitle:  { color: C.text, fontSize: 18, fontWeight: '900' },
-  modalMuscle: { color: C.lime, fontSize: 11, fontWeight: '700', marginTop: 2 },
+  modalTitle:  { color: C.text, fontSize: FS.cardTitle, fontWeight: '900' },
+  modalMuscle: { color: C.lime, fontSize: FS.sub, fontWeight: '700', marginTop: 2 },
   modalClose:  { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.07)', alignItems: 'center', justifyContent: 'center' },
 
   modalSection: { paddingHorizontal: 20, paddingBottom: 20 },
   modalSectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
-  modalSectionTitle:  { color: C.lime, fontSize: 10, fontWeight: '900', letterSpacing: 1.4 },
+  modalSectionTitle:  { color: C.lime, fontSize: FS.label, fontWeight: '900', letterSpacing: 1.4 },
 
   // Setup steps
   setupRow: { flexDirection: 'row', gap: 12, marginBottom: 10, alignItems: 'flex-start' },
@@ -1493,8 +1494,8 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     marginTop: 1,
   },
-  setupNumTxt: { color: C.lime, fontSize: 10, fontWeight: '900' },
-  setupTxt:    { color: 'rgba(255,255,255,0.82)', fontSize: 13, lineHeight: 19, flex: 1 },
+  setupNumTxt: { color: C.lime, fontSize: FS.label, fontWeight: '900' },
+  setupTxt:    { color: 'rgba(255,255,255,0.82)', fontSize: FS.body, lineHeight: 19, flex: 1 },
 
   // Activation box
   activationBox: {
@@ -1504,7 +1505,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(124,92,252,0.3)',
   },
-  activationTxt: { color: C.accent, fontSize: 13, lineHeight: 20, fontStyle: 'italic' },
+  activationTxt: { color: C.accent, fontSize: FS.body, lineHeight: 20, fontStyle: 'italic' },
 
   // Smart Pivot
   pivotBtn: {
@@ -1519,43 +1520,43 @@ const s = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   pivotBtnActive:  { backgroundColor: C.lime },
-  pivotBtnTxt:     { color: C.lime, fontSize: 13, fontWeight: '800' },
-  altHeading:      { color: C.sub, fontSize: 10, fontWeight: '800', letterSpacing: 1, marginTop: 14, marginBottom: 8 },
+  pivotBtnTxt:     { color: C.lime, fontSize: FS.body, fontWeight: '800' },
+  altHeading:      { color: C.sub, fontSize: FS.label, fontWeight: '800', letterSpacing: 1, marginTop: 14, marginBottom: 8 },
   altRow:          { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' },
   altIcon:         { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(200,241,53,0.08)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(200,241,53,0.2)' },
-  altName:         { color: C.text, fontSize: 13, fontWeight: '700', flex: 1 },
+  altName:         { color: C.text, fontSize: FS.body, fontWeight: '700', flex: 1 },
   altBadge:        { backgroundColor: 'rgba(255,255,255,0.07)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   altBadgeTxt:     { color: C.sub, fontSize: 8, fontWeight: '800', letterSpacing: 0.8 },
 
   // Analyze CTA
   analyzeBtn:          { marginHorizontal: 20, marginTop: 4, borderRadius: 18, overflow: 'hidden' },
   analyzeBtnGradient:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 16 },
-  analyzeBtnTxt:       { color: '#000', fontSize: 16, fontWeight: '900', letterSpacing: 0.3 },
+  analyzeBtnTxt:       { color: '#000', fontSize: FS.bodyLarge, fontWeight: '900', letterSpacing: 0.3 },
 
   // Library
   libCard:    { borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: C.border },
   libGradient:{ flexDirection: 'row', alignItems: 'center', padding: 18, gap: 14 },
   libIconBox: { width: 50, height: 50, borderRadius: 16, backgroundColor: 'rgba(200,241,53,0.08)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(200,241,53,0.2)' },
   libInfo:    { flex: 1 },
-  libMain:    { color: C.text, fontSize: 15, fontWeight: '700' },
-  libSub:     { color: C.sub, fontSize: 11, marginTop: 3 },
+  libMain:    { color: C.text, fontSize: FS.bodyLarge, fontWeight: '700' },
+  libSub:     { color: C.sub, fontSize: FS.sub, marginTop: 3 },
 
   // Posture AI
   postureCard:   { backgroundColor: C.card, borderRadius: 20, padding: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: C.border },
   postureLeft:   { flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 },
   postureIconBox:{ width: 48, height: 48, borderRadius: 14, backgroundColor: 'rgba(124,92,252,0.12)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(124,92,252,0.3)' },
-  postureTitle:  { color: C.text, fontSize: 15, fontWeight: '700' },
-  postureSub:    { color: C.sub, fontSize: 11, marginTop: 2 },
+  postureTitle:  { color: C.text, fontSize: FS.bodyLarge, fontWeight: '700' },
+  postureSub:    { color: C.sub, fontSize: FS.sub, marginTop: 2 },
   postureArrow:  { width: 32, height: 32, borderRadius: 16, backgroundColor: C.lime, alignItems: 'center', justifyContent: 'center' },
 
   liveChip:    { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(200,241,53,0.1)', borderWidth: 1, borderColor: 'rgba(200,241,53,0.25)', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 4 },
-  liveChipTxt: { color: C.lime, fontSize: 10, fontWeight: '800' },
+  liveChipTxt: { color: C.lime, fontSize: FS.label, fontWeight: '800' },
 
   // Environment Toggle
   envToggleWrap: { flexDirection: 'row', backgroundColor: C.card, borderRadius: 14, padding: 4, marginBottom: 20, borderWidth: 1, borderColor: C.border, alignSelf: 'flex-start', gap: 2 },
   envBtn:        { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 18, paddingVertical: 9, borderRadius: 10 },
   envBtnActive:  { backgroundColor: C.lime },
-  envBtnTxt:     { color: C.sub, fontSize: 13, fontWeight: '700' },
+  envBtnTxt:     { color: C.sub, fontSize: FS.body, fontWeight: '700' },
   envBtnTxtActive:{ color: '#000', fontWeight: '800' },
 
   // Today's Plan
@@ -1563,18 +1564,18 @@ const s = StyleSheet.create({
   planCircuitTxt:   { color: C.accent, fontSize: 9, fontWeight: '900', letterSpacing: 1.2 },
   planScroll:       { paddingBottom: 8, paddingRight: 20, gap: 10, flexDirection: 'row', marginBottom: 8 },
   planCardNum:      { position: 'absolute', top: 10, right: 12, width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
-  planCardNumTxt:   { color: 'rgba(255,255,255,0.7)', fontSize: 10, fontWeight: '900' },
+  planCardNumTxt:   { color: 'rgba(255,255,255,0.7)', fontSize: FS.label, fontWeight: '900' },
   planIconCircle:   { width: 44, height: 44, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  planExName:       { color: C.text, fontSize: 13, fontWeight: '800', marginBottom: 2 },
+  planExName:       { color: C.text, fontSize: FS.body, fontWeight: '800', marginBottom: 2 },
   planTarget:       { color: 'rgba(255,255,255,0.45)', fontSize: 9, marginBottom: 8 },
   planSetsRow:      { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 8 },
-  planSets:         { color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: '600' },
+  planSets:         { color: 'rgba(255,255,255,0.55)', fontSize: FS.sub, fontWeight: '600' },
   planPrevBest:     { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(200,241,53,0.1)', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, alignSelf: 'flex-start' },
   planPrevBestTxt:  { color: C.lime, fontSize: 9, fontWeight: '800' },
 
   // Muscle filter
   clearMuscleBtn: { marginTop: 6, alignSelf: 'center', backgroundColor: 'rgba(200,241,53,0.12)', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: 'rgba(200,241,53,0.3)' },
-  clearMuscleTxt: { color: C.lime, fontSize: 10, fontWeight: '800' },
+  clearMuscleTxt: { color: C.lime, fontSize: FS.label, fontWeight: '800' },
 
   // Netflix machine card
   machineCardBg:     { ...StyleSheet.absoluteFillObject, borderRadius: 22 },
@@ -1582,8 +1583,8 @@ const s = StyleSheet.create({
 
   // ── Section Headers (unified) ────────────────────────────
   sectionHeader:    { marginTop: 32, marginBottom: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(200,241,53,0.13)', paddingBottom: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
-  sectionHeaderTxt: { color: C.lime, fontSize: 11, fontWeight: '900', letterSpacing: 2.2 },
-  sectionHeaderSub: { color: C.sub, fontSize: 10, fontWeight: '600' },
+  sectionHeaderTxt: { color: C.lime, fontSize: FS.sub, fontWeight: '900', letterSpacing: 2.2 },
+  sectionHeaderSub: { color: C.sub, fontSize: FS.label, fontWeight: '600' },
 
   // ── Header chips ─────────────────────────────────────────
   headerChips:   { flexDirection: 'row', gap: 6 },
@@ -1609,20 +1610,20 @@ const s = StyleSheet.create({
 
   // ── Environment badge (inside hero card) ─────────────────
   envBadge:    { position: 'absolute', top: 16, right: 16, flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(200,241,53,0.14)', borderWidth: 1, borderColor: 'rgba(200,241,53,0.35)', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5 },
-  envBadgeTxt: { color: C.lime, fontSize: 10, fontWeight: '800' },
+  envBadgeTxt: { color: C.lime, fontSize: FS.label, fontWeight: '800' },
 
   // ── Blueprint Circuit (embedded in hero card) ─────────────
   circuitDivider:   { height: 1, backgroundColor: 'rgba(255,255,255,0.1)', marginTop: 16, marginBottom: 14 },
   circuitLabel:     { color: 'rgba(255,255,255,0.4)', fontSize: 9, fontWeight: '900', letterSpacing: 1.8, marginBottom: 10 },
   circuitRow:       { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.08)' },
   circuitNumCircle: { width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(200,241,53,0.12)', borderWidth: 1, borderColor: 'rgba(200,241,53,0.3)', alignItems: 'center', justifyContent: 'center' },
-  circuitNumTxt:    { color: C.lime, fontSize: 10, fontWeight: '900' },
-  circuitName:      { color: C.text, fontSize: 13, fontWeight: '800' },
-  circuitTarget:    { color: 'rgba(255,255,255,0.45)', fontSize: 10, marginTop: 1 },
-  circuitSets:      { color: C.lime, fontSize: 12, fontWeight: '800' },
+  circuitNumTxt:    { color: C.lime, fontSize: FS.label, fontWeight: '900' },
+  circuitName:      { color: C.text, fontSize: FS.body, fontWeight: '800' },
+  circuitTarget:    { color: 'rgba(255,255,255,0.45)', fontSize: FS.label, marginTop: 1 },
+  circuitSets:      { color: C.lime, fontSize: FS.btnSecondary, fontWeight: '800' },
   circuitPrev:      { color: 'rgba(255,255,255,0.35)', fontSize: 9, marginTop: 2 },
   startBtn:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.lime, borderRadius: 14, paddingVertical: 14, marginTop: 16 },
-  startBtnTxt:      { color: '#000', fontSize: 15, fontWeight: '900' },
+  startBtnTxt:      { color: '#000', fontSize: FS.bodyLarge, fontWeight: '900' },
 
   // ── Equipment Floor badge ─────────────────────────────────
   floorBadge:     { position: 'absolute', top: 10, left: 10, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
@@ -1650,8 +1651,8 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(124,92,252,0.3)',
     marginBottom: 12,
   },
-  labCardTitle: { color: C.text, fontSize: 14, fontWeight: '800', marginBottom: 4 },
-  labCardSub:   { color: C.sub, fontSize: 11, lineHeight: 16 },
+  labCardTitle: { color: C.text, fontSize: FS.btnPrimary, fontWeight: '800', marginBottom: 4 },
+  labCardSub:   { color: C.sub, fontSize: FS.sub, lineHeight: 16 },
   labArrow: { position: 'absolute', bottom: 14, right: 14, width: 28, height: 28, borderRadius: 14, backgroundColor: C.purple, alignItems: 'center', justifyContent: 'center' },
   labWideInner: { flexDirection: 'row', alignItems: 'center' },
 });

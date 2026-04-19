@@ -78,6 +78,10 @@ export function AuthProvider({ children }) {
     setShouldShowTour(true); // Trigger tour after onboarding
   };
 
+  const resetToOnboarding = () => {
+    setIsNewUser(true);
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
@@ -93,6 +97,7 @@ export function AuthProvider({ children }) {
         isNewUser,
         loading,
         markOnboardingComplete,
+        resetToOnboarding,
         signOut,
         shouldShowTour,
         setShouldShowTour,

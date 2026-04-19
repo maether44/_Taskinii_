@@ -32,6 +32,7 @@ export const saveOnboardingProfile = async (userId, answers) => {
     sleep_quality: answers.sleep,
     stress_level: answers.stress,
     diet_pref: answers.diet,
+    coach_name: answers.coachName ?? "Yara",
   });
 
   if (error) throw new Error(error.message);

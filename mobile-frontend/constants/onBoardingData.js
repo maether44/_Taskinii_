@@ -20,6 +20,7 @@ export const STEPS = [
   { id:'schedule',  emoji:'📅', label:'Schedule'   },
   { id:'equipment', emoji:'🏋️', label:'Equipment'  },
   { id:'lifestyle', emoji:'🌙', label:'Lifestyle'  },
+  { id:'coach',     emoji:'✏️', label:'Your Coach' },
   { id:'plan',      emoji:'✨', label:'Your Plan'  },
 ];
 

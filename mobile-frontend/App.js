@@ -43,6 +43,7 @@ import { scheduleStore } from './store/scheduleStore';
 // Global Components
 import YaraAssistant from './components/YaraAssistant';
 import AppTour from './components/onBoarding/AppTour';
+import CelebrationOverlay from './components/CelebrationOverlay';
 import { warn } from './lib/logger';
 
 SplashScreen.preventAutoHideAsync();
@@ -154,6 +155,7 @@ export default function App() {
                 <YaraAssistant onOpenSchedule={() => navigationRef.current?.navigate('Schedule')} />
               )}
               <AppTour activeTab={activeTab} onTabPress={setActiveTab} showOnMount={true} />
+              <CelebrationOverlay />
             </View>
           </TodayProvider>
         </AuthProvider>
