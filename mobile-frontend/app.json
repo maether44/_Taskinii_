@@ -49,7 +49,6 @@
         }
       ],
       "expo-asset",
-      "@react-native-community/datetimepicker",
       "@react-native-voice/voice",
       "expo-audio"
     ],
