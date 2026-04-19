@@ -4,6 +4,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -155,6 +156,7 @@ export default function Nutrition({ navigation }) {
     waterMl,
     caloriesBurned,
     mealSections,
+    deleteFoodLog,
     logWater,
     refresh,
   } = useNutrition();
@@ -248,6 +250,24 @@ export default function Nutrition({ navigation }) {
 
   const openMealLogger = (meal) => {
     navigation.navigate("MealLogger", { mealSlot: meal, onSavedAt: Date.now() });
+  };
+
+  const confirmDeleteLog = (logId, foodName) => {
+    Alert.alert(
+      "Remove food",
+      `Remove "${foodName}" from today's log?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: async () => {
+            await deleteFoodLog(logId);
+            refresh();
+          },
+        },
+      ],
+    );
   };
 
   if (loading) {
@@ -404,6 +424,13 @@ export default function Nutrition({ navigation }) {
                         </Text>
                       </View>
                       <Text style={s.foodCals}>{item.calories} kcal</Text>
+                      <TouchableOpacity
+                        style={s.deleteBtn}
+                        onPress={() => confirmDeleteLog(item.id, item.name)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Ionicons name="trash-outline" size={16} color="#FF6B6B" />
+                      </TouchableOpacity>
                     </View>
                   ))}
                 </View>
@@ -581,6 +608,15 @@ const s = StyleSheet.create({
   foodName: { color: C.text, fontSize: 14, fontWeight: "700" },
   foodMeta: { color: C.sub, fontSize: 11, marginTop: 2 },
   foodCals: { color: C.accent, fontSize: 13, fontWeight: "700" },
+  deleteBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,107,107,0.10)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 6,
+  },
   emptyMeal: {
     marginTop: 14,
     paddingVertical: 16,

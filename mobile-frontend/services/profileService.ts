@@ -1,5 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { calcMacroTargets, dobToISO, normalizeGoal } from "../lib/calculations";
+import { refreshAfterProfileUpdate, refreshAll } from "./embeddingService";
 
 export const getProfile = async (userId) => {
   const { data, error } = await supabase
@@ -33,6 +34,7 @@ export const saveOnboardingProfile = async (userId, answers) => {
   });
 
   if (error) throw new Error(error.message);
+  refreshAll(userId);
 };
 
 export const saveCalorieTargets = async (userId, { calTarget, protein, goal }) => {

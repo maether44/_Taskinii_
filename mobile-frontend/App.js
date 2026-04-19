@@ -15,6 +15,7 @@ import { registerRootComponent } from "expo";
 import { supabase } from "./lib/supabase";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { TodayProvider } from "./context/TodayContext";
+import { MilestoneProvider, useMilestones } from "./context/MilestoneContext";
 
 // ✅ Custom splash screen
 import CustomSplashScreen from "./components/CustomSplashScreen";
@@ -37,6 +38,7 @@ import WorkoutSummary from "./screens/workout/WorkoutSummary";
 // Global Components
 import YaraAssistant from "./components/YaraAssistant";
 import AppTour from "./components/onBoarding/AppTour";
+import CelebrationInterstitial from "./components/reports/CelebrationInterstitial";
 import { warn } from './lib/logger';
 
 SplashScreen.preventAutoHideAsync();
@@ -47,6 +49,24 @@ function getActiveRouteName(state) {
   const route = state.routes[state.index ?? 0];
   if (route.state) return getActiveRouteName(route.state);
   return route.name;
+}
+
+function CelebrationOverlay() {
+  const { pendingCelebration, claimMilestone, dismissCelebration } = useMilestones();
+
+  if (!pendingCelebration) return null;
+
+  return (
+    <CelebrationInterstitial
+      visible={!!pendingCelebration}
+      milestone={pendingCelebration}
+      onClaim={() => claimMilestone(pendingCelebration.milestone_type, false)}
+      onSkip={() => {
+        claimMilestone(pendingCelebration.milestone_type, true);
+        dismissCelebration();
+      }}
+    />
+  );
 }
 
 function Navigation() {
@@ -133,16 +153,19 @@ export default function App() {
       <SafeAreaProvider>
         <AuthProvider>
           <TodayProvider>
-            <View style={styles.container} onLayout={onLayoutRootView}>
-              <StatusBar style="light" />
-              <NavigationContainer
-                onStateChange={(state) => setActiveRoute(getActiveRouteName(state))}
-              >
-                <Navigation />
-              </NavigationContainer>
-              {activeRoute !== "WorkoutActive" && <YaraAssistant />}
-              <AppTour activeTab={activeTab} onTabPress={setActiveTab} showOnMount={true} />
-            </View>
+            <MilestoneProvider>
+              <View style={styles.container} onLayout={onLayoutRootView}>
+                <StatusBar style="light" />
+                <NavigationContainer
+                  onStateChange={(state) => setActiveRoute(getActiveRouteName(state))}
+                >
+                  <Navigation />
+                </NavigationContainer>
+                {activeRoute !== "WorkoutActive" && <YaraAssistant />}
+                <AppTour activeTab={activeTab} onTabPress={setActiveTab} showOnMount={true} />
+                <CelebrationOverlay />
+              </View>
+            </MilestoneProvider>
           </TodayProvider>
         </AuthProvider>
       </SafeAreaProvider>

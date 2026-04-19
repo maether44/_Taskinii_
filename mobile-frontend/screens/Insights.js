@@ -17,12 +17,17 @@
  *   after logging food/sleep/water on Home or finishing a workout on Training.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useInsights } from '../hooks/useInsights';
+import { useReports } from '../hooks/useReports';
+import { useAuth } from '../context/AuthContext';
+import { useMilestones } from '../context/MilestoneContext';
 import { generateAndCacheInsights } from '../services/yaraInsightsService';
 import { AppEvents, on } from '../lib/eventBus';
 import { error as logError } from '../lib/logger';
+import ReportCard from '../components/reports/ReportCard';
+import MilestonePath from '../components/reports/MilestonePath';
 
 const PERIODS = ['Week', 'Month', '3 Months'];
 
@@ -75,7 +80,50 @@ export default function Insights() {
     aiHistory, refresh,
   } = useInsights(period);
 
-  useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
+  // ── Reports + Milestones ──
+  const { user } = useAuth();
+  const { reports, refreshReports, downloadReport, getReportState } = useReports();
+  const { currentStreak, getProgress, isUnlocked, fetchUnlocks, checkMilestones } = useMilestones();
+  const milestoneProgress = getProgress();
+
+  function reportPeriodLabel(type) {
+    const now = new Date();
+    const fmt = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    if (type === 'weekly') {
+      const dow = now.getDay();
+      const daysToLastMon = dow === 0 ? 6 : dow - 1;
+      const lastSun = new Date(now); lastSun.setDate(now.getDate() - daysToLastMon - 1);
+      const lastMon = new Date(lastSun); lastMon.setDate(lastSun.getDate() - 6);
+      return `${fmt(lastMon)} – ${fmt(lastSun)}`;
+    }
+    if (type === 'monthly') {
+      const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      return prev.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    }
+    if (type === 'quarterly') {
+      const end = new Date(now); end.setDate(now.getDate() - 1);
+      const start = new Date(end); start.setDate(end.getDate() - 89);
+      return `${fmt(start)} – ${fmt(end)}`;
+    }
+    if (type === 'biannual') {
+      const end = new Date(now); end.setDate(now.getDate() - 1);
+      const start = new Date(end); start.setDate(end.getDate() - 179);
+      return `${fmt(start)} – ${fmt(end)}`;
+    }
+    // yearly
+    const end = new Date(now); end.setDate(now.getDate() - 1);
+    const start = new Date(end); start.setDate(end.getDate() - 364);
+    return `${fmt(start)} – ${fmt(end)}`;
+  }
+
+  async function handleDownload(report) {
+    const url = await downloadReport(report);
+    if (url) {
+      Linking.openURL(url);
+    }
+  }
+
+  useFocusEffect(useCallback(() => { refresh(); refreshReports(); fetchUnlocks(); }, [refresh, refreshReports, fetchUnlocks]));
 
   // Auto-refresh when user logs activity elsewhere in the app
   useEffect(() => {
@@ -103,7 +151,7 @@ export default function Insights() {
       .then(cards => setAiInsights(cards ?? []))
       .catch(err  => logError('[Insights] AI cards error:', err))
       .finally(() => setInsightsLoading(false));
-  }, [isLoading, period, userId]);
+  }, [isLoading, period, userId, rawStats]);
 
   // Heatmap date math
   const today = new Date();
@@ -329,6 +377,32 @@ export default function Insights() {
             ))}
             <Text style={st.heatLegendLabel}>More</Text>
           </View>
+        </View>
+
+        {/* ── Performance Reports ── */}
+        <Text style={st.sectionTitle}>Performance Reports</Text>
+
+        {/* Milestone progress path — always visible */}
+        <MilestonePath progress={milestoneProgress} currentStreak={currentStreak} />
+
+        {/* Gated report list — only shows unlocked reports */}
+        <View style={st.card}>
+          <Text style={st.cardSub}>Unlock reports by maintaining your daily streak</Text>
+          {['weekly', 'monthly', 'quarterly', 'biannual', 'yearly'].map(type => {
+            const unlocked = isUnlocked(type);
+            const report = reports[type];
+            const state = unlocked ? getReportState(type) : 'not_available';
+            return (
+              <ReportCard
+                key={type}
+                reportType={type}
+                report={unlocked ? report : null}
+                state={state}
+                periodLabel={unlocked ? reportPeriodLabel(type) : 'Locked'}
+                onDownload={() => unlocked && report && handleDownload(report)}
+              />
+            );
+          })}
         </View>
 
         {/* ── Recent AI Coaching ── */}

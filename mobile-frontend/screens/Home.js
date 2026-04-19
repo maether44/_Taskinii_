@@ -185,14 +185,14 @@ export default function Home({ navigation }) {
           <BentoCard style={styles.halfCard} delay={600}>
             <Text style={styles.cardLabel}>🌙 SLEEP</Text>
             <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
-              <Text style={styles.statNum}>{stats.sleep || 0}</Text>
+              <Text style={styles.statNum}>{stats.sleep ?? 0}</Text>
               <Text style={styles.statUnit}> hrs</Text>
             </View>
             <Pressable
               style={styles.miniAdd}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                logSleep((stats.sleep || 0) + 0.5);
+                logSleep((stats.sleep ?? 0) + 0.5);
               }}
             >
               <Text style={styles.miniAddTxt}>+ 30m</Text>

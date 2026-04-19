@@ -12,7 +12,7 @@ import { Pedometer } from 'expo-sensors';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import { getMuscleFatigue } from '../services/workoutService';
-import { AppEvents, emit } from '../lib/eventBus';
+import { AppEvents, emit, on } from '../lib/eventBus';
 import { DEFAULT_TARGETS, computeWaterTarget } from '../constants/targets';
 import { error as logError } from '../lib/logger';
 
@@ -144,10 +144,10 @@ export function TodayProvider({ children }) {
   useEffect(() => {
     const unsub = [];
     unsub.push(
-      require('../lib/eventBus').on(AppEvents.REFRESH_TODAY, loadToday),
-      require('../lib/eventBus').on(AppEvents.MEAL_LOGGED, loadToday),
-      require('../lib/eventBus').on(AppEvents.WORKOUT_COMPLETED, loadToday),
-      require('../lib/eventBus').on(AppEvents.TARGETS_UPDATED, loadToday),
+      on(AppEvents.REFRESH_TODAY, loadToday),
+      on(AppEvents.MEAL_LOGGED, loadToday),
+      on(AppEvents.WORKOUT_COMPLETED, loadToday),
+      on(AppEvents.TARGETS_UPDATED, loadToday),
     );
     return () => unsub.forEach(fn => fn());
   }, [loadToday]);
@@ -238,13 +238,28 @@ export function TodayProvider({ children }) {
     setSleepHours(hours);
     setSleepQuality(quality ?? null);
     try {
-      const { error } = await supabase
+      const today = todayString();
+      const { data: existing } = await supabase
         .from('daily_activity')
-        .upsert(
-          { user_id: userId, date: todayString(), sleep_hours: hours, sleep_quality: quality ?? null },
-          { onConflict: 'user_id,date' },
-        );
-      if (error) { loadToday(); return false; }
+        .select('id, sleep_hours, sleep_quality')
+        .eq('user_id', userId)
+        .eq('date', today)
+        .maybeSingle();
+
+      if (existing?.id) {
+        await supabase.from('daily_activity').update({
+          sleep_hours: hours,
+          sleep_quality: quality ?? null,
+        }).eq('id', existing.id);
+      } else {
+        await supabase.from('daily_activity').insert({
+          user_id: userId,
+          date: today,
+          sleep_hours: hours,
+          sleep_quality: quality ?? null,
+        });
+      }
+
       emit(AppEvents.SLEEP_LOGGED, { hours, quality });
       return true;
     } catch (e) {

@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 import { useEffect, useRef, useState } from 'react';
 import {
   Animated, ScrollView, StyleSheet,
@@ -137,6 +138,31 @@ export default function WorkoutSummary({ route, navigation }) {
 
   // ── Fetch confirmed data from Supabase ──────────────────────
   useEffect(() => {
+    const runEntrance = () => {
+      Animated.parallel([
+        Animated.spring(trophyScale,   { toValue: 1, tension: 70, friction: 7, useNativeDriver: true }),
+        Animated.timing(trophyOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+      ]).start();
+
+      setTimeout(() => {
+        Animated.parallel([
+          Animated.spring(cardSlide,   { toValue: 0, tension: 60, friction: 9, useNativeDriver: true }),
+          Animated.timing(cardOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
+        ]).start();
+      }, 200);
+
+      setTimeout(() => {
+        Animated.parallel([
+          Animated.spring(yaraSlide,   { toValue: 0, tension: 60, friction: 9, useNativeDriver: true }),
+          Animated.timing(yaraOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
+        ]).start();
+      }, 400);
+
+      setTimeout(() => {
+        Animated.timing(actionsOpacity, { toValue: 1, duration: 350, useNativeDriver: true }).start();
+      }, 600);
+    };
+
     if (!sessionId) { runEntrance(); return; }
 
     (async () => {
@@ -157,40 +183,16 @@ export default function WorkoutSummary({ route, navigation }) {
       setDbLoading(false);
       runEntrance();
     })();
-  }, [sessionId]);
-
-  function runEntrance() {
-    // Trophy springs in first
-    Animated.parallel([
-      Animated.spring(trophyScale,   { toValue: 1, tension: 70, friction: 7, useNativeDriver: true }),
-      Animated.timing(trophyOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
-    ]).start();
-
-    // Stats card slides up 200ms later
-    setTimeout(() => {
-      Animated.parallel([
-        Animated.spring(cardSlide,   { toValue: 0, tension: 60, friction: 9, useNativeDriver: true }),
-        Animated.timing(cardOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
-      ]).start();
-    }, 200);
-
-    // Yara card 400ms later
-    setTimeout(() => {
-      Animated.parallel([
-        Animated.spring(yaraSlide,   { toValue: 0, tension: 60, friction: 9, useNativeDriver: true }),
-        Animated.timing(yaraOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
-      ]).start();
-    }, 400);
-
-    // Actions 600ms later
-    setTimeout(() => {
-      Animated.timing(actionsOpacity, { toValue: 1, duration: 350, useNativeDriver: true }).start();
-    }, 600);
-  }
+  }, [sessionId, trophyScale, trophyOpacity, cardSlide, cardOpacity, yaraSlide, yaraOpacity, actionsOpacity]);
 
   const xp        = Math.min(200, reps * 5 + Math.round(score / 2));
   const ringColor = scoreColor(score);
   const yara      = yaraMessage(score);
+
+  // ── Circuit context ──────────────────────────────────────────
+  const circuit      = params.circuit || null;
+  const circuitIndex = params.circuitIndex ?? 0;
+  const hasNext      = circuit && circuitIndex < circuit.length - 1;
 
   const goHome = () =>
     navigation.dispatch(
@@ -198,6 +200,16 @@ export default function WorkoutSummary({ route, navigation }) {
     );
 
   const goAgain = () => navigation.goBack();
+
+  const goNext = () => {
+    if (!hasNext) return;
+    const nextEx = circuit[circuitIndex + 1];
+    navigation.replace('WorkoutActive', {
+      exerciseName: nextEx.key,
+      circuit,
+      circuitIndex: circuitIndex + 1,
+    });
+  };
 
   // ── Loading screen while DB confirms save ──────────────────
   if (dbLoading) {
@@ -302,13 +314,22 @@ export default function WorkoutSummary({ route, navigation }) {
 
         {/* ── ACTIONS ── */}
         <Animated.View style={[s.actionsWrap, { opacity: actionsOpacity }]}>
+          {hasNext && (
+            <TouchableOpacity style={[s.nextExBtn, GLOW(C.lime, 14)]} onPress={goNext}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.nextExLabel}>NEXT EXERCISE ({circuitIndex + 2}/{circuit.length})</Text>
+                <Text style={s.nextExName}>{circuit[circuitIndex + 1]?.name}</Text>
+              </View>
+              <Ionicons name="arrow-forward" size={18} color="#000" />
+            </TouchableOpacity>
+          )}
           <TouchableOpacity style={[s.homeBtn, GLOW(C.purple, 14)]} onPress={goHome}>
             <Ionicons name="home" size={16} color="#fff" style={{ marginRight: 8 }} />
-            <Text style={s.homeBtnTxt}>Back to Home</Text>
+            <Text style={s.homeBtnTxt}>{hasNext ? 'End Circuit' : 'Back to Home'}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={s.againBtn} onPress={goAgain}>
             <Ionicons name="refresh" size={14} color={C.sub} style={{ marginRight: 6 }} />
-            <Text style={s.againBtnTxt}>Repeat Workout</Text>
+            <Text style={s.againBtnTxt}>Repeat Exercise</Text>
           </TouchableOpacity>
         </Animated.View>
 
@@ -390,6 +411,12 @@ const s = StyleSheet.create({
 
   // ── Actions ──────────────────────────────────────────────────
   actionsWrap: { width: '100%', gap: 10 },
+  nextExBtn:   {
+    backgroundColor: C.lime, borderRadius: 16, paddingVertical: 17, paddingHorizontal: 20,
+    flexDirection: 'row', alignItems: 'center',
+  },
+  nextExLabel: { color: 'rgba(0,0,0,0.5)', fontSize: 9, fontWeight: '900', letterSpacing: 1.2 },
+  nextExName:  { color: '#000', fontSize: 16, fontWeight: '900', marginTop: 2 },
   homeBtn:     {
     backgroundColor: C.purple, borderRadius: 16, paddingVertical: 17,
     alignItems: 'center', flexDirection: 'row', justifyContent: 'center',
