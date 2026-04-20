@@ -1,9 +1,26 @@
-import React, { useEffect, useState } from 'react';
-import { Alert, FlatList, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  Alert,
+  Animated,
+  Easing,
+  FlatList,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
-import { createCommunityPost, listCommunityPosts } from '../../services/communityService';
+import {
+  createCommunityPost,
+  createPostComment,
+  listCommunityPosts,
+  listPostComments,
+  togglePostLike,
+} from '../../services/communityService';
 
 function formatDate(iso) {
   const d = new Date(iso);
@@ -23,6 +40,34 @@ export default function CommunityCenter({ navigation }) {
   const [pickedImageAsset, setPickedImageAsset] = useState(null);
   const [posting, setPosting] = useState(false);
   const [loadingPosts, setLoadingPosts] = useState(true);
+  const [likeUpdatingByPostId, setLikeUpdatingByPostId] = useState({});
+  const [expandedCommentsByPostId, setExpandedCommentsByPostId] = useState({});
+  const [commentsByPostId, setCommentsByPostId] = useState({});
+  const [commentDraftByPostId, setCommentDraftByPostId] = useState({});
+  const [commentsLoadingByPostId, setCommentsLoadingByPostId] = useState({});
+  const [commentPostingByPostId, setCommentPostingByPostId] = useState({});
+  const [refreshingFeed, setRefreshingFeed] = useState(false);
+  const refreshSpin = useRef(new Animated.Value(0)).current;
+  const isRefreshing = refreshingFeed || loadingPosts;
+
+  useEffect(() => {
+    if (!isRefreshing) {
+      refreshSpin.setValue(0);
+      return;
+    }
+
+    const loop = Animated.loop(
+      Animated.timing(refreshSpin, {
+        toValue: 1,
+        duration: 700,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }),
+    );
+
+    loop.start();
+    return () => loop.stop();
+  }, [isRefreshing, refreshSpin]);
 
   const normalizeAvatarUri = (value) => {
     if (typeof value !== 'string') return null;
@@ -30,6 +75,27 @@ export default function CommunityCenter({ navigation }) {
     if (!uri || uri === 'null' || uri === 'undefined') return null;
     if (/^(https?:\/\/|file:\/\/|data:image\/)/i.test(uri)) return uri;
     return null;
+  };
+
+  const getCurrentUserDisplayName = () => {
+    const fullName = user?.user_metadata?.full_name;
+    if (typeof fullName === 'string' && fullName.trim()) return fullName.trim();
+
+    const name = user?.user_metadata?.name;
+    if (typeof name === 'string' && name.trim()) return name.trim();
+
+    const emailPrefix = user?.email?.split('@')?.[0];
+    if (typeof emailPrefix === 'string' && emailPrefix.trim()) return emailPrefix.trim();
+
+    return 'You';
+  };
+
+  const getCurrentUserAvatar = () => {
+    const candidate =
+      user?.user_metadata?.avatar_url ||
+      user?.user_metadata?.picture ||
+      user?.user_metadata?.avatar;
+    return normalizeAvatarUri(candidate);
   };
 
   const loadPosts = async (mounted = true) => {
@@ -106,6 +172,219 @@ export default function CommunityCenter({ navigation }) {
     }
   };
 
+  const handleToggleLike = async (postId) => {
+    if (!user?.id) {
+      Alert.alert('Sign in required', 'Please sign in to like posts.');
+      return;
+    }
+
+    if (!postId || likeUpdatingByPostId[postId]) return;
+
+    const current = posts.find((post) => post.id === postId);
+    if (!current) return;
+
+    const wasLiked = !!current.likedByMe;
+
+    setLikeUpdatingByPostId((prev) => ({ ...prev, [postId]: true }));
+    setPosts((prev) =>
+      prev.map((post) =>
+        post.id === postId
+          ? {
+              ...post,
+              likedByMe: !wasLiked,
+              likesCount: Math.max(0, (post.likesCount || 0) + (wasLiked ? -1 : 1)),
+            }
+          : post,
+      ),
+    );
+
+    try {
+      await togglePostLike({ postId, userId: user.id, liked: wasLiked });
+    } catch (error) {
+      setPosts((prev) =>
+        prev.map((post) =>
+          post.id === postId
+            ? {
+                ...post,
+                likedByMe: wasLiked,
+                likesCount: Math.max(0, (post.likesCount || 0) + (wasLiked ? 1 : -1)),
+              }
+            : post,
+        ),
+      );
+      Alert.alert('Like failed', error?.message || 'Could not update like. Please try again.');
+    } finally {
+      setLikeUpdatingByPostId((prev) => ({ ...prev, [postId]: false }));
+    }
+  };
+
+  const loadCommentsForPost = async (postId, { force = false } = {}) => {
+    if (!postId) return;
+    if (!force && commentsByPostId[postId]) return;
+    if (commentsLoadingByPostId[postId]) return;
+
+    setCommentsLoadingByPostId((prev) => ({ ...prev, [postId]: true }));
+    try {
+      const items = await listPostComments({ postId });
+
+      const authorFallbackById = new Map(
+        posts
+          .filter((post) => post?.authorId)
+          .map((post) => [
+            post.authorId,
+            {
+              author: post.author || 'User',
+              handle: post.handle || '@user',
+              authorAvatarUri: normalizeAvatarUri(post.authorAvatarUri),
+            },
+          ]),
+      );
+
+      const currentUserName = getCurrentUserDisplayName();
+      const currentUserAvatar = getCurrentUserAvatar();
+
+      const enrichedItems = (items || []).map((comment) => {
+        const fallback = authorFallbackById.get(comment.authorId);
+        const isCurrentUserComment = !!user?.id && comment.authorId === user.id;
+        const hasGenericAuthor = !comment.author || comment.author === 'User';
+
+        return {
+          ...comment,
+          author:
+            (isCurrentUserComment ? currentUserName : null) ||
+            (!hasGenericAuthor ? comment.author : null) ||
+            fallback?.author ||
+            'User',
+          handle: comment.handle || fallback?.handle || '@user',
+          authorAvatarUri:
+            normalizeAvatarUri(comment.authorAvatarUri) ||
+            (isCurrentUserComment ? currentUserAvatar : null) ||
+            fallback?.authorAvatarUri ||
+            null,
+        };
+      });
+
+      setCommentsByPostId((prev) => ({ ...prev, [postId]: enrichedItems }));
+    } catch (error) {
+      Alert.alert(
+        'Comments unavailable',
+        error?.message || 'Could not load comments for this post.',
+      );
+    } finally {
+      setCommentsLoadingByPostId((prev) => ({ ...prev, [postId]: false }));
+    }
+  };
+
+  const handleToggleComments = async (postId) => {
+    if (!postId) return;
+
+    const isExpanded = !!expandedCommentsByPostId[postId];
+    setExpandedCommentsByPostId((prev) => ({ ...prev, [postId]: !isExpanded }));
+
+    if (!isExpanded) {
+      await loadCommentsForPost(postId, { force: true });
+    }
+  };
+
+  const handleSubmitComment = async (postId) => {
+    if (!postId) return;
+    if (!user?.id) {
+      Alert.alert('Sign in required', 'Please sign in to comment on posts.');
+      return;
+    }
+    if (commentPostingByPostId[postId]) return;
+
+    const draft = (commentDraftByPostId[postId] || '').trim();
+    if (!draft) return;
+
+    const optimisticId = `temp-${Date.now()}`;
+    const optimisticComment = {
+      id: optimisticId,
+      postId,
+      authorId: user.id,
+      author: getCurrentUserDisplayName(),
+      handle: '@you',
+      content: draft,
+      createdAt: new Date().toISOString(),
+      authorAvatarUri: getCurrentUserAvatar(),
+    };
+
+    setCommentPostingByPostId((prev) => ({ ...prev, [postId]: true }));
+    setCommentDraftByPostId((prev) => ({ ...prev, [postId]: '' }));
+    setExpandedCommentsByPostId((prev) => ({ ...prev, [postId]: true }));
+    setCommentsByPostId((prev) => ({
+      ...prev,
+      [postId]: [...(prev[postId] || []), optimisticComment],
+    }));
+    setPosts((prev) =>
+      prev.map((post) =>
+        post.id === postId
+          ? { ...post, commentsCount: Math.max(0, (post.commentsCount || 0) + 1) }
+          : post,
+      ),
+    );
+
+    try {
+      const createdComment = await createPostComment({
+        postId,
+        userId: user.id,
+        content: draft,
+        currentUserName: getCurrentUserDisplayName(),
+        currentUserAvatar: getCurrentUserAvatar(),
+      });
+
+      setCommentsByPostId((prev) => ({
+        ...prev,
+        [postId]: (prev[postId] || []).map((comment) =>
+          comment.id === optimisticId ? createdComment : comment,
+        ),
+      }));
+    } catch (error) {
+      setCommentsByPostId((prev) => ({
+        ...prev,
+        [postId]: (prev[postId] || []).filter((comment) => comment.id !== optimisticId),
+      }));
+      setCommentDraftByPostId((prev) => ({ ...prev, [postId]: draft }));
+      setPosts((prev) =>
+        prev.map((post) =>
+          post.id === postId
+            ? { ...post, commentsCount: Math.max(0, (post.commentsCount || 0) - 1) }
+            : post,
+        ),
+      );
+      Alert.alert(
+        'Comment failed',
+        error?.message || 'Could not add your comment. Please try again.',
+      );
+    } finally {
+      setCommentPostingByPostId((prev) => ({ ...prev, [postId]: false }));
+    }
+  };
+
+  const handleRefreshPress = async () => {
+    if (refreshingFeed) return;
+
+    setRefreshingFeed(true);
+    const expandedPostIds = Object.entries(expandedCommentsByPostId)
+      .filter(([, isExpanded]) => !!isExpanded)
+      .map(([postId]) => postId);
+
+    try {
+      await loadPosts(true);
+
+      // Drop cached comments so refresh always reflects latest DB values.
+      setCommentsByPostId({});
+
+      if (expandedPostIds.length) {
+        await Promise.all(
+          expandedPostIds.map((postId) => loadCommentsForPost(postId, { force: true })),
+        );
+      }
+    } finally {
+      setRefreshingFeed(false);
+    }
+  };
+
   const renderPost = ({ item }) => {
     const normalizedAvatarUri = normalizeAvatarUri(item.authorAvatarUri);
 
@@ -141,23 +420,104 @@ export default function CommunityCenter({ navigation }) {
           <Image source={{ uri: item.imageUri }} style={styles.postImage} resizeMode="cover" />
         )}
 
-        {!item.mine && (
-          <Pressable
-            style={styles.messageBtn}
-            onPress={() =>
-              navigation.navigate('Messages', {
-                openPeer: {
-                  id: item.authorId || item.handle,
-                  name: item.author,
-                  handle: item.handle,
-                  avatarUri: item.authorAvatarUri || null,
-                },
+        <View style={styles.postActionsRow}>
+          <View style={styles.postActionsLeft}>
+            <Pressable
+              style={[styles.likeBtn, item.likedByMe && styles.likeBtnActive]}
+              onPress={() => handleToggleLike(item.id)}
+              disabled={!!likeUpdatingByPostId[item.id]}
+            >
+              <Ionicons
+                name={item.likedByMe ? 'heart' : 'heart-outline'}
+                size={14}
+                color={item.likedByMe ? '#130E25' : '#C8F135'}
+              />
+              <Text style={[styles.likeBtnTxt, item.likedByMe && styles.likeBtnTxtActive]}>
+                {item.likesCount || 0}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.commentBtn}
+              onPress={() => handleToggleComments(item.id)}
+              disabled={!!commentsLoadingByPostId[item.id]}
+            >
+              <Ionicons name="chatbubble-outline" size={14} color="#C8F135" />
+              <Text style={styles.commentBtnTxt}>{item.commentsCount || 0}</Text>
+            </Pressable>
+          </View>
+
+          {!item.mine && (
+            <Pressable
+              style={styles.messageBtn}
+              onPress={() =>
+                navigation.navigate('Messages', {
+                  openPeer: {
+                    id: item.authorId || item.handle,
+                    name: item.author,
+                    handle: item.handle,
+                    avatarUri: item.authorAvatarUri || null,
+                  },
+                })
+              }
+            >
+              <Ionicons name="chatbubble-ellipses-outline" size={14} color="#C8F135" />
+              <Text style={styles.messageBtnTxt}>Message</Text>
+            </Pressable>
+          )}
+        </View>
+
+        {!!expandedCommentsByPostId[item.id] && (
+          <View style={styles.commentsWrap}>
+            {commentsLoadingByPostId[item.id] ? (
+              <Text style={styles.commentsMeta}>Loading comments...</Text>
+            ) : (commentsByPostId[item.id] || []).length ? (
+              (commentsByPostId[item.id] || []).map((comment) => {
+                const commentAvatarUri = normalizeAvatarUri(comment.authorAvatarUri);
+                return (
+                  <View key={comment.id} style={styles.commentRow}>
+                    {commentAvatarUri ? (
+                      <Image source={{ uri: commentAvatarUri }} style={styles.commentAvatarImage} />
+                    ) : (
+                      <View style={styles.commentAvatarFallback}>
+                        <Ionicons name="person" size={10} color="#C8F135" />
+                      </View>
+                    )}
+
+                    <View style={styles.commentBody}>
+                      <Text style={styles.commentAuthor}>{comment.author}</Text>
+                      <Text style={styles.commentText}>{comment.content}</Text>
+                    </View>
+                  </View>
+                );
               })
-            }
-          >
-            <Ionicons name="chatbubble-ellipses-outline" size={14} color="#C8F135" />
-            <Text style={styles.messageBtnTxt}>Message</Text>
-          </Pressable>
+            ) : (
+              <Text style={styles.commentsMeta}>No comments yet. Be the first.</Text>
+            )}
+
+            <View style={styles.commentComposerRow}>
+              <TextInput
+                value={commentDraftByPostId[item.id] || ''}
+                onChangeText={(value) =>
+                  setCommentDraftByPostId((prev) => ({ ...prev, [item.id]: value }))
+                }
+                placeholder="Write a comment..."
+                placeholderTextColor="#7A7393"
+                style={styles.commentInput}
+              />
+              <Pressable
+                style={styles.commentSendBtn}
+                onPress={() => handleSubmitComment(item.id)}
+                disabled={!!commentPostingByPostId[item.id]}
+              >
+                <Ionicons
+                  name={commentPostingByPostId[item.id] ? 'time-outline' : 'send'}
+                  size={13}
+                  color="#130E25"
+                />
+              </Pressable>
+            </View>
+          </View>
         )}
       </View>
     );
@@ -171,8 +531,21 @@ export default function CommunityCenter({ navigation }) {
         </Pressable>
         <Text style={styles.title}>Community</Text>
         <View style={styles.headerRightRow}>
-          <Pressable onPress={() => loadPosts(true)} style={styles.backBtn}>
-            <Ionicons name="refresh" size={18} color="#C8F135" />
+          <Pressable onPress={handleRefreshPress} style={styles.backBtn} disabled={isRefreshing}>
+            <Animated.View
+              style={{
+                transform: [
+                  {
+                    rotate: refreshSpin.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0deg', '360deg'],
+                    }),
+                  },
+                ],
+              }}
+            >
+              <Ionicons name="refresh" size={18} color="#C8F135" />
+            </Animated.View>
           </Pressable>
           <Pressable onPress={() => navigation.navigate('Messages')} style={styles.backBtn}>
             <Ionicons name="chatbubble-ellipses-outline" size={18} color="#C8F135" />
@@ -340,8 +713,53 @@ const styles = StyleSheet.create({
   meta: { color: '#9A91B9', fontSize: 11, marginTop: 1 },
   status: { color: '#EEEAF9', marginTop: 10, lineHeight: 20 },
   postImage: { width: '100%', height: 210, borderRadius: 12, marginTop: 10 },
-  messageBtn: {
+  postActionsRow: {
     marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  postActionsLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  likeBtn: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#2B2449',
+    borderRadius: 10,
+    backgroundColor: '#120F22',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    minWidth: 54,
+    justifyContent: 'center',
+  },
+  likeBtnActive: {
+    backgroundColor: '#C8F135',
+    borderColor: '#C8F135',
+  },
+  likeBtnTxt: { color: '#C8F135', fontWeight: '700', fontSize: 12 },
+  likeBtnTxtActive: { color: '#130E25' },
+  commentBtn: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#2B2449',
+    borderRadius: 10,
+    backgroundColor: '#120F22',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    minWidth: 54,
+    justifyContent: 'center',
+  },
+  commentBtnTxt: { color: '#C8F135', fontWeight: '700', fontSize: 12 },
+  messageBtn: {
     alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
@@ -354,5 +772,71 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   messageBtnTxt: { color: '#C8F135', fontWeight: '700', fontSize: 12 },
+  commentsWrap: {
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#2A2346',
+    paddingTop: 10,
+    gap: 8,
+  },
+  commentsMeta: { color: '#9A91B9', fontSize: 12 },
+  commentRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  commentAvatarImage: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: '#2A2346',
+  },
+  commentAvatarFallback: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: '#2A2346',
+    backgroundColor: '#120F22',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  commentBody: {
+    flex: 1,
+    backgroundColor: '#120F22',
+    borderWidth: 1,
+    borderColor: '#2B2449',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  commentAuthor: { color: '#EEEAF9', fontSize: 12, fontWeight: '700', marginBottom: 2 },
+  commentText: { color: '#D6D0EA', fontSize: 12, lineHeight: 17 },
+  commentComposerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 2,
+  },
+  commentInput: {
+    flex: 1,
+    minHeight: 38,
+    color: '#fff',
+    backgroundColor: '#0F0B1E',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#28223F',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  commentSendBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#C8F135',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   emptyTxt: { color: '#8E85AE', textAlign: 'center', marginTop: 24 },
 });

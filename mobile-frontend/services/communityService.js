@@ -120,7 +120,42 @@ export async function listCommunityPosts(currentUserId) {
         author_avatar: profile?.avatar_url || null,
       };
     });
+  }
 
+  const postIds = (rows || []).map((row) => row.id).filter(Boolean);
+  const likeCountByPostId = new Map();
+  const commentCountByPostId = new Map();
+  const likedPostIds = new Set();
+
+  if (postIds.length) {
+    const [{ data: likeRows, error: likesError }, { data: commentRows, error: commentsError }] =
+      await Promise.all([
+        supabase.from('post_likes').select('post_id, user_id').in('post_id', postIds),
+        supabase.from('post_comments').select('post_id').in('post_id', postIds),
+      ]);
+
+    if (likesError) {
+      const detail = [likesError?.message, likesError?.details].filter(Boolean).join(' | ');
+      throw new Error(detail || 'Could not fetch likes for community posts.');
+    }
+
+    if (commentsError) {
+      const detail = [commentsError?.message, commentsError?.details].filter(Boolean).join(' | ');
+      throw new Error(detail || 'Could not fetch comments for community posts.');
+    }
+
+    (likeRows || []).forEach((likeRow) => {
+      const count = likeCountByPostId.get(likeRow.post_id) || 0;
+      likeCountByPostId.set(likeRow.post_id, count + 1);
+      if (currentUserId && likeRow.user_id === currentUserId) {
+        likedPostIds.add(likeRow.post_id);
+      }
+    });
+
+    (commentRows || []).forEach((commentRow) => {
+      const count = commentCountByPostId.get(commentRow.post_id) || 0;
+      commentCountByPostId.set(commentRow.post_id, count + 1);
+    });
   }
 
   const avatarUrlCache = new Map();
@@ -146,6 +181,13 @@ export async function listCommunityPosts(currentUserId) {
         status: row.content || '',
         imageUri: resolvePostMediaUrl(mediaPath),
         createdAt: row.created_at,
+        likesCount: Number.isFinite(Number(row.likes_count))
+          ? Number(row.likes_count)
+          : likeCountByPostId.get(row.id) || 0,
+        commentsCount: Number.isFinite(Number(row.comments_count))
+          ? Number(row.comments_count)
+          : commentCountByPostId.get(row.id) || 0,
+        likedByMe: likedPostIds.has(row.id),
         mine: !!currentUserId && row.author_id === currentUserId,
         authorAvatarUri,
       };
@@ -153,6 +195,186 @@ export async function listCommunityPosts(currentUserId) {
   );
 
   return mapped;
+}
+
+export async function togglePostLike({ postId, userId, liked }) {
+  if (!postId) throw new Error('Post id is required to like a post.');
+  if (!userId) throw new Error('User id is required to like a post.');
+
+  if (liked) {
+    const { error } = await supabase
+      .from('post_likes')
+      .delete()
+      .eq('post_id', postId)
+      .eq('user_id', userId);
+
+    if (error) {
+      const detail = [error?.message, error?.details, error?.hint].filter(Boolean).join(' | ');
+      throw new Error(detail || 'Could not remove like from post.');
+    }
+    return;
+  }
+
+  const { error } = await supabase.from('post_likes').insert({
+    post_id: postId,
+    user_id: userId,
+  });
+
+  if (error && error.code !== '23505') {
+    const detail = [error?.message, error?.details, error?.hint].filter(Boolean).join(' | ');
+    throw new Error(detail || 'Could not like post.');
+  }
+}
+
+export async function listPostComments({ postId, limit = 50 }) {
+  if (!postId) throw new Error('Post id is required to fetch comments.');
+
+  const { data: commentRows, error: commentsError } = await supabase
+    .from('post_comments')
+    .select('id, post_id, user_id, content, created_at')
+    .eq('post_id', postId)
+    .order('created_at', { ascending: true })
+    .limit(limit);
+
+  if (commentsError) {
+    const detail = [commentsError?.message, commentsError?.details].filter(Boolean).join(' | ');
+    throw new Error(detail || 'Could not fetch comments.');
+  }
+
+  const authorIds = [...new Set((commentRows || []).map((row) => row.user_id).filter(Boolean))];
+  let profileMap = new Map();
+  let feedAuthorMap = new Map();
+
+  if (authorIds.length) {
+    const { data: profileRows, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, full_name, avatar_url')
+      .in('id', authorIds);
+
+    if (profileError) {
+      const detail = [profileError?.message, profileError?.details].filter(Boolean).join(' | ');
+      throw new Error(detail || 'Could not load comment author profiles.');
+    }
+
+    profileMap = new Map((profileRows || []).map((row) => [row.id, row]));
+
+    const missingAuthorIds = authorIds.filter((id) => !profileMap.has(id));
+    if (missingAuthorIds.length) {
+      const { data: feedRows } = await supabase
+        .from('community_feed')
+        .select('author_id, author_name, author_avatar')
+        .in('author_id', missingAuthorIds)
+        .limit(500);
+
+      (feedRows || []).forEach((row) => {
+        if (!row?.author_id) return;
+
+        const existing = feedAuthorMap.get(row.author_id);
+        if (!existing) {
+          feedAuthorMap.set(row.author_id, {
+            full_name: row.author_name || null,
+            avatar_url: row.author_avatar || null,
+          });
+          return;
+        }
+
+        if (!existing.full_name && row.author_name) {
+          existing.full_name = row.author_name;
+        }
+        if (!existing.avatar_url && row.author_avatar) {
+          existing.avatar_url = row.author_avatar;
+        }
+      });
+    }
+  }
+
+  const avatarUrlCache = new Map();
+
+  return Promise.all(
+    (commentRows || []).map(async (row) => {
+      const profile = profileMap.get(row.user_id) || feedAuthorMap.get(row.user_id);
+      let authorAvatarUri = null;
+      if (profile?.avatar_url) {
+        if (avatarUrlCache.has(profile.avatar_url)) {
+          authorAvatarUri = avatarUrlCache.get(profile.avatar_url);
+        } else {
+          authorAvatarUri = await resolveAuthorAvatarUrlWithFallback(profile.avatar_url);
+          avatarUrlCache.set(profile.avatar_url, authorAvatarUri);
+        }
+      }
+
+      return {
+        id: row.id,
+        postId: row.post_id,
+        authorId: row.user_id,
+        author: profile?.full_name || 'User',
+        handle: deriveHandle(profile?.full_name),
+        content: row.content || '',
+        createdAt: row.created_at,
+        authorAvatarUri,
+      };
+    }),
+  );
+}
+
+export async function createPostComment({
+  postId,
+  userId,
+  content,
+  currentUserName,
+  currentUserAvatar,
+}) {
+  if (!postId) throw new Error('Post id is required to comment.');
+  if (!userId) throw new Error('User id is required to comment.');
+
+  const trimmedContent = (content || '').trim();
+  if (!trimmedContent) throw new Error('Comment cannot be empty.');
+
+  const { data: inserted, error: insertError } = await supabase
+    .from('post_comments')
+    .insert({
+      post_id: postId,
+      user_id: userId,
+      content: trimmedContent,
+    })
+    .select('id, post_id, user_id, content, created_at')
+    .single();
+
+  if (insertError) {
+    const detail = [insertError?.message, insertError?.details, insertError?.hint]
+      .filter(Boolean)
+      .join(' | ');
+    throw new Error(detail || 'Could not add comment.');
+  }
+
+  let authorName = currentUserName || 'You';
+  let authorAvatarValue = currentUserAvatar || null;
+
+  if (!currentUserName || !currentUserAvatar) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('full_name, avatar_url')
+      .eq('id', userId)
+      .maybeSingle();
+
+    authorName = currentUserName || profile?.full_name || 'You';
+    authorAvatarValue = currentUserAvatar || profile?.avatar_url || null;
+  }
+
+  const authorAvatarUri = authorAvatarValue
+    ? await resolveAuthorAvatarUrlWithFallback(authorAvatarValue)
+    : null;
+
+  return {
+    id: inserted.id,
+    postId: inserted.post_id,
+    authorId: inserted.user_id,
+    author: authorName,
+    handle: deriveHandle(authorName),
+    content: inserted.content || '',
+    createdAt: inserted.created_at,
+    authorAvatarUri,
+  };
 }
 
 export async function createCommunityPost({ userId, content, imageAsset }) {
