@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { callYara }                    from '../lib/groqAPI';
+import { supabase }                    from '../lib/supabase';
 import { getChatHistory, saveMessage } from '../services/chatService';
 import { useAuth }                     from '../context/AuthContext';
 import { error as logError } from '../lib/logger';
@@ -16,6 +16,17 @@ function buildWelcome(profile) {
     : "Hey! I'm Yara — your personal coach. I'm here for everything: training, nutrition, recovery, mindset. What's on your mind today?";
 }
 
+function buildTodaySnapshot(profile) {
+  if (!profile) return undefined;
+  return {
+    date: new Date().toISOString().split('T')[0],
+    calorie_target: profile.daily_calories ?? profile.calTarget,
+    protein_target: profile.protein_target ?? profile.protein,
+    carbs_target: profile.carbs_target,
+    fat_target: profile.fat_target,
+  };
+}
+
 export function useYaraChat(profile) {
   const { user }                    = useAuth();
   const [messages,  setMessages]    = useState([]);
@@ -24,10 +35,8 @@ export function useYaraChat(profile) {
   const [open,      setOpen]        = useState(false);
   const apiHistory                  = useRef([]);
 
-  // Load persisted chat history on mount
   useEffect(() => {
     const loadHistory = async () => {
-      // Always show welcome message first
       const welcome = { from: 'yara', text: buildWelcome(profile), time: fmtTime() };
 
       if (!user) { setMessages([welcome]); return; }
@@ -38,14 +47,13 @@ export function useYaraChat(profile) {
         if (safeHistory.length === 0) {
           setMessages([welcome]);
         } else {
-          // Rebuild UI messages from DB history
-          const uiMessages = (safeHistory || []).map(m => ({
+          const uiMessages = safeHistory.map(m => ({
             from: m.role === 'assistant' ? 'yara' : 'user',
             text: m.content,
             time: '',
           }));
           setMessages([welcome, ...uiMessages]);
-          apiHistory.current = safeHistory; // restore context for Groq
+          apiHistory.current = safeHistory;
         }
       } catch {
         setMessages([welcome]);
@@ -65,14 +73,25 @@ export function useYaraChat(profile) {
 
     apiHistory.current = [...apiHistory.current, { role: 'user', content: msg }];
 
-    // Save user message to DB
     if (user) await saveMessage(user.id, 'user', msg).catch(console.error);
 
     try {
-      const reply = await callYara(apiHistory.current, profile);
+      const { data, error } = await supabase.functions.invoke('ai-assistant', {
+        body: {
+          userId: user?.id,
+          query: msg,
+          clientContext: {
+            profile: profile ?? undefined,
+            today: buildTodaySnapshot(profile),
+          },
+        },
+      });
+
+      if (error) throw error;
+
+      const reply = data?.response ?? "I'm having trouble connecting. Try again in a moment.";
       apiHistory.current = [...apiHistory.current, { role: 'assistant', content: reply }];
 
-      // Save Yara's reply to DB
       if (user) await saveMessage(user.id, 'assistant', reply).catch(console.error);
 
       setMessages(prev => [...prev, { from: 'yara', text: reply, time: fmtTime() }]);

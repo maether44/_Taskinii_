@@ -71,7 +71,7 @@ function buildFallbackMealPlan({ goals, eaten, protein, carbs, fat, mealSections
     plan.push("Healthy fats are still low, so avocado, olive oil, nuts, or salmon would balance things nicely.");
   }
 
-  plan.push("Fun version: build one easy plate with a protein, one smart carb, and one colorful fruit or vegetable so Yara has even better data tomorrow.");
+  plan.push("Fun version: build one easy plate with a protein, one smart carb, and one colorful fruit or vegetable so Alexi has even better data tomorrow.");
 
   return plan.join(" ");
 }
@@ -98,7 +98,7 @@ async function extractEdgeFunctionMessage(error) {
   return error?.message || "";
 }
 
-async function invokeYaraPlan(body) {
+async function invokeAlexiPlan(body) {
   try {
     const { data, error } = await supabase.functions.invoke("ai-assistant", { body });
     if (error) {
@@ -108,7 +108,7 @@ async function invokeYaraPlan(body) {
     return data;
   } catch (error) {
     const message = error?.message || "";
-    if (/invalid jwt/i.test(message) || /non-2xx/i.test(message)) {
+    if (/jwt/i.test(message) || /non-2xx/i.test(message)) {
       return invokeEdgePublic("ai-assistant", body);
     }
     throw error;
@@ -191,15 +191,15 @@ export default function Nutrition({ navigation }) {
         "Keep it concise, practical, and fun.",
       ].join(" ");
 
-      let resolvedData = await invokeYaraPlan({ userId, query: prompt, clientContext });
+      let resolvedData = await invokeAlexiPlan({ userId, query: prompt, clientContext });
       if (!resolvedData?.response) {
-        resolvedData = await invokeYaraPlan({ query: prompt, clientContext });
+        resolvedData = await invokeAlexiPlan({ query: prompt, clientContext });
       }
       if (resolvedData?.fallback) {
         setMealPlan(resolvedData?.response || fallbackMealPlan);
         setMealPlanError(resolvedData?.reason
-          ? `Yara is using fallback mode right now: ${resolvedData.reason}`
-          : "Yara is using fallback mode right now.");
+          ? `Alexi is using fallback mode right now: ${resolvedData.reason}`
+          : "Alexi is using fallback mode right now.");
         return;
       }
       setMealPlan(resolvedData?.response || "");
@@ -208,8 +208,8 @@ export default function Nutrition({ navigation }) {
       setMealPlan(fallbackMealPlan);
       setMealPlanError(
         detail
-          ? `Yara live planning is unavailable right now: ${detail}`
-          : "Yara live planning is unavailable right now, so this card is using a smart local fallback.",
+          ? `Alexi live planning is unavailable right now: ${detail}`
+          : "Alexi live planning is unavailable right now, so this card is using a smart local fallback.",
       );
     } finally {
       setMealPlanLoading(false);
@@ -315,7 +315,7 @@ export default function Nutrition({ navigation }) {
               <Text style={s.cardSub}>
                 {caloriesBurned > 0
                   ? `Workout bonus added: +${caloriesBurned} kcal`
-                  : "Track meals to help Yara coach you better"}
+                  : "Track meals to help Alexi coach you better"}
               </Text>
             </View>
             <RingProgress size={116} stroke={10} progress={calPct} color={eaten > adjustedGoal ? "#FF6B6B" : C.lime}>
@@ -365,14 +365,14 @@ export default function Nutrition({ navigation }) {
           {mealPlanLoading ? (
             <View style={s.planLoading}>
               <ActivityIndicator color={C.lime} />
-              <Text style={s.planLoadingTxt}>Yara is building your plan from your real logs...</Text>
+              <Text style={s.planLoadingTxt}>Alexi is building your plan from your real logs...</Text>
             </View>
           ) : mealPlanError ? (
             <Text style={s.planError}>{mealPlanError}</Text>
           ) : mealPlan ? (
             <Text style={s.planBody}>{mealPlan}</Text>
           ) : (
-            <Text style={s.planEmpty}>Log a couple meals and Yara will turn them into a more personalized day plan.</Text>
+            <Text style={s.planEmpty}>Log a couple meals and Alexi will turn them into a more personalized day plan.</Text>
           )}
         </View>
 
@@ -484,7 +484,7 @@ export default function Nutrition({ navigation }) {
           <Text style={s.cardLabel}>YARA</Text>
           <Text style={s.cardTitle}>Daily meal coaching works best with real logs</Text>
           <Text style={s.cardSub}>
-            Every meal you save here becomes part of the nutrition context Yara can use when you ask for analysis or meal ideas.
+            Every meal you save here becomes part of the nutrition context Alexi can use when you ask for analysis or meal ideas.
           </Text>
         </View>
       </ScrollView>

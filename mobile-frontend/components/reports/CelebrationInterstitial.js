@@ -135,7 +135,7 @@ export default function CelebrationInterstitial({ visible, milestone, onClaim, o
 
           <Text style={st.desc}>
             Your dedication has earned you a personalized{'\n'}
-            performance report from Yara.
+            performance report from Alexi.
           </Text>
 
           <Animated.View style={[st.btnGroup, { opacity: btnFade }]}>

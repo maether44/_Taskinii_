@@ -1,0 +1,8 @@
+
+Error while parsing C:\Study\Junior\Spring3\Junior ISS Project\maether's repo\BodyQ\mobile-frontend\services\workoutService.ts
+Line 3, column 0: Merge conflict marker encountered.
+`parseForESLint` from parser `@typescript-eslint/parser` is invalid and will just be ignored
+
+Error while parsing C:\Study\Junior\Spring3\Junior ISS Project\maether's repo\BodyQ\mobile-frontend\services\workoutService.ts
+Line 3, column 0: Merge conflict marker encountered.
+`parseForESLint` from parser `@typescript-eslint/parser` is invalid and will just be ignored

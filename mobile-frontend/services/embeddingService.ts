@@ -19,8 +19,7 @@ type ChunkType =
   | 'workout_session'
   | 'meal_log'
   | 'memory_fact'
-  | 'body_metric'
-  | 'workout_plan';
+  | 'body_metric';
 
 let pendingTypes = new Set<ChunkType>();
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;

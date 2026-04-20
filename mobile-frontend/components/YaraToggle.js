@@ -133,7 +133,7 @@ export default function YaraToggle() {
         ) : (
           <View style={styles.imageClip}>
             <Image
-              source={require('../assets/yara_spirit.png')}
+              source={require('../assets/alexi_avatar.png')}
               style={styles.mascot}
               resizeMode="cover"
               onError={() => setImgError(true)}

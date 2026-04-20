@@ -37,7 +37,8 @@
                                          "photosPermission":  "Allow BodyQ to access your photos to analyse food images."
                                      }
                                  ],
-                                 "expo-asset"
+                                 "expo-asset",
+                                 ["react-native-ble-plx", { "isBackgroundEnabled": true }]
                              ],
                  "extra":  {
                                "eas": { "projectId": "bodyq" }

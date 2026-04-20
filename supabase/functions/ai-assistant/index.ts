@@ -15,6 +15,7 @@ import {
   ParsedAction,
   YaraEvent,
 } from './memory.ts'
+import { semanticSearch, buildRagContextSection } from './embeddings.ts'
 
 type ActionResult = {
   ok: boolean
@@ -415,9 +416,9 @@ type ToneProfile = {
 const TONE_PROFILES: Record<string, ToneProfile> = {
   motivational: {
     label: 'motivational',
-    voice: 'Energetic, upbeat, encouraging. Use short punchy sentences. Celebrate wins. Frame gaps as opportunities, never failures. Second person ("you got this"). Never condescending.',
+    voice: 'Upbeat but concise. Lead with data, then one encouraging line. No rambling. Vary openers.',
     emojiPolicy: 'At most one celebratory emoji near the opener (🔥, 💪, ⚡). Never stack emojis.',
-    openerExample: '"Big day ahead — you already crushed X, now let\'s stack one more win."',
+    openerExample: 'Vary each time. Examples: "Looking at your numbers…", "Let\'s talk about your week so far…", "Here\'s what stands out…". NEVER use a fixed catchphrase.',
   },
   strict: {
     label: 'strict',
@@ -427,7 +428,7 @@ const TONE_PROFILES: Record<string, ToneProfile> = {
   },
   friendly: {
     label: 'friendly',
-    voice: 'Warm, conversational, like a supportive friend who happens to know the science. Longer flowing sentences. Uses the user\'s name. Gentle framing. Asks one light check-in.',
+    voice: 'Warm but efficient. Uses the user\'s name. Data first, gentle framing second. One short check-in at most.',
     emojiPolicy: 'At most one warm emoji (🙂, ✨, 🌱) — optional.',
     openerExample: '"Hey Israa, I saw you logged a late workout — how is the energy holding up today?"',
   },
@@ -448,8 +449,9 @@ function buildToneSection(tone: ToneProfile): string {
   return `COACHING TONE: ${tone.label}
 - Voice: ${tone.voice}
 - Emoji policy: ${tone.emojiPolicy}
-- Example opener in this voice: ${tone.openerExample}
-- This tone is non-negotiable. Do not drift toward generic "cheerful coach" style.`
+- Opener guidance: ${tone.openerExample}
+- This tone is non-negotiable. Do not drift toward generic "cheerful coach" style.
+- IMPORTANT: Never copy example openers verbatim. Create a fresh, contextual opener every time.`
 }
 
 function buildPrompt(
@@ -464,6 +466,7 @@ function buildPrompt(
   events: YaraEvent[],
   query: string,
   voiceMode = false,
+  ragContext = '',
 ): string {
   const tone = resolveTone(profile.assistant_tone)
   const toneSection = buildToneSection(tone)
@@ -572,7 +575,7 @@ VOICE MODE:
   // Constraints and events must appear BEFORE the freeform data so they stay
   // salient in the model's attention window.
   const sections: string[] = [
-    `You are Yara, a personal AI health and fitness coach inside the BodyQ app.`,
+    `You are Alexi, a personal AI health and fitness coach inside the BodyQ app.`,
     toneSection,
     actionRules.trim(),
   ]
@@ -582,6 +585,7 @@ VOICE MODE:
   if (eventsSection) sections.push(eventsSection)
 
   sections.push(`RULES:
+- BANNED PHRASES: Never start with "Big day ahead", "Let's dive in", or any fixed catchphrase. Every reply must open differently based on what the user actually asked.
 - Prefer TODAY'S SNAPSHOT over the 30-day averages when the user asks about "today", "right now", or current state.
 - Use LONG-TERM MEMORY silently to personalise advice. Never recite the memory list back to the user unless they explicitly ask "what do you remember about me".
 - HARD CONSTRAINTS above override every other rule, including this list. Before naming any exercise or food, scan the AVOID list; if your candidate is on it, pick a safe substitute and briefly explain the swap in one clause.
@@ -590,7 +594,7 @@ VOICE MODE:
 - Identify the biggest win and biggest improvement area.
 - Give one concrete action for today.
 - If muscle fatigue is high (>=70%) for any group, recommend recovery for that group and training a different one.
-- Keep the response under 180 words unless asked for a full plan.
+- Keep replies 60–120 words. Lead with the key numbers and actionable advice. No filler, no pep talks, no restating what the user already knows. Only go longer (up to 200 words) if the user asks for a full plan or detailed breakdown.
 - If meal ideas are requested, suggest 2 or 3 options that fit the user's remaining calories/macros for today.
 - Use the user's actual logged meals when available.
 
@@ -610,6 +614,7 @@ MEMORY EXTRACTION (very important):
   sections.push(workoutsSection)
   sections.push(bodySection)
   sections.push(historySection)
+  if (ragContext) sections.push(ragContext)
   sections.push(`USER QUESTION: ${query}`)
 
   return sections.join('\n\n')
@@ -729,7 +734,17 @@ Deno.serve(async (req) => {
     const needs = classifyQuery(query)
     console.log(`[ai-assistant] Query classified: ${JSON.stringify(needs)}`)
 
-    const [rpcActivity, rpcNutrition, rpcWorkouts, rpcBodyMetrics, rpcAiHistory, memories, pendingEvents] = userId
+    const safeSemanticSearch = async (): Promise<string> => {
+      try {
+        const ragChunks = await semanticSearch(supabase, userId, query)
+        return buildRagContextSection(ragChunks)
+      } catch (err: any) {
+        console.error('[ai-assistant] semantic search failed (non-fatal):', err?.message ?? err)
+        return ''
+      }
+    }
+
+    const [rpcActivity, rpcNutrition, rpcWorkouts, rpcBodyMetrics, rpcAiHistory, memories, pendingEvents, ragContext] = userId
       ? await Promise.all([
           needs.activity ? safeRpc(supabase, 'get_user_full_activity_summary', { p_user_id: userId }) : Promise.resolve(null),
           needs.nutrition ? safeRpc(supabase, 'get_user_nutrition_summary', { p_user_id: userId }) : Promise.resolve(null),
@@ -738,11 +753,10 @@ Deno.serve(async (req) => {
           needs.history ? safeRpc(supabase, 'get_user_ai_history', { p_user_id: userId }) : Promise.resolve(null),
           fetchUserMemory(supabase, userId),
           fetchPendingYaraEvents(supabase, userId),
+          safeSemanticSearch(),
         ])
-      : [null, null, null, null, null, [] as MemoryRow[], [] as YaraEvent[]]
+      : [null, null, null, null, null, [] as MemoryRow[], [] as YaraEvent[], '']
 
-    // 30-day averages always come from RPCs (client-side "today" data is a separate section).
-    // Legacy clients may still send activity/nutrition as overrides — respected only if RPC returned null.
     const activity = rpcActivity ?? clientContext?.activity ?? null
     const nutrition = rpcNutrition ?? clientContext?.nutrition ?? null
     const workouts = rpcWorkouts ?? clientContext?.workouts ?? null
@@ -760,7 +774,7 @@ Deno.serve(async (req) => {
 
     const prompt = buildPrompt(
       profile, today, activity, nutrition, workouts, bodyMetrics, aiHistory,
-      memories ?? [], pendingEvents ?? [], query, voiceMode,
+      memories ?? [], pendingEvents ?? [], query, voiceMode, ragContext,
     )
     const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',

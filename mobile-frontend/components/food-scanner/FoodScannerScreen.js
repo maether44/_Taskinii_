@@ -261,7 +261,7 @@ export default function FoodScannerScreen() {
               <View style={s.loadingCard}>
                 <ActivityIndicator size="large" color={LIME} />
                 <Text style={s.loadingTxt}>
-                  {mode === "barcode" ? "Looking up nutrition..." : "Yara is estimating this meal..."}
+                  {mode === "barcode" ? "Looking up nutrition..." : "Alexi is estimating this meal..."}
                 </Text>
               </View>
             </View>
