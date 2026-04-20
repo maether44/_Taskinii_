@@ -363,6 +363,15 @@ export function extractActionsFromResponse(
     }
   }
 
-  const cleaned = raw.replace(re, '').trim()
+  const actionNames = [...ALLOWED_ACTION_TYPES].join('|')
+  const cleaned = raw
+    // Strip COMMAND: lines in any format (JSON or plain text)
+    .replace(/COMMAND:[^\n]*/gi, '')
+    // Strip bare action-name lines the model emits without the COMMAND: prefix
+    .replace(new RegExp(`^[^\\n]*(${actionNames})[^\\n]*$`, 'gim'), '')
+    // Strip any stray MEMORIES: line that escaped the earlier pass
+    .replace(/^\s*MEMORIES\s*:.*$/gim, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
   return { cleaned, actions }
 }

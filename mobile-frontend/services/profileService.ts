@@ -5,7 +5,7 @@ import { refreshAfterProfileUpdate, refreshAll } from "./embeddingService";
 export const getProfile = async (userId) => {
   const { data, error } = await supabase
     .from("profiles")
-    .select("goal, onboarded, date_of_birth")
+    .select("goal, onboarded, date_of_birth, preferred_workout_time, workout_days_per_week")
     .eq("id", userId)
     .single();
 
@@ -28,6 +28,8 @@ export const saveOnboardingProfile = async (userId, answers) => {
     updated_at: new Date().toISOString(),
     experience: answers.experience,
     equipment: answers.equipment,
+    preferred_workout_time: answers.timeOfDay,
+    workout_days_per_week: answers.days ?? null,
     sleep_quality: answers.sleep,
     stress_level: answers.stress,
     diet_pref: answers.diet,

@@ -13,11 +13,10 @@ import {
 } from "react-native";
 import MacroBar from "../components/shared/MacroBar";
 import RingProgress from "../components/shared/RingProgress";
-import { StepCounter } from "../components/StepCounter";
 import { useNutrition } from "../hooks/useNutrition";
 import { useProfile } from "../hooks/useProfile";
 import { invokeEdgePublic, supabase } from "../lib/supabase";
-import { DEFAULT_TARGETS } from "../constants/targets";
+import { AlexiEvents } from "../context/AlexiVoiceContext";
 
 const C = {
   bg: "#0F0B1E",
@@ -131,10 +130,10 @@ function buildClientNutritionContext({ goals, eaten, protein, carbs, fat, waterM
       avg_carbs_g: carbs || 0,
       avg_fat_g: fat || 0,
       logged_days: recentMeals.length ? 1 : 0,
-      daily_calorie_target: goals?.calorie_target || DEFAULT_TARGETS.calorie_target,
-      protein_target: goals?.protein_target || DEFAULT_TARGETS.protein_target,
-      carbs_target: goals?.carbs_target || DEFAULT_TARGETS.carbs_target,
-      fat_target: goals?.fat_target || DEFAULT_TARGETS.fat_target,
+      daily_calorie_target: goals?.calorie_target || 2000,
+      protein_target: goals?.protein_target || 150,
+      carbs_target: goals?.carbs_target || 250,
+      fat_target: goals?.fat_target || 65,
       recent_meals: recentMeals,
     },
     activity: {
@@ -219,6 +218,11 @@ export default function Nutrition({ navigation }) {
   useFocusEffect(useCallback(() => {
     refresh();
   }, [refresh]));
+
+  useEffect(() => {
+    const off = AlexiEvents.on('dataUpdated', () => refresh());
+    return off;
+  }, [refresh]);
 
   useEffect(() => {
     if (loading) return;
@@ -477,8 +481,6 @@ export default function Nutrition({ navigation }) {
             </TouchableOpacity>
           </View>
         </View>
-
-        <StepCounter />
 
         <View style={s.yaraCard}>
           <Text style={s.cardLabel}>YARA</Text>

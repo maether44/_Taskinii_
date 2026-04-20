@@ -4,7 +4,7 @@
     "slug": "mobile",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/yara_spirit.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
@@ -49,6 +49,8 @@
         }
       ],
       "expo-asset",
+      "@react-native-voice/voice",
+      "expo-audio",
       "@react-native-community/datetimepicker"
     ],
     "extra": {}

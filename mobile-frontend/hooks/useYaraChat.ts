@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { supabase }                    from '../lib/supabase';
 import { getChatHistory, saveMessage } from '../services/chatService';
 import { useAuth }                     from '../context/AuthContext';
-import { error as logError } from '../lib/logger';
+import { error as logError }           from '../lib/logger';
+import { scheduleStore }               from '../store/scheduleStore';
 
 function fmtTime() {
   return new Date().toLocaleTimeString('en-US', {
@@ -71,6 +72,13 @@ export function useYaraChat(profile) {
     setTyping(true);
     setMessages(prev => [...prev, { from: 'user', text: msg, time: fmtTime() }]);
 
+    const isSchedule = isScheduleRequest(msg);
+
+    // Inject schedule instructions into the history if needed
+    const historyToSend = isSchedule
+      ? [...apiHistory.current, { role: 'user', content: msg + '\n\n' + SCHEDULE_SYSTEM_INJECTION }]
+      : [...apiHistory.current, { role: 'user', content: msg }];
+
     apiHistory.current = [...apiHistory.current, { role: 'user', content: msg }];
 
     if (user) await saveMessage(user.id, 'user', msg).catch(console.error);
@@ -93,8 +101,8 @@ export function useYaraChat(profile) {
       apiHistory.current = [...apiHistory.current, { role: 'assistant', content: reply }];
 
       if (user) await saveMessage(user.id, 'assistant', reply).catch(console.error);
-
       setMessages(prev => [...prev, { from: 'yara', text: reply, time: fmtTime() }]);
+
     } catch (err) {
       logError('Yara error:', err);
       apiHistory.current = apiHistory.current.slice(0, -1);

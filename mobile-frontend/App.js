@@ -36,7 +36,7 @@ import FoodScannerScreen from "./components/food-scanner/FoodScannerScreen";
 import WorkoutSummary from "./screens/workout/WorkoutSummary";
 
 // Global Components
-import YaraAssistant from "./components/YaraAssistant";
+import AlexiAssistant from "./components/AlexiAssistant";
 import AppTour from "./components/onBoarding/AppTour";
 import CelebrationInterstitial from "./components/reports/CelebrationInterstitial";
 import { warn } from './lib/logger';
@@ -122,7 +122,7 @@ export default function App() {
         });
         await supabase.auth.getSession();
       } catch (e) {
-        warn(e);
+        console.warn(e);
       } finally {
         setAppIsReady(true);
       }
@@ -134,7 +134,31 @@ export default function App() {
     if (appIsReady) await SplashScreen.hideAsync();
   }, [appIsReady]);
 
-  // Fonts still loading — show nothing
+  // Route navigation commands emitted by AlexiVoiceContext
+  useEffect(() => {
+    const offNav = AlexiEvents.on('navigate', ({ screen, params }) => {
+      try {
+        if (!navigationRef.isReady()) {
+          console.warn('[Alexi] navigationRef not ready — queued screen:', screen);
+          return;
+        }
+        console.log('[Alexi] → navigate(', screen, params ? JSON.stringify(params) : '', ')');
+        navigationRef.navigate(screen, params);
+      } catch (e) {
+        console.error('[Alexi] Navigation failed for screen "' + screen + '":', e?.message);
+      }
+    });
+    const offBack = AlexiEvents.on('go_back', () => {
+      try {
+        if (navigationRef.isReady() && navigationRef.canGoBack()) {
+          navigationRef.goBack();
+        }
+      } catch (e) {
+        console.error('[Alexi] goBack failed:', e?.message);
+      }
+    });
+    return () => { offNav(); offBack(); };
+  }, []);
   if (!appIsReady) return null;
 
   // ✅ Fonts ready → show custom splash
@@ -174,7 +198,6 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0F0B1E" },
   centered: { justifyContent: "center", alignItems: "center" },
 });
 

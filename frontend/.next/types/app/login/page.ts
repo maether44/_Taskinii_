@@ -1,4 +1,4 @@
-// File: C:\Study\Junior\Spring3\Junior ISS Project\maether's repo\BodyQ\frontend\app\login\page.tsx
+// File: /Users/aichalassoued/VScode/BodyQ/frontend/app/login/page.tsx
 import * as entry from '../../../../app/login/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 
