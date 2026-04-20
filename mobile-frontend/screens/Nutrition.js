@@ -14,7 +14,7 @@ import MacroBar from "../components/shared/MacroBar";
 import RingProgress from "../components/shared/RingProgress";
 import { useNutrition } from "../hooks/useNutrition";
 import { useProfile } from "../hooks/useProfile";
-import { invokeEdgePublic, supabase } from "../config/supabase";
+import { invokeEdgePublic, supabase } from "../lib/supabase";
 import { AlexiEvents } from "../context/AlexiVoiceContext";
 
 const C = {

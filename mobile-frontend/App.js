@@ -14,6 +14,35 @@ import { registerRootComponent } from "expo";
 // Context & Supabase
 import { supabase } from "./lib/supabase";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { TodayProvider } from "./context/TodayContext";
+import { ThemeProvider, useTheme } from "./context/ThemeContext";
+
+// Must live inside ThemeProvider to call useTheme()
+function AppShell({ onLayout, activeTab, setActiveTab, activeRoute, setActiveRoute }) {
+  const { colors, isDark } = useTheme();
+  return (
+    <AuthProvider>
+      <TodayProvider>
+        <AlexiVoiceProvider>
+          <View style={{ flex: 1, backgroundColor: colors.bg }} onLayout={onLayout}>
+            <StatusBar style={isDark ? 'light' : 'dark'} />
+            <NavigationContainer
+              ref={navigationRef}
+              onStateChange={(state) => setActiveRoute(getActiveRouteName(state))}
+            >
+              <Navigation />
+            </NavigationContainer>
+            <AlexiGatedAssistant activeRoute={activeRoute} />
+            <AppTour activeTab={activeTab} onTabPress={setActiveTab} showOnMount={true} />
+            <AlexiScreenBorder />
+            {activeRoute !== 'WorkoutActive' && <AlexiCompanion />}
+            <AlexiDebugOverlay />
+          </View>
+        </AlexiVoiceProvider>
+      </TodayProvider>
+    </AuthProvider>
+  );
+}
 import { AlexiVoiceProvider, AlexiCompanion, AlexiScreenBorder, AlexiDebugOverlay, AlexiEvents } from "./context/AlexiVoiceContext";
 import { navigationRef } from "./lib/navigationRef";
 
@@ -161,33 +190,21 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <AuthProvider>
-          {/* AlexiVoiceProvider runs the global passive listening loop.
-              Must be inside AuthProvider so its Supabase calls have a session. */}
-          <AlexiVoiceProvider>
-            <View style={styles.container} onLayout={onLayoutRootView}>
-              <StatusBar style="light" />
-              <NavigationContainer
-                ref={navigationRef}
-                onStateChange={(state) => setActiveRoute(getActiveRouteName(state))}
-              >
-                <Navigation />
-              </NavigationContainer>
-              <AlexiGatedAssistant activeRoute={activeRoute} />
-              <AppTour activeTab={activeTab} onTabPress={setActiveTab} showOnMount={true} />
-              <AlexiScreenBorder />
-              {activeRoute !== 'WorkoutActive' && <AlexiCompanion />}
-              <AlexiDebugOverlay />
-            </View>
-          </AlexiVoiceProvider>
-        </AuthProvider>
+        <ThemeProvider>
+          <AppShell
+            onLayout={onLayoutRootView}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            activeRoute={activeRoute}
+            setActiveRoute={setActiveRoute}
+          />
+        </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0F0B1E" },
   centered: { justifyContent: "center", alignItems: "center" },
 });
 

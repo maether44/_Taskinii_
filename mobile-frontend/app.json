@@ -50,7 +50,8 @@
       ],
       "expo-asset",
       "@react-native-voice/voice",
-      "expo-audio"
+      "expo-audio",
+      "@react-native-community/datetimepicker"
     ],
     "extra": {}
   }
