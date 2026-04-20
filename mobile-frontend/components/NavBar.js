@@ -19,7 +19,7 @@ import WorkoutSummary from '../screens/workout/WorkoutSummary';
 import PostureAI from '../screens/PostureAI';
 
 // New screens
-import EditProfileScreen from '../screens/Editprofilescreen';
+import EditProfileScreen from '../screens/settings/Editprofilescreen';
 import WorkoutHistoryScreen from '../screens/Workouthistoryscreen';
 import HelpCenter from '../screens/settings/HelpCenter';
 import ReportProblem from '../screens/settings/ReportProblem';
@@ -67,6 +67,8 @@ function ProfileStack() {
 
 export default function NavBar() {
   const { profileAvatarUri } = useAuth();
+  const hasProfileAvatar =
+    typeof profileAvatarUri === 'string' && profileAvatarUri.trim().length > 0;
 
   return (
     <View style={{ flex: 1 }}>
@@ -119,10 +121,10 @@ export default function NavBar() {
           name="Profile"
           component={ProfileStack}
           options={{
-            tabBarLabel: () => null,
-            tabBarIconStyle: { marginTop: 8 },
+            tabBarLabel: hasProfileAvatar ? () => null : undefined,
+            tabBarIconStyle: hasProfileAvatar ? { marginTop: 8 } : undefined,
             tabBarIcon: ({ color, focused }) =>
-              profileAvatarUri ? (
+              hasProfileAvatar ? (
                 <View
                   style={{
                     width: 34,
