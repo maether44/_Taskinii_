@@ -82,8 +82,8 @@ const DEBUG_OVERLAY     = false;
 //   "election" = Whisper hears "Alexi" as "Election"
 //   "i legacy" = Whisper hears "Alexi" as "I legacy" / "I Lexi"
 //   "a lexi"   = split transcription artefact
-const WAKE_RE       = /\b(alexi|alexie|alexey|alexy|alexis|alex|lexi|lex|alexa|election|a lexi)\b|i legacy|i lexi/i;
-const WAKE_SPLIT_RE = /\b(alexi|alexie|alexey|alexy|alexis|alex|lexi|lex|alexa|election)\b|i legacy|i lexi/i;
+const WAKE_RE       = /\b(alexi|alexie|alexey|alexy|alexis|alex|lexi|lex)\b/i;
+const WAKE_SPLIT_RE = /\b(alexi|alexie|alexey|alexy|alexis|alex|lexi|lex)\b/i;
 
 const { width: SW, height: SH } = Dimensions.get('window');
 
@@ -188,7 +188,8 @@ const APP_MAP = {
   SleepLog:      ['sleep log', 'log sleep', 'sleep tracker', 'sleep entry', 'log my sleep'],
   // Nested inside Train tab stack
   WorkoutActive: ['active workout', 'start workout', 'begin workout', "let's go", 'start a workout', 'start training', 'begin training'],
-  PostureAI:     ['posture', 'posture check', 'posture ai', 'check form', 'check my form', 'form check'],
+  PostureAI:     ['posture', 'posture check', 'posture ai', 'check form', 'check my form', 'form check', 'form', 'body scan'],
+  WatchFace:     ['watch settings', 'bodyq watch', 'watch face', 'watch status', 'open watch', 'my watch', 'wearable'],
 };
 
 // resolveNavigation — maps a logical screen name to { screen, params } for navigationRef.
@@ -197,9 +198,10 @@ const APP_MAP = {
 //   Tab navigator        → Home, Fuel, Train, Insights, Profile  (inside MainApp)
 //   Train stack          → WorkoutActive, PostureAI, ExerciseList (inside Train tab)
 function resolveNavigation(screen, extraParams) {
-  const ROOT_SCREENS  = ['FoodScanner', 'MealLogger', 'FoodDetail', 'SleepLog', 'WorkoutSummary'];
-  const TAB_SCREENS   = ['Home', 'Fuel', 'Train', 'Insights', 'Profile'];
-  const TRAIN_SCREENS = ['WorkoutActive', 'PostureAI', 'ExerciseList', 'ExerciseInfo', 'FlappyBirdGame'];
+  const ROOT_SCREENS    = ['FoodScanner', 'MealLogger', 'FoodDetail', 'SleepLog', 'WorkoutSummary'];
+  const TAB_SCREENS     = ['Home', 'Fuel', 'Train', 'Insights', 'Profile'];
+  const TRAIN_SCREENS   = ['WorkoutActive', 'PostureAI', 'ExerciseList', 'ExerciseInfo', 'FlappyBirdGame'];
+  const PROFILE_SCREENS = ['Settings', 'EditProfile', 'WorkoutHistory', 'HelpCenter', 'ReportProblem', 'TermsPolicies', 'TrustCenter', 'WatchFace'];
 
   if (ROOT_SCREENS.includes(screen)) {
     return { screen, params: extraParams || undefined };
@@ -211,6 +213,12 @@ function resolveNavigation(screen, extraParams) {
     return {
       screen: 'MainApp',
       params: { screen: 'Train', params: { screen, ...(extraParams ? { params: extraParams } : {}) } },
+    };
+  }
+  if (PROFILE_SCREENS.includes(screen)) {
+    return {
+      screen: 'MainApp',
+      params: { screen: 'Profile', params: { screen } },
     };
   }
   // Unknown screen — try direct navigate and let React Navigation handle it
@@ -551,7 +559,7 @@ export function AlexiVoiceProvider({ children }) {
           Insights: 'your insights', Train: 'your training plan',
           WorkoutActive: 'your workout', PostureAI: 'posture check',
           FoodScanner: 'the food scanner', MealLogger: 'the meal logger',
-          SleepLog: 'sleep log',
+          SleepLog: 'sleep log', WatchFace: 'your watch settings',
         };
         const exercise = cmd.params?.exercise;
         const label    = labels[cmd.screen] ?? cmd.screen.toLowerCase();
