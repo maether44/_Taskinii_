@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { FS } from '../../constants/typography';
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -321,14 +322,14 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  title: { color: C.text, fontSize: 20, fontWeight: "800" },
-  subtitle: { color: C.sub, fontSize: 12, marginTop: 3 },
+  title: { color: C.text, fontSize: FS.sectionTitle, fontWeight: "800" },
+  subtitle: { color: C.sub, fontSize: FS.btnSecondary, marginTop: 3 },
   saveBtn: { backgroundColor: C.purple, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10 },
   saveBtnOff: { opacity: 0.45 },
-  saveTxt: { color: "#fff", fontSize: 13, fontWeight: "800" },
+  saveTxt: { color: "#fff", fontSize: FS.body, fontWeight: "800" },
   suggestionRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 12, paddingHorizontal: 8 },
   suggestionChip: { backgroundColor: "#1B1637", borderRadius: 14, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: "#2D2850" },
-  suggestionTxt: { color: "#C8F135", fontSize: 12, fontWeight: "700" },
+  suggestionTxt: { color: "#C8F135", fontSize: FS.btnSecondary, fontWeight: "700" },
   totalsBar: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -347,8 +348,8 @@ const s = StyleSheet.create({
     paddingVertical: 10,
     marginHorizontal: 4,
   },
-  totalVal: { color: C.text, fontSize: 16, fontWeight: "800" },
-  totalLbl: { color: C.sub, fontSize: 11, marginTop: 3 },
+  totalVal: { color: C.text, fontSize: FS.bodyLarge, fontWeight: "800" },
+  totalLbl: { color: C.sub, fontSize: FS.sub, marginTop: 3 },
   tabs: { flexDirection: "row", paddingHorizontal: 16, paddingTop: 14, gap: 10 },
   tab: {
     flex: 1,
@@ -360,7 +361,7 @@ const s = StyleSheet.create({
     borderColor: C.border,
   },
   tabActive: { backgroundColor: `${C.purple}20`, borderColor: `${C.purple}35` },
-  tabTxt: { color: C.sub, fontSize: 13, fontWeight: "700" },
+  tabTxt: { color: C.sub, fontSize: FS.body, fontWeight: "700" },
   tabTxtActive: { color: C.text },
   searchWrap: {
     flexDirection: "row",
@@ -374,12 +375,12 @@ const s = StyleSheet.create({
     borderColor: C.border,
     gap: 8,
   },
-  searchInput: { flex: 1, color: C.text, fontSize: 15 },
-  searchError: { color: "#FF8787", fontSize: 12, marginHorizontal: 16, marginTop: 8 },
-  loadingTxt: { color: C.sub, fontSize: 13, marginTop: 10 },
+  searchInput: { flex: 1, color: C.text, fontSize: FS.bodyLarge },
+  searchError: { color: "#FF8787", fontSize: FS.btnSecondary, marginHorizontal: 16, marginTop: 8 },
+  loadingTxt: { color: C.sub, fontSize: FS.body, marginTop: 10 },
   emptyState: { alignItems: "center", paddingTop: 48, paddingHorizontal: 24 },
-  emptyTitle: { color: C.text, fontSize: 17, fontWeight: "700", textAlign: "center" },
-  emptySub: { color: C.sub, fontSize: 13, lineHeight: 19, marginTop: 6, textAlign: "center" },
+  emptyTitle: { color: C.text, fontSize: FS.cardTitle, fontWeight: "700", textAlign: "center" },
+  emptySub: { color: C.sub, fontSize: FS.body, lineHeight: 19, marginTop: 6, textAlign: "center" },
   foodRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -392,8 +393,8 @@ const s = StyleSheet.create({
     marginBottom: 10,
   },
   foodRowAdded: { borderColor: `${C.purple}40`, backgroundColor: `${C.purple}10` },
-  foodName: { color: C.text, fontSize: 14, fontWeight: "700" },
-  foodMeta: { color: C.sub, fontSize: 11, marginTop: 4, lineHeight: 16 },
+  foodName: { color: C.text, fontSize: FS.btnPrimary, fontWeight: "700" },
+  foodMeta: { color: C.sub, fontSize: FS.sub, marginTop: 4, lineHeight: 16 },
   addBtn: {
     width: 34,
     height: 34,
@@ -403,7 +404,7 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   addBtnDone: { backgroundColor: C.lime },
-  addBtnTxt: { color: "#fff", fontSize: 18, fontWeight: "800" },
+  addBtnTxt: { color: "#fff", fontSize: FS.cardTitle, fontWeight: "800" },
   addedScroll: { padding: 16 },
   addedRow: {
     flexDirection: "row",
@@ -427,6 +428,6 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  qtyVal: { color: C.text, fontSize: 13, fontWeight: "700", minWidth: 46, textAlign: "center" },
+  qtyVal: { color: C.text, fontSize: FS.body, fontWeight: "700", minWidth: 46, textAlign: "center" },
   deleteBtn: { padding: 4 },
 });

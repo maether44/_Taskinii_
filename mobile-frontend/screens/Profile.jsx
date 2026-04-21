@@ -797,9 +797,15 @@ export default function Profile({ replayTour }) {
           <View style={s.badgesGrid}>
             {(showAllAchievements ? achievements : achievements.slice(0, 6)).map((a) => (
               <View key={a.id} style={[s.badge, !a.earned && s.badgeLocked]}>
-                <Text style={s.badgeIcon}>{a.earned ? a.icon : '🔒'}</Text>
-                <Text style={[s.badgeLabel, !a.earned && { opacity: 0.4 }]}>{a.name}</Text>
-                <Text style={[s.badgeXP, !a.earned && { opacity: 0.4 }]}>+{a.xp_reward} XP</Text>
+                <View style={[s.badgeIconWrap, a.earned && s.badgeIconWrapEarned]}>
+                  <Ionicons
+                    name={a.earned ? (a.icon || 'trophy-outline') : 'lock-closed-outline'}
+                    size={22}
+                    color={a.earned ? C.purple : C.sub}
+                  />
+                </View>
+                <Text style={[s.badgeLabel, !a.earned && s.badgeLabelLocked]}>{a.name}</Text>
+                <Text style={[s.badgeXP, !a.earned && s.badgeXPLocked]}>+{a.xp_reward} XP</Text>
               </View>
             ))}
           </View>
@@ -1217,19 +1223,34 @@ const s = StyleSheet.create({
   badgesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   badge: {
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
     backgroundColor: C.border,
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 10,
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
     width: '30%',
     borderWidth: 1,
     borderColor: C.purple + '40',
   },
-  badgeLocked: { borderColor: C.border, opacity: 0.5 },
-  badgeIcon: { fontSize: 22 },
-  badgeLabel: { color: C.sub, fontSize: 9, fontWeight: '600', textAlign: 'center' },
-  badgeXP: { color: C.lime, fontSize: 9, fontWeight: '700' },
+  badgeLocked: { borderColor: C.border, opacity: 0.45 },
+  badgeIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeIconWrapEarned: {
+    backgroundColor: C.purple + '18',
+    borderColor: C.purple + '50',
+  },
+  badgeLabel: { color: C.sub, fontSize: 9, fontWeight: '700', textAlign: 'center', lineHeight: 13 },
+  badgeLabelLocked: { opacity: 0.5 },
+  badgeXP: { color: C.lime, fontSize: 9, fontWeight: '800' },
+  badgeXPLocked: { opacity: 0.4 },
   seeMoreBtn: {
     alignSelf: 'center',
     backgroundColor: C.purple + '20',

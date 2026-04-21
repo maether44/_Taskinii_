@@ -17,6 +17,7 @@
  *   after logging food/sleep/water on Home or finishing a workout on Training.
  */
 import { useCallback, useEffect, useState } from 'react';
+import { FS } from '../constants/typography';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useInsights } from '../hooks/useInsights';
@@ -354,92 +355,92 @@ const st = StyleSheet.create({
   scroll: { paddingHorizontal: 20, paddingTop: 56, paddingBottom: 20 },
 
   header:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-  title:       { color: '#fff', fontSize: 26, fontWeight: '800' },
+  title:       { color: '#fff', fontSize: FS.screenTitle, fontWeight: '800' },
   aiBadge:     { backgroundColor: '#1A1432', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: '#6F4BF2' },
-  aiBadgeText: { color: '#A38DF2', fontSize: 12, fontWeight: '700' },
+  aiBadgeText: { color: '#A38DF2', fontSize: FS.btnSecondary, fontWeight: '700' },
 
   periodRow:         { flexDirection: 'row', backgroundColor: '#1A1432', borderRadius: 12, padding: 4, marginBottom: 20, borderWidth: 1, borderColor: '#3D2F7A' },
   periodBtn:         { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 10 },
   periodBtnActive:   { backgroundColor: '#6F4BF2' },
-  periodLabel:       { color: '#7A6AAA', fontSize: 13, fontWeight: '600' },
+  periodLabel:       { color: '#7A6AAA', fontSize: FS.body, fontWeight: '600' },
   periodLabelActive: { color: '#fff' },
 
   card:             { backgroundColor: '#1A1432', borderRadius: 20, padding: 18, marginBottom: 20, borderWidth: 1, borderColor: '#3D2F7A' },
-  cardTitle:        { color: '#fff', fontSize: 14, fontWeight: '700', marginBottom: 4 },
-  cardSub:          { color: '#7A6AAA', fontSize: 11, marginBottom: 14 },
+  cardTitle:        { color: '#fff', fontSize: FS.btnPrimary, fontWeight: '700', marginBottom: 4 },
+  cardSub:          { color: '#7A6AAA', fontSize: FS.sub, marginBottom: 14 },
 
   lineChart:        { flexDirection: 'row', alignItems: 'flex-end', height: 110, gap: 4, marginBottom: 12 },
   lineBarCol:       { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
-  lineBarTip:       { color: '#CDF27E', fontSize: 10, fontWeight: '700', marginBottom: 3 },
+  lineBarTip:       { color: '#CDF27E', fontSize: FS.label, fontWeight: '700', marginBottom: 3 },
   lineBar:          { width: '80%', backgroundColor: '#3D2F7A', borderRadius: 4 },
   lineBarActive:    { backgroundColor: '#6F4BF2' },
   chartFooter:      { flexDirection: 'row', justifyContent: 'space-between' },
-  chartFooterLabel: { color: '#7A6AAA', fontSize: 11 },
+  chartFooterLabel: { color: '#7A6AAA', fontSize: FS.sub },
 
   metricsGrid:   { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 24 },
   metricCard:    { backgroundColor: '#1A1432', borderRadius: 16, padding: 16, width: '47%', borderWidth: 1, borderColor: '#3D2F7A', alignItems: 'flex-start' },
-  metricValue:   { color: '#fff', fontSize: 28, fontWeight: '800' },
-  metricLabel:   { color: '#7A6AAA', fontSize: 12, marginTop: 2, marginBottom: 8 },
+  metricValue:   { color: '#fff', fontSize: FS.screenTitle, fontWeight: '800' },
+  metricLabel:   { color: '#7A6AAA', fontSize: FS.btnSecondary, marginTop: 2, marginBottom: 8 },
   deltaBadge:    { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
   deltaUp:       { backgroundColor: 'rgba(205,242,126,0.15)' },
   deltaDown:     { backgroundColor: 'rgba(255,100,100,0.15)' },
-  deltaText:     { fontSize: 11, fontWeight: '700' },
+  deltaText:     { fontSize: FS.sub, fontWeight: '700' },
   deltaTextUp:   { color: '#CDF27E' },
   deltaTextDown: { color: '#FF6464' },
 
-  sectionTitle: { color: '#fff', fontSize: 16, fontWeight: '700', marginBottom: 12 },
-  emptyTxt:     { color: '#7A6AAA', fontSize: 13, textAlign: 'center', lineHeight: 20 },
+  sectionTitle: { color: '#fff', fontSize: FS.sectionTitle, fontWeight: '700', marginBottom: 12 },
+  emptyTxt:     { color: '#7A6AAA', fontSize: FS.body, textAlign: 'center', lineHeight: 20 },
 
   // Nutrition
   nutritionHeader:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
-  nutritionCal:       { color: '#fff', fontSize: 36, fontWeight: '800', letterSpacing: -1 },
-  nutritionCalLabel:  { color: '#7A6AAA', fontSize: 11, marginTop: 2 },
+  nutritionCal:       { color: '#fff', fontSize: FS.hero, fontWeight: '800', letterSpacing: -1 },
+  nutritionCalLabel:  { color: '#7A6AAA', fontSize: FS.sub, marginTop: 2 },
   nutritionBadge:     { backgroundColor: 'rgba(111,75,242,0.2)', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: '#3D2F7A' },
-  nutritionBadgeTxt:  { color: '#A38DF2', fontSize: 11, fontWeight: '700' },
+  nutritionBadgeTxt:  { color: '#A38DF2', fontSize: FS.sub, fontWeight: '700' },
   macroRow:           { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-  macroLabel:         { color: '#7A6AAA', fontSize: 12, width: 48 },
+  macroLabel:         { color: '#7A6AAA', fontSize: FS.btnSecondary, width: 48 },
   macroBarBg:         { flex: 1, height: 6, backgroundColor: '#2D1F5E', borderRadius: 3, overflow: 'hidden' },
   macroBarFill:       { height: 6, borderRadius: 3 },
-  macroVal:           { fontSize: 12, fontWeight: '700', width: 36, textAlign: 'right' },
+  macroVal:           { fontSize: FS.btnSecondary, fontWeight: '700', width: 36, textAlign: 'right' },
 
   // Workout breakdown
   workoutRow:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around' },
   workoutStat:     { alignItems: 'center', flex: 1 },
-  workoutStatVal:  { color: '#fff', fontSize: 28, fontWeight: '800' },
-  workoutStatLabel:{ color: '#7A6AAA', fontSize: 11, marginTop: 4 },
+  workoutStatVal:  { color: '#fff', fontSize: FS.screenTitle, fontWeight: '800' },
+  workoutStatLabel:{ color: '#7A6AAA', fontSize: FS.sub, marginTop: 4 },
   workoutDivider:  { width: 1, height: 40, backgroundColor: '#3D2F7A' },
 
   // Recovery / muscle fatigue
   fatigueRow:        { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
   fatigueDot:        { width: 8, height: 8, borderRadius: 4 },
-  fatigueName:       { color: '#C8BFEE', fontSize: 12, fontWeight: '600', width: 80 },
+  fatigueName:       { color: '#C8BFEE', fontSize: FS.btnSecondary, fontWeight: '600', width: 80 },
   fatigueBarBg:      { flex: 1, height: 5, backgroundColor: '#2D1F5E', borderRadius: 3, overflow: 'hidden' },
   fatigueBarFill:    { height: 5, borderRadius: 3 },
-  fatiguePct:        { fontSize: 11, fontWeight: '800', width: 34, textAlign: 'right' },
+  fatiguePct:        { fontSize: FS.sub, fontWeight: '800', width: 34, textAlign: 'right' },
   fatigueLegend:     { flexDirection: 'row', gap: 12, marginTop: 8, justifyContent: 'flex-end' },
   fatigueLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  fatigueLegendTxt:  { color: '#7A6AAA', fontSize: 10 },
+  fatigueLegendTxt:  { color: '#7A6AAA', fontSize: FS.label },
 
   // AI cards
   insightCard:   { backgroundColor: '#1A1432', borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#3D2F7A', borderLeftWidth: 4 },
   insightHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },
-  insightIcon:   { fontSize: 26 },
+  insightIcon:   { fontSize: 28 },
   insightMeta:   { flex: 1 },
-  insightTag:    { fontSize: 10, fontWeight: '700', letterSpacing: 1, marginBottom: 2 },
-  insightTitle:  { color: '#fff', fontSize: 14, fontWeight: '700' },
-  insightText:   { color: '#C8BFEE', fontSize: 13, lineHeight: 19 },
+  insightTag:    { fontSize: FS.label, fontWeight: '700', letterSpacing: 1, marginBottom: 2 },
+  insightTitle:  { color: '#fff', fontSize: FS.btnPrimary, fontWeight: '700' },
+  insightText:   { color: '#C8BFEE', fontSize: FS.body, lineHeight: 19 },
 
   // Heatmap
   heatRow:          { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
-  heatDay:          { color: '#7A6AAA', fontSize: 10, width: 28 },
+  heatDay:          { color: '#7A6AAA', fontSize: FS.label, width: 28 },
   heatCell:         { width: 28, height: 28, borderRadius: 6 },
   heatLegend:       { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, justifyContent: 'flex-end' },
-  heatLegendLabel:  { color: '#7A6AAA', fontSize: 10 },
+  heatLegendLabel:  { color: '#7A6AAA', fontSize: FS.label },
 
   // AI coaching history
   coachCard:   { backgroundColor: '#1A1432', borderRadius: 16, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#3D2F7A', borderLeftWidth: 4, borderLeftColor: '#6F4BF2' },
   coachHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  coachType:   { color: '#6F4BF2', fontSize: 10, fontWeight: '800', letterSpacing: 1 },
-  coachDate:   { color: '#7A6AAA', fontSize: 10 },
-  coachText:   { color: '#C8BFEE', fontSize: 13, lineHeight: 19 },
+  coachType:   { color: '#6F4BF2', fontSize: FS.label, fontWeight: '800', letterSpacing: 1 },
+  coachDate:   { color: '#7A6AAA', fontSize: FS.label },
+  coachText:   { color: '#C8BFEE', fontSize: FS.body, lineHeight: 19 },
 });

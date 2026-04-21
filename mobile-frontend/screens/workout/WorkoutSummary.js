@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { FS } from '../../constants/typography';
 import {
   Animated, ScrollView, StyleSheet,
   Text, TouchableOpacity, View, ActivityIndicator,
@@ -109,7 +110,7 @@ const ring = StyleSheet.create({
   wrap:  { width: 110, height: 110, alignItems: 'center', justifyContent: 'center' },
   svg:   { position: 'absolute' },
   label: { alignItems: 'center' },
-  pct:   { fontSize: 26, fontWeight: '900', lineHeight: 28 },
+  pct:   { fontSize: FS.screenTitle, fontWeight: '900', lineHeight: 28 },
   sub:   { color: 'rgba(255,255,255,0.35)', fontSize: 8, fontWeight: '800', letterSpacing: 1.5, marginTop: 2 },
 });
 
@@ -322,7 +323,7 @@ const s = StyleSheet.create({
   root:          { flex: 1, backgroundColor: C.bg },
   scroll:        { paddingHorizontal: 24, paddingTop: 60, paddingBottom: 24, alignItems: 'center' },
   loadingScreen: { flex: 1, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center' },
-  loadingTxt:    { color: C.sub, marginTop: 14, fontSize: 14, fontWeight: '600' },
+  loadingTxt:    { color: C.sub, marginTop: 14, fontSize: FS.btnPrimary, fontWeight: '600' },
 
   // ── Header ──────────────────────────────────────────────────
   header:       { alignItems: 'center', width: '100%', marginBottom: 4 },
@@ -333,9 +334,9 @@ const s = StyleSheet.create({
     marginBottom: 20,
   },
   trophyEmoji:  { fontSize: 42 },
-  doneLabel:    { color: C.lime, fontSize: 11, fontWeight: '900', letterSpacing: 3, marginBottom: 8 },
-  workoutName:  { color: C.text, fontSize: 26, fontWeight: '900', letterSpacing: -0.5, textAlign: 'center' },
-  timestamp:    { color: C.sub, fontSize: 12, marginTop: 6 },
+  doneLabel:    { color: C.lime, fontSize: FS.sub, fontWeight: '900', letterSpacing: 3, marginBottom: 8 },
+  workoutName:  { color: C.text, fontSize: FS.screenTitle, fontWeight: '900', letterSpacing: -0.5, textAlign: 'center' },
+  timestamp:    { color: C.sub, fontSize: FS.btnSecondary, marginTop: 6 },
 
   // ── Perforated divider ──────────────────────────────────────
   perfRow: { flexDirection: 'row', alignItems: 'center', width: '100%', marginVertical: 22 },
@@ -352,25 +353,25 @@ const s = StyleSheet.create({
   // Hero row: reps + form ring
   heroRow:       { flexDirection: 'row', alignItems: 'center', padding: 24, paddingBottom: 20 },
   heroRepsBlock: { flex: 1 },
-  heroRepsLabel: { color: C.sub, fontSize: 10, fontWeight: '900', letterSpacing: 2, marginBottom: 4 },
-  heroRepsNum:   { color: C.lime, fontSize: 88, fontWeight: '900', lineHeight: 90, letterSpacing: -4 },
-  heroRepsSub:   { color: C.sub, fontSize: 11, marginTop: 2 },
+  heroRepsLabel: { color: C.sub, fontSize: FS.label, fontWeight: '900', letterSpacing: 2, marginBottom: 4 },
+  heroRepsNum:   { color: C.lime, fontSize: FS.hero, fontWeight: '900', lineHeight: 90, letterSpacing: -4 },
+  heroRepsSub:   { color: C.sub, fontSize: FS.sub, marginTop: 2 },
   ringBlock:     { alignItems: 'center', justifyContent: 'center', paddingLeft: 12 },
 
   // Stat rows
   divider:       { height: 1, backgroundColor: C.border, marginHorizontal: 20 },
   statRow:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16 },
   statLeft:      { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  statLabel:     { color: '#B0A8CC', fontSize: 14, fontWeight: '600' },
-  statSublabel:  { color: C.sub, fontSize: 10, marginTop: 2 },
-  statVal:       { fontSize: 17, fontWeight: '900', letterSpacing: -0.5 },
+  statLabel:     { color: '#B0A8CC', fontSize: FS.btnPrimary, fontWeight: '600' },
+  statSublabel:  { color: C.sub, fontSize: FS.label, marginTop: 2 },
+  statVal:       { fontSize: FS.cardTitle, fontWeight: '900', letterSpacing: -0.5 },
 
   xpRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     marginHorizontal: 20, marginTop: 4, marginBottom: 18,
     paddingTop: 14, borderTopWidth: 1, borderTopColor: C.border,
   },
-  xpTxt: { color: C.lime, fontSize: 13, fontWeight: '700' },
+  xpTxt: { color: C.lime, fontSize: FS.body, fontWeight: '700' },
 
   // ── Yara card ────────────────────────────────────────────────
   yaraCard:    {
@@ -383,10 +384,10 @@ const s = StyleSheet.create({
     backgroundColor: C.purple, alignItems: 'center', justifyContent: 'center',
   },
   yaraEmoji:   { fontSize: 22 },
-  yaraName:    { color: C.text, fontSize: 14, fontWeight: '800', marginBottom: 5 },
+  yaraName:    { color: C.text, fontSize: FS.btnPrimary, fontWeight: '800', marginBottom: 5 },
   yaraTagPill: { alignSelf: 'flex-start', borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
   yaraTagTxt:  { fontSize: 9, fontWeight: '900', letterSpacing: 1.2 },
-  yaraMsg:     { color: '#C9C2DF', fontSize: 14, lineHeight: 23, fontStyle: 'italic' },
+  yaraMsg:     { color: '#C9C2DF', fontSize: FS.btnPrimary, lineHeight: 23, fontStyle: 'italic' },
 
   // ── Actions ──────────────────────────────────────────────────
   actionsWrap: { width: '100%', gap: 10 },
@@ -394,11 +395,11 @@ const s = StyleSheet.create({
     backgroundColor: C.purple, borderRadius: 16, paddingVertical: 17,
     alignItems: 'center', flexDirection: 'row', justifyContent: 'center',
   },
-  homeBtnTxt:  { color: '#fff', fontSize: 15, fontWeight: '900' },
+  homeBtnTxt:  { color: '#fff', fontSize: FS.bodyLarge, fontWeight: '900' },
   againBtn:    {
     backgroundColor: C.card, borderRadius: 16, paddingVertical: 15,
     alignItems: 'center', flexDirection: 'row', justifyContent: 'center',
     borderWidth: 1, borderColor: C.border,
   },
-  againBtnTxt: { color: C.sub, fontSize: 14, fontWeight: '700' },
+  againBtnTxt: { color: C.sub, fontSize: FS.btnPrimary, fontWeight: '700' },
 });

@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { BASE_IMG } from "../services/exerciseService";
+import { FS } from '../constants/typography';
 
 
 const C = {
@@ -161,11 +162,11 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  headerTitle: { color: C.text, fontSize: 18, fontWeight: "700" },
+  headerTitle: { color: C.text, fontSize: FS.cardTitle, fontWeight: "700" },
   scroll: { padding: 16 },
   name: {
     color: C.text,
-    fontSize: 28,
+    fontSize: FS.screenTitle,
     fontWeight: "900",
     letterSpacing: -0.6,
     marginBottom: 16,
@@ -179,17 +180,17 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: C.border,
   },
-  metaLabel: { color: C.sub, fontSize: 11, fontWeight: "600", marginBottom: 4 },
+  metaLabel: { color: C.sub, fontSize: FS.sub, fontWeight: "600", marginBottom: 4 },
   metaValue: {
     color: C.text,
-    fontSize: 14,
+    fontSize: FS.btnPrimary,
     fontWeight: "700",
     textTransform: "capitalize",
   },
   section: { marginBottom: 24 },
   sectionTitle: {
     color: C.text,
-    fontSize: 18,
+    fontSize: FS.cardTitle,
     fontWeight: "800",
     marginBottom: 12,
   },
@@ -214,21 +215,21 @@ const s = StyleSheet.create({
     gap: 8,
     marginBottom: 8,
   },
-  muscleLabel: { color: C.sub, fontSize: 13, fontWeight: "600", width: 80 },
+  muscleLabel: { color: C.sub, fontSize: FS.body, fontWeight: "600", width: 80 },
   musclePrimary: {
     color: C.accent,
-    fontSize: 14,
+    fontSize: FS.btnPrimary,
     fontWeight: "700",
     flex: 1,
     textTransform: "capitalize",
   },
   muscleSecondary: {
     color: C.text,
-    fontSize: 14,
+    fontSize: FS.btnPrimary,
     flex: 1,
     textTransform: "capitalize",
   },
-  instructions: { color: "#C9C2DF", fontSize: 15, lineHeight: 24 },
+  instructions: { color: "#C9C2DF", fontSize: FS.bodyLarge, lineHeight: 24 },
   infoCard: {
     backgroundColor: C.card,
     borderRadius: 14,
@@ -242,10 +243,10 @@ const s = StyleSheet.create({
     gap: 8,
     marginBottom: 8,
   },
-  infoLabel: { color: C.sub, fontSize: 13, fontWeight: "600", width: 80 },
+  infoLabel: { color: C.sub, fontSize: FS.body, fontWeight: "600", width: 80 },
   infoValue: {
     color: C.text,
-    fontSize: 14,
+    fontSize: FS.btnPrimary,
     textTransform: "capitalize",
     flex: 1,
   },
@@ -264,5 +265,5 @@ const s = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 10,
   },
-  mainActionTxt: { color: '#000', fontWeight: '900', fontSize: 16, letterSpacing: 1 },
+  mainActionTxt: { color: '#000', fontWeight: '900', fontSize: FS.bodyLarge, letterSpacing: 1 },
 });

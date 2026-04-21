@@ -65,14 +65,9 @@ import FoodScannerScreen from "./components/food-scanner/FoodScannerScreen";
 import WorkoutSummary from "./screens/workout/WorkoutSummary";
 
 // Global Components
-import AlexiAssistant from "./components/AlexiAssistant";
-import AppTour from "./components/onBoarding/AppTour";
-
-// AlexiGatedAssistant — renders AlexiAssistant on all screens except WorkoutActive
-function AlexiGatedAssistant({ activeRoute }) {
-  if (activeRoute === 'WorkoutActive') return null;
-  return <AlexiAssistant />;
-}
+import YaraAssistant from './components/YaraAssistant';
+import AppTour from './components/onBoarding/AppTour';
+import { warn } from './lib/logger';
 
 SplashScreen.preventAutoHideAsync();
 const Stack = createStackNavigator();
@@ -190,15 +185,20 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <ThemeProvider>
-          <AppShell
-            onLayout={onLayoutRootView}
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            activeRoute={activeRoute}
-            setActiveRoute={setActiveRoute}
-          />
-        </ThemeProvider>
+        <AuthProvider>
+          <TodayProvider>
+            <View style={styles.container} onLayout={onLayoutRootView}>
+              <StatusBar style="light" />
+              <NavigationContainer ref={navigationRef} onStateChange={(state) => setActiveRoute(getActiveRouteName(state))}>
+                <Navigation />
+              </NavigationContainer>
+              {showYaraAssistant && (
+                <YaraAssistant onOpenSchedule={() => navigationRef.current?.navigate('Schedule')} />
+              )}
+              <AppTour activeTab={activeTab} onTabPress={setActiveTab} showOnMount={true} />
+            </View>
+          </TodayProvider>
+        </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

@@ -7,6 +7,7 @@ import { useExercises } from '../hooks/useExercises';
 import ExerciseCard    from '../components/ExerciseCard';
 import { supabase }   from '../lib/supabase';
 import { useAuth }    from '../context/AuthContext';
+import { FS } from '../constants/typography';
 
 const C = {
   bg: '#0F0B1E', card: '#161230', border: '#1E1A35',
@@ -119,18 +120,18 @@ export default function ExerciseList() {
 const s = StyleSheet.create({
   container:   { flex: 1, backgroundColor: C.bg },
   header:      { paddingHorizontal: 16, paddingTop: 56, paddingBottom: 14 },
-  title:       { color: C.text, fontSize: 28, fontWeight: '800', letterSpacing: -0.4 },
-  subtitle:    { color: C.sub, fontSize: 12, marginTop: 4 },
+  title:       { color: C.text, fontSize: FS.screenTitle, fontWeight: '800', letterSpacing: -0.4 },
+  subtitle:    { color: C.sub, fontSize: FS.btnSecondary, marginTop: 4 },
   searchWrap:  { marginHorizontal: 16, marginBottom: 12, backgroundColor: C.card, borderColor: C.border, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, height: 46, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  searchInput: { flex: 1, color: C.text, fontSize: 14 },
+  searchInput: { flex: 1, color: C.text, fontSize: FS.btnPrimary },
   listContent: { paddingHorizontal: 16, paddingBottom: 24 },
   center:      { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg, padding: 20 },
-  loadingText: { marginTop: 10, color: C.sub, fontSize: 14 },
-  errorText:   { marginTop: 14, color: C.text, fontSize: 18, fontWeight: '700' },
-  errorMsg:    { marginTop: 8, color: C.sub, textAlign: 'center', fontSize: 13 },
+  loadingText: { marginTop: 10, color: C.sub, fontSize: FS.btnPrimary },
+  errorText:   { marginTop: 14, color: C.text, fontSize: FS.cardTitle, fontWeight: '700' },
+  errorMsg:    { marginTop: 8, color: C.sub, textAlign: 'center', fontSize: FS.body },
   retryBtn:    { marginTop: 16, backgroundColor: C.purple, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10 },
-  retryTxt:    { color: '#fff', fontWeight: '700', fontSize: 13 },
+  retryTxt:    { color: '#fff', fontWeight: '700', fontSize: FS.body },
   empty:       { alignItems: 'center', justifyContent: 'center', paddingVertical: 70 },
-  emptyText:   { marginTop: 12, color: C.text, fontSize: 16, fontWeight: '700' },
-  emptySub:    { marginTop: 4, color: C.sub, fontSize: 12 },
+  emptyText:   { marginTop: 12, color: C.text, fontSize: FS.bodyLarge, fontWeight: '700' },
+  emptySub:    { marginTop: 4, color: C.sub, fontSize: FS.btnSecondary },
 });

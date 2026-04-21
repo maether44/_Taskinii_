@@ -92,7 +92,7 @@ async function callEdgeFunction(stats, period) {
     body: { period, stats },
   });
   if (error) {
-    logError('[yaraInsightsService] Edge Function error:', error);
+    warn('[yaraInsightsService] Edge Function error (set GROQ_API_KEY in Supabase secrets to fix):', error?.message ?? error);
     throw error;
   }
   log('[yaraInsightsService] Edge Function returned', Array.isArray(data) ? data.length : 0, 'insights');

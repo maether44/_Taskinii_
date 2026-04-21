@@ -9,6 +9,7 @@ import { useSleep } from '../../hooks/useSleep';
 import {
     Colors, Spacing, Radius, FontSize, FontWeight, Shadow, CardStyle,
 } from '../../constants/appTheme';
+import { FS } from '../../constants/typography';
 
 const QUALITY_OPTIONS = [
     { value: 1, label: 'Very Poor', emoji: '😫', color: Colors.error   },
@@ -211,7 +212,7 @@ const s = StyleSheet.create({
     sectionLabel: { color: Colors.textLabel, fontSize: FontSize.xs, fontWeight: FontWeight.heavy, letterSpacing: 1.2, marginBottom: Spacing.md, marginTop: Spacing.sm },
 
     hoursDisplay: { flexDirection: 'row', alignItems: 'baseline', gap: Spacing.sm, marginBottom: Spacing.md, justifyContent: 'center' },
-    hoursNum:     { fontSize: 64, fontWeight: FontWeight.black, letterSpacing: -2 },
+    hoursNum:     { fontSize: FS.hero, fontWeight: FontWeight.black, letterSpacing: -2 },
     hoursUnit:    { color: Colors.textSub, fontSize: FontSize.xl, fontWeight: FontWeight.semibold },
 
     hourChip:    { paddingHorizontal: Spacing.md, paddingVertical: 10, backgroundColor: Colors.card, borderRadius: Radius.pill, borderWidth: 1.5, borderColor: Colors.border },

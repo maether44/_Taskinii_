@@ -10,6 +10,7 @@ import { useDashboard } from '../hooks/useDashboard';
 import { useShakySteps } from '../hooks/useShakySteps';
 import WaterTracker from '../components/home/WaterTracker'; // Your interactive cup component
 import { COLORS } from '../constants/colors';
+import { FS } from '../constants/typography';
 import { supabase } from '../lib/supabase';
 import { AlexiEvents } from '../context/AlexiVoiceContext';
 
@@ -267,6 +268,7 @@ export default function Home({ navigation }) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#0F0B1E' },
   scroll: { paddingHorizontal: 16, paddingTop: 60 },
+<<<<<<< HEAD
   loadingRoot: { flex: 1, backgroundColor: '#0F0B1E', justifyContent: 'center', alignItems: 'center' },
   retryBtn:    { backgroundColor: '#7C5CFC', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 24, marginTop: 8 },
   retryBtnTxt: { color: '#FFF', fontSize: 14, fontWeight: '700' },
@@ -276,19 +278,77 @@ const styles = StyleSheet.create({
   subGreeting: { color: '#6B5F8A', fontSize: 14, marginTop: 4 },
   avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#7C5CFC', alignItems: 'center', justifyContent: 'center', borderWeight: 2, borderColor: '#C8F135' },
   avatarTxt: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
+=======
+  loadingRoot: {
+    flex: 1,
+    backgroundColor: '#0F0B1E',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  retryBtn: {
+    backgroundColor: '#7C5CFC',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    marginTop: 8,
+  },
+  retryBtnTxt: { color: '#FFF', fontSize: FS.btnPrimary, fontWeight: '700' },
+
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  greeting: { color: '#FFF', fontSize: FS.screenTitle, fontWeight: '900' },
+  subGreeting: { color: '#6B5F8A', fontSize: FS.body, marginTop: 4 },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#7C5CFC',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWeight: 2,
+    borderColor: '#C8F135',
+  },
+  avatarImg: { width: '100%', height: '100%', borderRadius: 22 },
+  avatarTxt: { color: '#FFF', fontSize: FS.cardTitle, fontWeight: 'bold' },
+>>>>>>> backup/recovered-2026-04-19
 
   cardBase: { backgroundColor: '#161230', borderRadius: 24, padding: 20, borderWidth: 1, borderColor: '#1E1A35', marginBottom: 12 },
   
   aiCard: { borderRadius: 24, padding: 20 },
+<<<<<<< HEAD
   aiHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   aiTitle: { color: 'rgba(255,255,255,0.6)', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#C8F135', shadowColor: '#C8F135', shadowRadius: 10, shadowOpacity: 1 },
   aiText: { color: '#FFF', fontSize: 15, lineHeight: 22, fontWeight: '500' },
+=======
+  aiHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  aiTitle: { color: 'rgba(255,255,255,0.6)', fontSize: FS.label, fontWeight: '900', letterSpacing: 1 },
+  liveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#C8F135',
+    shadowColor: '#C8F135',
+    shadowRadius: 10,
+    shadowOpacity: 1,
+  },
+  aiText: { color: '#FFF', fontSize: FS.bodyLarge, lineHeight: 22, fontWeight: '500' },
+>>>>>>> backup/recovered-2026-04-19
 
   bentoGrid: { flexDirection: 'row', gap: 12, marginBottom: 12 },
   mainCalorieCard: { flex: 1.2, marginBottom: 0, justifyContent: 'center' },
   macroColumn: { flex: 1, gap: 12 },
   macroSmallCard: { marginBottom: 0, padding: 15 },
+<<<<<<< HEAD
   
   cardLabel: { color: '#6B5F8A', fontSize: 10, fontWeight: '900', letterSpacing: 1, marginBottom: 8 },
   bigCal: { color: '#C8F135', fontSize: 42, fontWeight: '900', marginVertical: 4 },
@@ -303,10 +363,45 @@ const styles = StyleSheet.create({
   macroLabel: { fontSize: 9, fontWeight: '900', marginBottom: 4 },
   macroVal: { color: '#FFF', fontSize: 15, fontWeight: '700' },
   barContainer: { height: 4, backgroundColor: '#0F0B1E', borderRadius: 2, marginTop: 8, overflow: 'hidden' },
+=======
+
+  cardLabel: {
+    color: '#6B5F8A',
+    fontSize: FS.label,
+    fontWeight: '900',
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  bigCal: { color: '#C8F135', fontSize: FS.hero, fontWeight: '900', marginVertical: 4 },
+  calRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  calBurned: { color: '#C8F135', fontSize: FS.sub, fontWeight: '800', marginTop: 6 },
+  calSub: { color: '#6B5F8A', fontSize: FS.sub },
+  dividerV: { width: 1, height: 10, backgroundColor: '#1E1A35' },
+
+  logBtn: {
+    backgroundColor: '#7C5CFC',
+    borderRadius: 12,
+    paddingVertical: 10,
+    alignItems: 'center',
+    marginTop: 15,
+  },
+  logBtnTxt: { color: '#FFF', fontSize: FS.body, fontWeight: '700' },
+
+  macroLabel: { fontSize: 9, fontWeight: '900', marginBottom: 4 },
+  macroVal: { color: '#FFF', fontSize: FS.bodyLarge, fontWeight: '700' },
+  barContainer: {
+    height: 4,
+    backgroundColor: '#0F0B1E',
+    borderRadius: 2,
+    marginTop: 8,
+    overflow: 'hidden',
+  },
+>>>>>>> backup/recovered-2026-04-19
   barFill: { height: '100%', borderRadius: 2 },
 
   twoColumn: { flexDirection: 'row', gap: 12 },
   halfCard: { flex: 1, alignItems: 'center' },
+<<<<<<< HEAD
   statNum: { color: '#FFF', fontSize: 24, fontWeight: '900' },
   statUnit: { color: '#6B5F8A', fontSize: 12, fontWeight: '500' },
   miniAdd:    { backgroundColor: '#1E1A35', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6, marginTop: 10 },
@@ -321,3 +416,39 @@ const styles = StyleSheet.create({
   workoutSub: { color: '#6B5F8A', fontSize: 13, marginTop: 4 },
   playBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#C8F135', alignItems: 'center', justifyContent: 'center' }
 });
+=======
+  statNum: { color: '#FFF', fontSize: FS.sectionTitle, fontWeight: '900' },
+  statUnit: { color: '#6B5F8A', fontSize: FS.btnSecondary, fontWeight: '500' },
+  miniAdd: {
+    backgroundColor: '#1E1A35',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginTop: 10,
+  },
+  miniAddTxt: { color: '#C8F135', fontSize: FS.sub, fontWeight: '700' },
+  miniBarBg: {
+    width: '100%',
+    height: 4,
+    backgroundColor: '#1E1A35',
+    borderRadius: 2,
+    overflow: 'hidden',
+    marginTop: 8,
+  },
+  miniBarFill: { height: 4, borderRadius: 2 },
+  smallSub: { color: '#6B5F8A', fontSize: FS.badge, marginTop: 5 },
+
+  workoutCard: { padding: 15 },
+  workoutContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  workoutTitle: { color: '#FFF', fontSize: FS.cardTitle, fontWeight: '800' },
+  workoutSub: { color: '#6B5F8A', fontSize: FS.body, marginTop: 4 },
+  playBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#C8F135',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
+>>>>>>> backup/recovered-2026-04-19

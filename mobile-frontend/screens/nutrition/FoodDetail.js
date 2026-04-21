@@ -3,6 +3,7 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useNutrition } from "../../hooks/useNutrition";
+import { FS } from '../../constants/typography';
 
 const C = {
   bg: "#0F0B1E",
@@ -108,18 +109,18 @@ const s = StyleSheet.create({
   centered: { alignItems: "center", justifyContent: "center" },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 54, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: C.border },
   iconBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: C.card, alignItems: "center", justifyContent: "center" },
-  title: { color: C.text, fontSize: 18, fontWeight: "800" },
+  title: { color: C.text, fontSize: FS.cardTitle, fontWeight: "800" },
   scroll: { padding: 16 },
   calCard: { backgroundColor: C.card, borderRadius: 20, padding: 24, alignItems: "center", marginBottom: 14, borderWidth: 1, borderColor: C.border },
-  calNum: { color: C.text, fontSize: 52, fontWeight: "900" },
-  calUnit: { color: C.sub, fontSize: 14, marginTop: 4 },
+  calNum: { color: C.text, fontSize: FS.hero, fontWeight: "900" },
+  calUnit: { color: C.sub, fontSize: FS.btnPrimary, marginTop: 4 },
   row: { flexDirection: "row", gap: 10, marginBottom: 20 },
   statCard: { flex: 1, backgroundColor: C.card, borderRadius: 16, padding: 16, alignItems: "center", borderWidth: 1, borderColor: C.border },
-  statValue: { fontSize: 20, fontWeight: "900" },
-  statLabel: { color: C.sub, fontSize: 12, marginTop: 4 },
+  statValue: { fontSize: FS.sectionTitle, fontWeight: "900" },
+  statLabel: { color: C.sub, fontSize: FS.btnSecondary, marginTop: 4 },
   qtyRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 20, marginBottom: 20 },
   qtyBtn: { width: 44, height: 44, borderRadius: 14, backgroundColor: C.card, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border },
-  qtyText: { color: C.text, fontSize: 28, fontWeight: "900" },
+  qtyText: { color: C.text, fontSize: FS.screenTitle, fontWeight: "900" },
   addBtn: { backgroundColor: C.purple, borderRadius: 16, paddingVertical: 16, alignItems: "center" },
-  addBtnTxt: { color: "#fff", fontSize: 15, fontWeight: "800" },
+  addBtnTxt: { color: "#fff", fontSize: FS.bodyLarge, fontWeight: "800" },
 });
