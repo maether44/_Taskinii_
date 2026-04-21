@@ -164,6 +164,7 @@ export default function Nutrition({ navigation }) {
     waterMl,
     caloriesBurned,
     mealSections,
+    deleteFoodLog,
     logWater,
     refresh,
   } = useNutrition();
@@ -413,11 +414,13 @@ export default function Nutrition({ navigation }) {
                       <View style={{ flex: 1 }}>
                         <Text style={s.foodName}>{item.name}</Text>
                         <Text style={s.foodMeta}>
-                          {item.quantity}g
-                          {item.brand ? ` • ${item.brand}` : ""}
+                          {item.quantity}g{item.brand ? ` • ${item.brand}` : ""}
                         </Text>
                       </View>
                       <Text style={s.foodCals}>{item.calories} kcal</Text>
+                      <TouchableOpacity onPress={() => deleteFoodLog(item.id)} style={s.deleteBtn}>
+                        <Ionicons name="trash-outline" size={16} color="#FF6B6B" />
+                      </TouchableOpacity>
                     </View>
                   ))}
                 </View>
@@ -596,6 +599,7 @@ const s = StyleSheet.create({
   foodName: { color: C.text, fontSize: FS.body, fontWeight: "700" },
   foodMeta: { color: C.sub, fontSize: FS.badge, marginTop: 2 },
   foodCals: { color: C.accent, fontSize: FS.btnSecondary, fontWeight: "700" },
+  deleteBtn: { padding: 6 },
   emptyMeal: {
     marginTop: 14,
     paddingVertical: 16,

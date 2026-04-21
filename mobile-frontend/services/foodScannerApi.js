@@ -4,6 +4,7 @@ const GEMINI_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.0-flash
 
 import commonFoods from '../data/commonFoods.json';
 import comprehensiveFoods from '../data/comprehensiveFoods.json';
+import { supabase } from '../lib/supabase';
 import { log } from '../lib/logger';
 
 function unique(values) {
@@ -174,111 +175,90 @@ function parseOpenFoodFactsProduct(p) {
   };
 }
 
-export async function searchFoodLibrary(query) {
-  if (!query || !query.trim()) return [];
-  try {
-    // Try OpenFoodFacts v2 first
-    const params = new URLSearchParams({
-      q: query.trim(),
-      page: "1",
-      size: "24",
-      fields: "code,product_name,brands,nutriments,serving_quantity",
-    });
-    const url = `https://world.openfoodfacts.org/api/v2/search?${params.toString()}`;
-    const res = await fetch(url, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-        "User-Agent": "Expo/ReactNative",
-      },
-    });
-    const text = await res.text();
-    if (!res.ok) {
-      throw new Error(`OpenFoodFacts v2 failed: ${res.status}`);
-    }
-
-    let json;
-    try {
-      json = JSON.parse(text);
-    } catch (err) {
-      throw new Error(`Unable to parse OpenFoodFacts v2 response: ${err.message}`);
-    }
-
-    const products = Array.isArray(json?.products) ? json.products : [];
-    if (products.length > 0) {
-      const unique = new Map();
-      for (const product of products) {
-        const parsed = parseOpenFoodFactsProduct(product);
-        if (!unique.has(parsed.id)) unique.set(parsed.id, parsed);
-      }
-      return Array.from(unique.values());
-    }
-    // If no results from v2, fall through to v0
-  } catch (e) {
-    log("OpenFoodFacts v2 failed, trying v0:", e.message);
-  }
-
-  try {
-    // Fallback to OpenFoodFacts v0 (legacy API)
-    const params = new URLSearchParams({
-      search_terms: query.trim(),
-      search_simple: "1",
-      action: "process",
-      json: "1",
-      page_size: "24",
-    });
-    const url = `https://world.openfoodfacts.org/cgi/search.pl?${params.toString()}`;
-    const res = await fetch(url, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-        "User-Agent": "Expo/ReactNative",
-      },
-    });
-    const text = await res.text();
-    if (!res.ok) {
-      throw new Error(`OpenFoodFacts v0 failed: ${res.status}`);
-    }
-
-    let json;
-    try {
-      json = JSON.parse(text);
-    } catch (err) {
-      throw new Error(`Unable to parse OpenFoodFacts v0 response: ${err.message}`);
-    }
-
-    const products = Array.isArray(json?.products) ? json.products : [];
-    if (products.length > 0) {
-      const unique = new Map();
-      for (const product of products) {
-        const parsed = parseOpenFoodFactsProduct(product);
-        if (!unique.has(parsed.id)) unique.set(parsed.id, parsed);
-      }
-      return Array.from(unique.values());
-    }
-    // If no results from v0, fall through to local
-  } catch (e) {
-    log("OpenFoodFacts v0 failed, trying local databases:", e.message);
-  }
-
-  // Fallback to comprehensive + common foods databases
-  const lowerQuery = query.toLowerCase().trim();
-  const allFoods = [...comprehensiveFoods, ...commonFoods];
-  const matches = allFoods.filter(food =>
-    food.name.toLowerCase().includes(lowerQuery) ||
-    food.brand?.toLowerCase().includes(lowerQuery)
-  );
-  if (matches.length > 0) {
-    // Deduplicate by name
-    const seen = new Map();
-    for (const food of matches) {
+function localSearch(query) {
+  const q = query.toLowerCase().trim();
+  const allFoods = [...commonFoods, ...comprehensiveFoods];
+  const seen = new Map();
+  for (const food of allFoods) {
+    if (
+      food.name.toLowerCase().includes(q) ||
+      food.brand?.toLowerCase().includes(q)
+    ) {
       const key = `${food.name.toLowerCase()}::${(food.brand || '').toLowerCase()}`;
       if (!seen.has(key)) seen.set(key, food);
     }
-    return Array.from(seen.values()).slice(0, 24); // Limit to 24 results
   }
-  // If no matches in local database either, show unavailable message
-  throw new Error("Food library temporarily unavailable. Please try again later!");
+  return Array.from(seen.values()).slice(0, 40);
+}
+
+async function openFoodFactsSearch(query) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
+  try {
+    const params = new URLSearchParams({
+      q: query.trim(), page: "1", size: "30",
+      fields: "code,product_name,brands,nutriments,serving_quantity",
+    });
+    const res = await fetch(
+      `https://world.openfoodfacts.org/api/v2/search?${params}`,
+      { headers: { Accept: "application/json", "User-Agent": "Expo/ReactNative" }, signal: controller.signal }
+    );
+    if (!res.ok) throw new Error(`OFF ${res.status}`);
+    const json = await res.json().catch(() => ({}));
+    const products = Array.isArray(json?.products) ? json.products : [];
+    const unique = new Map();
+    for (const p of products) {
+      const parsed = parseOpenFoodFactsProduct(p);
+      if (parsed.name && parsed.name !== "Food item" && !unique.has(parsed.id))
+        unique.set(parsed.id, parsed);
+    }
+    return Array.from(unique.values());
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function searchFoodLibrary(query) {
+  if (!query || !query.trim()) return [];
+
+  // 1 — Supabase foods table (primary, always reliable)
+  try {
+    const { data, error } = await supabase.rpc('search_foods', {
+      p_query: query.trim(),
+      p_limit: 40,
+    });
+    if (!error && Array.isArray(data) && data.length > 0) {
+      return data.map((r) => ({
+        id: String(r.id),
+        name: r.name,
+        brand: r.brand || "",
+        barcode: r.barcode || null,
+        calories_per_100g: Number(r.calories_per_100g) || 0,
+        protein_per_100g: Number(r.protein_per_100g) || 0,
+        carbs_per_100g: Number(r.carbs_per_100g) || 0,
+        fat_per_100g: Number(r.fat_per_100g) || 0,
+        fiber_per_100g: Number(r.fiber_per_100g) || 0,
+        unit: "g",
+        serving: 100,
+      }));
+    }
+  } catch (e) {
+    log("Supabase food search failed, falling back:", e.message);
+  }
+
+  // 2 — Local JSON bundle (instant, offline-safe)
+  const local = localSearch(query);
+  if (local.length > 0) return local;
+
+  // 3 — OpenFoodFacts (last resort, may be slow or unavailable)
+  try {
+    const results = await openFoodFactsSearch(query);
+    if (results.length > 0) return results;
+  } catch (e) {
+    log("OpenFoodFacts search failed:", e.message);
+  }
+
+  throw new Error("No foods found. Try a different name, or add one manually.");
 }
 
 export async function lookupBarcode(barcode) {

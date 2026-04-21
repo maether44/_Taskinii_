@@ -187,6 +187,12 @@ export default function MealLogger() {
         ))}
       </View>
 
+      <TouchableOpacity style={s.customMealBanner} onPress={() => navigation.navigate("CustomMealBuilder", { initialMealType: mealSlot.id })}>
+        <Ionicons name="restaurant-outline" size={16} color={C.lime} />
+        <Text style={s.customMealBannerTxt}>Build a Custom Meal</Text>
+        <Ionicons name="chevron-forward" size={14} color={C.lime} />
+      </TouchableOpacity>
+
       <View style={s.tabs}>
         {[
           { id: "search", label: "Food library" },
@@ -377,6 +383,14 @@ const s = StyleSheet.create({
   },
   searchInput: { flex: 1, color: C.text, fontSize: FS.bodyLarge },
   searchError: { color: "#FF8787", fontSize: FS.btnSecondary, marginHorizontal: 16, marginTop: 8 },
+  customMealBanner: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    marginHorizontal: 16, marginTop: 14, marginBottom: 4,
+    paddingHorizontal: 16, paddingVertical: 12,
+    backgroundColor: `${C.lime}10`, borderRadius: 14,
+    borderWidth: 1, borderColor: `${C.lime}30`,
+  },
+  customMealBannerTxt: { flex: 1, color: C.lime, fontSize: FS.body, fontWeight: "700" },
   loadingTxt: { color: C.sub, fontSize: FS.body, marginTop: 10 },
   emptyState: { alignItems: "center", paddingTop: 48, paddingHorizontal: 24 },
   emptyTitle: { color: C.text, fontSize: FS.cardTitle, fontWeight: "700", textAlign: "center" },

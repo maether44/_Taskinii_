@@ -38,6 +38,7 @@ import FoodDetail from './screens/nutrition/FoodDetail';
 import SleepLog from './screens/sleep/SleepLog';
 import FoodScannerScreen from './components/food-scanner/FoodScannerScreen';
 import WorkoutSummary from './screens/workout/WorkoutSummary';
+import CustomMealBuilder from './screens/nutrition/CustomMealBuilder';
 import { scheduleStore } from './store/scheduleStore';
 
 // Global Components
@@ -88,6 +89,7 @@ function Navigation() {
           <Stack.Screen name="FoodScanner" component={FoodScannerScreen} />
           <Stack.Screen name="WorkoutSummary" component={WorkoutSummary} />
           <Stack.Screen name="Schedule" component={ScheduleScreen} />
+          <Stack.Screen name="CustomMealBuilder" component={CustomMealBuilder} />
         </>
       )}
     </Stack.Navigator>
