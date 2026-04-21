@@ -15,7 +15,12 @@ import { registerRootComponent } from "expo";
 import { supabase } from "./lib/supabase";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { TodayProvider } from "./context/TodayContext";
+import { ThemeProvider, useTheme } from "./context/ThemeContext";
 import { MilestoneProvider, useMilestones } from "./context/MilestoneContext";
+
+// Alexi Voice
+import { AlexiVoiceProvider, AlexiCompanion, AlexiScreenBorder, AlexiDebugOverlay, AlexiEvents } from "./context/AlexiVoiceContext";
+import { navigationRef } from "./lib/navigationRef";
 
 // ✅ Custom splash screen
 import CustomSplashScreen from "./components/CustomSplashScreen";
@@ -36,14 +41,8 @@ import FoodScannerScreen from "./components/food-scanner/FoodScannerScreen";
 import WorkoutSummary from "./screens/workout/WorkoutSummary";
 
 // Global Components
-import AlexiAssistant from "./components/AlexiAssistant";
 import AppTour from "./components/onBoarding/AppTour";
-
-// AlexiGatedAssistant — renders AlexiAssistant on all screens except WorkoutActive
-function AlexiGatedAssistant({ activeRoute }) {
-  if (activeRoute === 'WorkoutActive') return null;
-  return <AlexiAssistant />;
-}
+import CelebrationInterstitial from "./components/CelebrationOverlay";
 
 SplashScreen.preventAutoHideAsync();
 const Stack = createStackNavigator();
@@ -55,11 +54,16 @@ function getActiveRouteName(state) {
   return route.name;
 }
 
+// AlexiGatedAssistant — renders AlexiCompanion on all screens except WorkoutActive
+function AlexiGatedAssistant({ activeRoute }) {
+  if (activeRoute === 'WorkoutActive') return null;
+  return <AlexiCompanion />;
+}
+
+// Celebration overlay — reads from MilestoneContext
 function CelebrationOverlay() {
   const { pendingCelebration, claimMilestone, dismissCelebration } = useMilestones();
-
   if (!pendingCelebration) return null;
-
   return (
     <CelebrationInterstitial
       visible={!!pendingCelebration}
@@ -70,6 +74,35 @@ function CelebrationOverlay() {
         dismissCelebration();
       }}
     />
+  );
+}
+
+// Must live inside ThemeProvider to call useTheme()
+function AppShell({ onLayout, activeTab, setActiveTab, activeRoute, setActiveRoute }) {
+  const { colors, isDark } = useTheme();
+  return (
+    <AuthProvider>
+      <TodayProvider>
+        <MilestoneProvider>
+          <AlexiVoiceProvider>
+            <View style={{ flex: 1, backgroundColor: colors.bg }} onLayout={onLayout}>
+              <StatusBar style={isDark ? 'light' : 'dark'} />
+              <NavigationContainer
+                ref={navigationRef}
+                onStateChange={(state) => setActiveRoute(getActiveRouteName(state))}
+              >
+                <Navigation />
+              </NavigationContainer>
+              <AlexiGatedAssistant activeRoute={activeRoute} />
+              <AppTour activeTab={activeTab} onTabPress={setActiveTab} showOnMount={true} />
+              <AlexiScreenBorder />
+              <AlexiDebugOverlay />
+              <CelebrationOverlay />
+            </View>
+          </AlexiVoiceProvider>
+        </MilestoneProvider>
+      </TodayProvider>
+    </AuthProvider>
   );
 }
 
@@ -109,7 +142,7 @@ function Navigation() {
 
 export default function App() {
   const [appIsReady, setAppIsReady] = useState(false);
-  const [splashDone, setSplashDone] = useState(false); // ✅ NEW
+  const [splashDone, setSplashDone] = useState(false);
   const [activeTab, setActiveTab] = useState("Home");
   const [activeRoute, setActiveRoute] = useState(null);
 
@@ -146,7 +179,6 @@ export default function App() {
           console.warn('[Alexi] navigationRef not ready — queued screen:', screen);
           return;
         }
-        console.log('[Alexi] → navigate(', screen, params ? JSON.stringify(params) : '', ')');
         navigationRef.navigate(screen, params);
       } catch (e) {
         console.error('[Alexi] Navigation failed for screen "' + screen + '":', e?.message);
@@ -163,6 +195,7 @@ export default function App() {
     });
     return () => { offNav(); offBack(); };
   }, []);
+
   if (!appIsReady) return null;
 
   // ✅ Fonts ready → show custom splash
