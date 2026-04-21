@@ -176,6 +176,22 @@ export function useNutrition() {
     }
   }, [refresh, userId]);
 
+  const deleteFoodLog = useCallback(async (logId) => {
+    if (!userId) {
+      setGuestLogs((prev) => prev.filter((log) => log.id !== logId));
+      return true;
+    }
+    try {
+      const { error } = await supabase.from("food_logs").delete().eq("id", logId);
+      if (error) throw error;
+      emit(AppEvents.MEAL_LOGGED, { deleted: true });
+      return true;
+    } catch (err) {
+      logError("deleteFoodLog error:", err);
+      return false;
+    }
+  }, [userId]);
+
   const logScannedFood = useCallback(async ({
     mealType = "snack",
     foodName,
@@ -268,6 +284,7 @@ export function useNutrition() {
     foodLogs: allLogs,
     logScannedFood,
     saveMealEntries,
+    deleteFoodLog,
     logWater,
     refresh,
   };

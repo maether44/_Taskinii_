@@ -15,36 +15,7 @@ import { registerRootComponent } from "expo";
 import { supabase } from "./lib/supabase";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { TodayProvider } from "./context/TodayContext";
-import { ThemeProvider, useTheme } from "./context/ThemeContext";
-
-// Must live inside ThemeProvider to call useTheme()
-function AppShell({ onLayout, activeTab, setActiveTab, activeRoute, setActiveRoute }) {
-  const { colors, isDark } = useTheme();
-  return (
-    <AuthProvider>
-      <TodayProvider>
-        <AlexiVoiceProvider>
-          <View style={{ flex: 1, backgroundColor: colors.bg }} onLayout={onLayout}>
-            <StatusBar style={isDark ? 'light' : 'dark'} />
-            <NavigationContainer
-              ref={navigationRef}
-              onStateChange={(state) => setActiveRoute(getActiveRouteName(state))}
-            >
-              <Navigation />
-            </NavigationContainer>
-            <AlexiGatedAssistant activeRoute={activeRoute} />
-            <AppTour activeTab={activeTab} onTabPress={setActiveTab} showOnMount={true} />
-            <AlexiScreenBorder />
-            {activeRoute !== 'WorkoutActive' && <AlexiCompanion />}
-            <AlexiDebugOverlay />
-          </View>
-        </AlexiVoiceProvider>
-      </TodayProvider>
-    </AuthProvider>
-  );
-}
-import { AlexiVoiceProvider, AlexiCompanion, AlexiScreenBorder, AlexiDebugOverlay, AlexiEvents } from "./context/AlexiVoiceContext";
-import { navigationRef } from "./lib/navigationRef";
+import { MilestoneProvider, useMilestones } from "./context/MilestoneContext";
 
 // ✅ Custom splash screen
 import CustomSplashScreen from "./components/CustomSplashScreen";
@@ -65,9 +36,14 @@ import FoodScannerScreen from "./components/food-scanner/FoodScannerScreen";
 import WorkoutSummary from "./screens/workout/WorkoutSummary";
 
 // Global Components
-import YaraAssistant from './components/YaraAssistant';
-import AppTour from './components/onBoarding/AppTour';
-import { warn } from './lib/logger';
+import AlexiAssistant from "./components/AlexiAssistant";
+import AppTour from "./components/onBoarding/AppTour";
+
+// AlexiGatedAssistant — renders AlexiAssistant on all screens except WorkoutActive
+function AlexiGatedAssistant({ activeRoute }) {
+  if (activeRoute === 'WorkoutActive') return null;
+  return <AlexiAssistant />;
+}
 
 SplashScreen.preventAutoHideAsync();
 const Stack = createStackNavigator();
@@ -77,6 +53,24 @@ function getActiveRouteName(state) {
   const route = state.routes[state.index ?? 0];
   if (route.state) return getActiveRouteName(route.state);
   return route.name;
+}
+
+function CelebrationOverlay() {
+  const { pendingCelebration, claimMilestone, dismissCelebration } = useMilestones();
+
+  if (!pendingCelebration) return null;
+
+  return (
+    <CelebrationInterstitial
+      visible={!!pendingCelebration}
+      milestone={pendingCelebration}
+      onClaim={() => claimMilestone(pendingCelebration.milestone_type, false)}
+      onSkip={() => {
+        claimMilestone(pendingCelebration.milestone_type, true);
+        dismissCelebration();
+      }}
+    />
+  );
 }
 
 function Navigation() {
@@ -185,20 +179,15 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <AuthProvider>
-          <TodayProvider>
-            <View style={styles.container} onLayout={onLayoutRootView}>
-              <StatusBar style="light" />
-              <NavigationContainer ref={navigationRef} onStateChange={(state) => setActiveRoute(getActiveRouteName(state))}>
-                <Navigation />
-              </NavigationContainer>
-              {showYaraAssistant && (
-                <YaraAssistant onOpenSchedule={() => navigationRef.current?.navigate('Schedule')} />
-              )}
-              <AppTour activeTab={activeTab} onTabPress={setActiveTab} showOnMount={true} />
-            </View>
-          </TodayProvider>
-        </AuthProvider>
+        <ThemeProvider>
+          <AppShell
+            onLayout={onLayoutRootView}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            activeRoute={activeRoute}
+            setActiveRoute={setActiveRoute}
+          />
+        </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

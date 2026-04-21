@@ -30,12 +30,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { error as logError } from '../lib/logger';
 import { calcMacroTargets, normalizeGoal } from '../lib/calculations';
-import {
-  AVATAR_BUCKET,
-  buildAvatarPath,
-  getLocalAvatarForUser,
-  saveLocalAvatarForUser,
-} from '../lib/avatar';
+import { AVATAR_BUCKET, buildAvatarPath, getLocalAvatarForUser, saveLocalAvatarForUser } from '../lib/avatar';
+import { refreshAfterProfileUpdate } from '../services/embeddingService';
 
 const C = {
   bg: '#0F0B1E',
@@ -553,6 +549,7 @@ export default function Profile({ replayTour }) {
       setEditVisible(false);
       emit(AppEvents.PROFILE_UPDATED, { userId: authUser.id });
       emit(AppEvents.TARGETS_UPDATED, { userId: authUser.id });
+      refreshAfterProfileUpdate(authUser.id);
       Alert.alert('Saved', 'Your profile has been updated.');
     } catch (error) {
       Alert.alert('Save failed', error?.message || 'Could not update your profile.');

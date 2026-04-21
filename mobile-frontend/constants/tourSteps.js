@@ -78,8 +78,8 @@ export const STEPS = [
     tab: "Home",
     side: "top",
     emoji: "👩‍⚕️",
-    title: "Yara — your AI coach",
-    body: "Tap anytime for advice. She knows your whole profile and never asks you twice.",
+    title: "Alexi — your AI coach",
+    body: "Tap anytime for advice. Alexi knows your whole profile and never asks you twice.",
   },
   {
     refKey: null,
@@ -87,6 +87,6 @@ export const STEPS = [
     side: "center",
     emoji: "🚀",
     title: "You're all set!",
-    body: "Your plan is built, Yara is ready, and your progress starts now.",
+    body: "Your plan is built, Alexi is ready, and your progress starts now.",
   },
 ];

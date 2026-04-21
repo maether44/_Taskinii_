@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { callYara }                    from '../lib/groqAPI';
+import { supabase }                    from '../lib/supabase';
 import { getChatHistory, saveMessage } from '../services/chatService';
 import { useAuth }                     from '../context/AuthContext';
 import { error as logError }           from '../lib/logger';
@@ -17,63 +17,25 @@ function buildWelcome(profile) {
     : "Hey! I'm Yara — your personal coach. I'm here for everything: training, nutrition, recovery, mindset. What's on your mind today?";
 }
 
-const SCHEDULE_KEYWORDS = [
-  'weekly schedule', 'weekly plan', 'week plan', 'my schedule',
-  'workout plan', 'meal plan', 'weekly routine', 'plan my week',
-  'generate schedule', 'create schedule', 'make me a plan',
-  'full plan', 'training plan', 'give me a plan',
-];
-
-const isScheduleRequest = (text) => {
-  const lower = text.toLowerCase();
-  return SCHEDULE_KEYWORDS.some(k => lower.includes(k));
-};
-
-// Appended to the system prompt when user asks for a schedule
-const SCHEDULE_SYSTEM_INJECTION = `
-IMPORTANT: The user is asking for a weekly schedule.
-You MUST respond with a valid JSON object and nothing else — no markdown, no explanation, no backticks.
-The JSON must follow this exact structure:
-{
-  "response": "Here's your personalised weekly plan! [friendly 1-2 sentence message]",
-  "schedule": {
-    "days": [
-      {
-        "day": "Monday",
-        "is_rest": false,
-        "workout_type": "Push",
-        "note": "Focus on chest and shoulders",
-        "exercises": [
-          { "name": "Bench Press", "sets": 4, "reps": "8-10", "muscle": "Chest", "rest": "90s" },
-          { "name": "Overhead Press", "sets": 3, "reps": "10-12", "muscle": "Shoulders", "rest": "60s" }
-        ],
-        "meals": [
-          { "type": "Breakfast", "foods": ["Oats with banana", "2 boiled eggs"], "calories": 420 },
-          { "type": "Lunch", "foods": ["Grilled chicken", "Brown rice", "Salad"], "calories": 580 },
-          { "type": "Dinner", "foods": ["Salmon", "Sweet potato", "Broccoli"], "calories": 520 },
-          { "type": "Snack", "foods": ["Greek yogurt", "Almonds"], "calories": 220 }
-        ],
-        "sleep_target": 8,
-        "steps_target": 9000,
-        "water_target": 2500
-      }
-    ]
-  }
+function buildTodaySnapshot(profile) {
+  if (!profile) return undefined;
+  return {
+    date: new Date().toISOString().split('T')[0],
+    calorie_target: profile.daily_calories ?? profile.calTarget,
+    protein_target: profile.protein_target ?? profile.protein,
+    carbs_target: profile.carbs_target,
+    fat_target: profile.fat_target,
+  };
 }
-Generate all 7 days (Mon–Sun). Include 2 rest days. Vary sleep_target (7–9), steps_target (6000–12000), water_target (1800–3000) based on workout intensity.
-Tailor exercises, meals, and targets to the user's profile (goal, experience, equipment, diet_pref).
-NEVER use COMMAND: syntax. NEVER output anything except the JSON object.
-`;
 
-export function useYaraChat(profile, onScheduleReady) {
-  const { user }                 = useAuth();
-  const [messages,  setMessages] = useState([]);
-  const [input,     setInput]    = useState('');
-  const [typing,    setTyping]   = useState(false);
-  const [open,      setOpen]     = useState(false);
-  const apiHistory               = useRef([]);
+export function useYaraChat(profile) {
+  const { user }                    = useAuth();
+  const [messages,  setMessages]    = useState([]);
+  const [input,     setInput]       = useState('');
+  const [typing,    setTyping]      = useState(false);
+  const [open,      setOpen]        = useState(false);
+  const apiHistory                  = useRef([]);
 
-  // Load persisted chat history on mount
   useEffect(() => {
     const loadHistory = async () => {
       const welcome = { from: 'yara', text: buildWelcome(profile), time: fmtTime() };
@@ -122,38 +84,22 @@ export function useYaraChat(profile, onScheduleReady) {
     if (user) await saveMessage(user.id, 'user', msg).catch(console.error);
 
     try {
-      const reply = await callYara(historyToSend, profile);
+      const { data, error } = await supabase.functions.invoke('ai-assistant', {
+        body: {
+          userId: user?.id,
+          query: msg,
+          clientContext: {
+            profile: profile ?? undefined,
+            today: buildTodaySnapshot(profile),
+          },
+        },
+      });
 
-      // Try to parse schedule JSON from reply
-      if (isSchedule) {
-        try {
-          const clean = reply.replace(/```json|```/g, '').trim();
-          const parsed = JSON.parse(clean);
-          if (parsed?.schedule?.days) {
-            scheduleStore.set({
-              ...parsed.schedule,
-              generated_at: new Date().toISOString(),
-            });
-            // Show the text response + schedule card marker
-            const responseText = parsed.response || "Here's your weekly plan!";
-            apiHistory.current = [...apiHistory.current, { role: 'assistant', content: responseText }];
-            if (user) await saveMessage(user.id, 'assistant', responseText).catch(console.error);
-            setMessages(prev => [...prev, {
-              from: 'yara',
-              text: responseText,
-              time: fmtTime(),
-              schedule: parsed.schedule, // triggers preview card in UI
-            }]);
-            onScheduleReady?.(); // optional callback to navigate
-            return;
-          }
-        } catch (_) {
-          // JSON parse failed — fall through to normal text reply
-        }
-      }
+      if (error) throw error;
 
-      // Normal text reply
+      const reply = data?.response ?? "I'm having trouble connecting. Try again in a moment.";
       apiHistory.current = [...apiHistory.current, { role: 'assistant', content: reply }];
+
       if (user) await saveMessage(user.id, 'assistant', reply).catch(console.error);
       setMessages(prev => [...prev, { from: 'yara', text: reply, time: fmtTime() }]);
 

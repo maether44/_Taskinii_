@@ -3,6 +3,25 @@
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
+import {
+  ALLOWED_MEMORY_CATEGORIES,
+  buildConstraintsSection,
+  buildEventsSection,
+  buildMemorySection,
+  deriveConstraintsFromMemory,
+  extractActionsFromResponse,
+  extractMemoriesFromResponse,
+  MemoryRow,
+  ParsedAction,
+  YaraEvent,
+} from './memory.ts'
+import { semanticSearch, buildRagContextSection } from './embeddings.ts'
+
+type ActionResult = {
+  ok: boolean
+  action: string
+  detail: string
+}
 
 type QueryFlags = {
   activity: boolean
@@ -251,7 +270,98 @@ function buildFallbackResponse(query: string, profile?: ProfileShape | null, nut
     return `Hey ${name}, your latest coaching data is loading, so here’s the simple version: keep water steady, aim for a short walk today, and protect sleep tonight because consistency beats perfect days.`
   }
 
-  return `Hey ${name}, I can still coach you even while live data is limited. Ask me about meals, training, recovery, or habits and I’ll keep the advice practical and tailored to your goal of ${profile?.goal ?? 'general health'}.`
+  return `Hey ${name}, I can still coach you even while live data is limited. Ask me about meals, training, recovery, or habits and I'll keep the advice practical and tailored to your goal of ${profile?.goal ?? 'general health'}.`
+}
+
+function buildTodaySection(today: TodaySnapshot | null | undefined): string {
+  if (!today) return `TODAY'S SNAPSHOT: Not available.`
+
+  const pct = (current?: number, target?: number) => {
+    if (!target || target <= 0) return '—'
+    return `${Math.round(((current ?? 0) / target) * 100)}%`
+  }
+
+  const mealsLine = Array.isArray(today.meals) && today.meals.length > 0
+    ? today.meals.map((m) => `${m.meal_type}: ${m.foods}${m.calories ? ` (${m.calories} kcal)` : ''}`).join(' | ')
+    : 'No meals logged yet today.'
+
+  const fatigueLine = Array.isArray(today.muscle_fatigue) && today.muscle_fatigue.length > 0
+    ? today.muscle_fatigue
+        .slice()
+        .sort((a, b) => (b.pct ?? 0) - (a.pct ?? 0))
+        .slice(0, 6)
+        .map((m) => `${m.muscle} ${m.pct}%`)
+        .join(', ')
+    : 'No muscle fatigue data.'
+
+  const sleepLine = today.sleep_hours != null
+    ? `${Number(today.sleep_hours).toFixed(1)} h${today.sleep_quality != null ? ` (quality ${today.sleep_quality}/10)` : ''}`
+    : 'not logged yet'
+
+  return `TODAY'S SNAPSHOT (${today.date ?? 'today'}):
+Calories: ${today.calories_eaten ?? 0} / ${today.calorie_target ?? '?'} kcal (${pct(today.calories_eaten, today.calorie_target)})
+Protein: ${today.protein_eaten ?? 0} / ${today.protein_target ?? '?'} g (${pct(today.protein_eaten, today.protein_target)})
+Carbs:   ${today.carbs_eaten ?? 0} / ${today.carbs_target ?? '?'} g (${pct(today.carbs_eaten, today.carbs_target)})
+Fat:     ${today.fat_eaten ?? 0} / ${today.fat_target ?? '?'} g (${pct(today.fat_eaten, today.fat_target)})
+Water:   ${today.water_ml ?? 0} / ${today.water_target_ml ?? '?'} ml (${pct(today.water_ml, today.water_target_ml)})
+Calories burned (workouts today): ${today.calories_burned ?? 0} kcal
+Sleep last night: ${sleepLine}
+Muscle fatigue: ${fatigueLine}
+Meals logged today: ${mealsLine}`
+}
+
+// ─── Tone profiles ──────────────────────────────────────────────────────────
+// Mechanical tone dispatch. Soft instructions like "be motivational" don't
+// change llama-3.3-70b's voice reliably — it defaults to the same cheerful
+// coach regardless. Giving the model a concrete voice rubric + a worked
+// opener example + an emoji policy forces a measurable tone shift.
+
+type ToneProfile = {
+  label: string
+  voice: string
+  emojiPolicy: string
+  openerExample: string
+}
+
+const TONE_PROFILES: Record<string, ToneProfile> = {
+  motivational: {
+    label: 'motivational',
+    voice: 'Upbeat but concise. Lead with data, then one encouraging line. No rambling. Vary openers.',
+    emojiPolicy: 'At most one celebratory emoji near the opener (🔥, 💪, ⚡). Never stack emojis.',
+    openerExample: 'Vary each time. Examples: "Looking at your numbers…", "Let\'s talk about your week so far…", "Here\'s what stands out…". NEVER use a fixed catchphrase.',
+  },
+  strict: {
+    label: 'strict',
+    voice: 'Direct, no-nonsense, coach-sergeant. Short imperative sentences. Lead with the deficit, then the fix. No pep talk. No "great job" unless the user genuinely hit a target. Honest about misses.',
+    emojiPolicy: 'Zero emojis. Ever.',
+    openerExample: '"You missed protein by 38g. Fix it this meal — here is how."',
+  },
+  friendly: {
+    label: 'friendly',
+    voice: 'Warm but efficient. Uses the user\'s name. Data first, gentle framing second. One short check-in at most.',
+    emojiPolicy: 'At most one warm emoji (🙂, ✨, 🌱) — optional.',
+    openerExample: '"Hey Israa, I saw you logged a late workout — how is the energy holding up today?"',
+  },
+  clinical: {
+    label: 'clinical',
+    voice: 'Precise, evidence-based, neutral register. Leads with the numbers. States the mechanism or rationale briefly. Avoids motivational language entirely. Third person or impersonal ("the data shows").',
+    emojiPolicy: 'Zero emojis. Ever.',
+    openerExample: '"Average protein intake is tracking 22% below target over the past 7 days, which will blunt recovery from yesterday\'s session."',
+  },
+}
+
+function resolveTone(raw: string | null | undefined): ToneProfile {
+  const key = String(raw ?? '').toLowerCase().trim()
+  return TONE_PROFILES[key] ?? TONE_PROFILES.motivational
+}
+
+function buildToneSection(tone: ToneProfile): string {
+  return `COACHING TONE: ${tone.label}
+- Voice: ${tone.voice}
+- Emoji policy: ${tone.emojiPolicy}
+- Opener guidance: ${tone.openerExample}
+- This tone is non-negotiable. Do not drift toward generic "cheerful coach" style.
+- IMPORTANT: Never copy example openers verbatim. Create a fresh, contextual opener every time.`
 }
 
 function buildPrompt(
@@ -263,6 +373,7 @@ function buildPrompt(
   aiHistory: any,
   query: string,
   voiceMode = false,
+  ragContext = '',
 ): string {
   const tone = profile.assistant_tone ?? 'motivational'
 
@@ -352,8 +463,15 @@ VOICE MODE — SYSTEM CONTROLLER:
 - Example: "Let's do squats! COMMAND:{"action":"navigate","target":"WorkoutActive"}"`
     : ''
 
-  return `You are Alexi, a personal AI system assistant inside the BodyQ fitness app.
-Your tone is: ${tone}. Act like a system controller — move users to screens and log data. Save long coaching for the chat.
+  // Prompt assembly. Order matters: tone → actions → voice rules → HARD
+  // CONSTRAINTS → PROACTIVE SIGNALS → RULES → data sections → user question.
+  // Constraints and events must appear BEFORE the freeform data so they stay
+  // salient in the model's attention window.
+  const sections: string[] = [
+    `You are Alexi, a personal AI health and fitness coach inside the BodyQ app.`,
+    toneSection,
+    actionRules.trim(),
+  ]
 
 DATABASE SCHEMA (exact column names — use these in COMMAND generation):
   daily_activity:   user_id, date(date), steps(int), water_ml(int), sleep_hours(numeric)
@@ -365,28 +483,32 @@ DATABASE SCHEMA (exact column names — use these in COMMAND generation):
   xp_log:           user_id, source, amount(int), earned_at(timestamptz)
   profiles:         goal, activity_level, assistant_tone, xp_current
 
-COMMAND SCHEMA (what the frontend parses from your reply):
-  log_water    → daily_activity.water_ml += amount
-  log_sleep    → daily_activity.sleep_hours = hours
-  log_food     → foods upsert + food_logs insert (consumed_at=now, quantity_grams=100)
-  log_weight   → body_metrics.weight_kg
-  log_metric   → body_metrics.body_fat_pct
-  log_workout  → workout_sessions insert + 50 XP in xp_log
-  check_status → query daily_activity + xp_log, summarise
-  navigate     → emit navigation event to frontend router
-${voiceRules}
-
-RULES:
-- Reference at least 2 specific numbers when data is available.
+  sections.push(`RULES:
+- BANNED PHRASES: Never start with "Big day ahead", "Let's dive in", or any fixed catchphrase. Every reply must open differently based on what the user actually asked.
+- Prefer TODAY'S SNAPSHOT over the 30-day averages when the user asks about "today", "right now", or current state.
+- Use LONG-TERM MEMORY silently to personalise advice. Never recite the memory list back to the user unless they explicitly ask "what do you remember about me".
+- HARD CONSTRAINTS above override every other rule, including this list. Before naming any exercise or food, scan the AVOID list; if your candidate is on it, pick a safe substitute and briefly explain the swap in one clause.
+- PROACTIVE SIGNALS above reflect real events since we last spoke — weave ONE into your reply naturally when it fits the user's question. Never dump them as a list.
+- Reference at least 2 specific numbers from the data when available.
 - Identify the biggest win and biggest improvement area.
 - Give one concrete action for today.
-- Keep the response under 180 words unless asked for a full plan.
-- If meal ideas are requested, suggest 2 or 3 options that fit the user's targets.
+- If muscle fatigue is high (>=70%) for any group, recommend recovery for that group and training a different one.
+- Keep replies 60–120 words. Lead with the key numbers and actionable advice. No filler, no pep talks, no restating what the user already knows. Only go longer (up to 200 words) if the user asks for a full plan or detailed breakdown.
+- If meal ideas are requested, suggest 2 or 3 options that fit the user's remaining calories/macros for today.
 - Use the user's actual logged meals when available.
 
 ${profileSection}
 
-${activitySection}
+  sections.push(profileSection)
+  sections.push(memorySection)
+  sections.push(todaySection)
+  sections.push(activitySection)
+  sections.push(nutritionSection)
+  sections.push(workoutsSection)
+  sections.push(bodySection)
+  sections.push(historySection)
+  if (ragContext) sections.push(ragContext)
+  sections.push(`USER QUESTION: ${query}`)
 
 ${nutritionSection}
 
@@ -558,24 +680,35 @@ Deno.serve(async (req) => {
     const needs = classifyQuery(query)
     console.log(`[ai-assistant] Query classified: ${JSON.stringify(needs)}`)
 
-    // Voice mode skips all DB fetches — responses must be ≤20 words and instant.
-    // Data-heavy queries via voice (e.g. "how many calories") get the profile only;
-    // the user can open the chat for deep analysis.
-    const [rpcActivity, rpcNutrition, rpcWorkouts, rpcBodyMetrics, rpcAiHistory] = (!voiceMode && userId)
+    const safeSemanticSearch = async (): Promise<string> => {
+      try {
+        const ragChunks = await semanticSearch(supabase, userId, query)
+        return buildRagContextSection(ragChunks)
+      } catch (err: any) {
+        console.error('[ai-assistant] semantic search failed (non-fatal):', err?.message ?? err)
+        return ''
+      }
+    }
+
+    const [rpcActivity, rpcNutrition, rpcWorkouts, rpcBodyMetrics, rpcAiHistory, memories, pendingEvents, ragContext] = userId
       ? await Promise.all([
           needs.activity ? safeRpc(supabase, 'get_user_full_activity_summary', { p_user_id: userId }) : Promise.resolve(null),
           needs.nutrition ? safeRpc(supabase, 'get_user_nutrition_summary', { p_user_id: userId }) : Promise.resolve(null),
           needs.workout ? safeRpc(supabase, 'get_user_workout_summary', { p_user_id: userId }) : Promise.resolve(null),
           needs.body ? safeRpc(supabase, 'get_user_body_metrics_history', { p_user_id: userId }) : Promise.resolve(null),
           needs.history ? safeRpc(supabase, 'get_user_ai_history', { p_user_id: userId }) : Promise.resolve(null),
+          fetchUserMemory(supabase, userId),
+          fetchPendingYaraEvents(supabase, userId),
+          safeSemanticSearch(),
         ])
-      : [null, null, null, null, null]
+      : [null, null, null, null, null, [] as MemoryRow[], [] as YaraEvent[], '']
 
-    const activity = clientContext?.activity ?? rpcActivity
-    const nutrition = clientContext?.nutrition ?? rpcNutrition
-    const workouts = clientContext?.workouts ?? rpcWorkouts
-    const bodyMetrics = clientContext?.bodyMetrics ?? rpcBodyMetrics
-    const aiHistory = clientContext?.aiHistory ?? rpcAiHistory
+    const activity = rpcActivity ?? clientContext?.activity ?? null
+    const nutrition = rpcNutrition ?? clientContext?.nutrition ?? null
+    const workouts = rpcWorkouts ?? clientContext?.workouts ?? null
+    const bodyMetrics = rpcBodyMetrics ?? clientContext?.bodyMetrics ?? null
+    const aiHistory = rpcAiHistory ?? clientContext?.aiHistory ?? null
+    const today = clientContext?.today ?? null
 
     if (!GROQ_KEY) {
       return jsonResponse({
@@ -585,11 +718,10 @@ Deno.serve(async (req) => {
       })
     }
 
-    const prompt = buildPrompt(profile, activity, nutrition, workouts, bodyMetrics, aiHistory, query, voiceMode)
-    // Voice mode: use the 8B instant model — fast enough for real-time speech.
-    // Chat mode: use 70B for deeper, higher-quality coaching answers.
-    const llmModel    = voiceMode ? 'llama-3.1-8b-instant'    : 'llama-3.3-70b-versatile'
-    const llmMaxTok   = voiceMode ? 100                        : 400
+    const prompt = buildPrompt(
+      profile, today, activity, nutrition, workouts, bodyMetrics, aiHistory,
+      memories ?? [], pendingEvents ?? [], query, voiceMode, ragContext,
+    )
     const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {

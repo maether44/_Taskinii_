@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { callAriaCoach }               from '../lib/groqAPI';
+import { callYaraCoach }               from '../lib/groqAPI';
 import { getChatHistory, saveMessage } from '../services/chatService';
 import { useAuth }                     from '../context/AuthContext';
 
@@ -68,7 +68,7 @@ export function useAlexiChat(profile) {
     if (user) await saveMessage(user.id, 'user', msg).catch(console.error);
 
     try {
-      const reply = await callAriaCoach(apiHistory.current, profile, null);
+      const reply = await callYaraCoach(apiHistory.current, profile, null);
       apiHistory.current = [...apiHistory.current, { role: 'assistant', content: reply }];
 
       // Save Alexi's reply to DB

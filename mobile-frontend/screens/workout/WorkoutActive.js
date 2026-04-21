@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { FS } from '../../constants/typography';
 import {
@@ -218,7 +219,7 @@ function HelpOverlay({ visible, exerciseKey, onClose }) {
       slideY.value  = withSpring(300, { damping: 20, stiffness: 260 });
       opacity.value = withSpring(0,   { damping: 20, stiffness: 260 });
     }
-  }, [visible]);
+  }, [visible, slideY, opacity]);
 
   const cardStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: slideY.value }],
@@ -320,6 +321,13 @@ export default function WorkoutActive({ route, navigation }) {
   const htmlKey     = isPostureMode ? 'posture_check' : resolveHtmlKey(rawKey);
   const displayName = isPostureMode ? 'POSTURE SCAN' : rawKey.replace(/_/g, ' ').toUpperCase();
 
+  // ── Circuit flow ────────────────────────────────────────────
+  const circuit      = route.params?.circuit || null;
+  const circuitIndex = route.params?.circuitIndex ?? 0;
+  const hasNext      = circuit && circuitIndex < circuit.length - 1;
+  const circuitTotal = circuit?.length || 0;
+  const circuitPos   = circuitIndex + 1;
+
   // ── Refs ────────────────────────────────────────────────────
   const webViewRef        = useRef(null);
   const demoWebViewRef    = useRef(null);
@@ -377,6 +385,11 @@ export default function WorkoutActive({ route, navigation }) {
   const [isHelpVisible,   setIsHelpVisible]  = useState(false);
   // Whether SpeechRecognition is supported in this WebView
   const [srSupported,     setSrSupported]    = useState(true);
+  // ── Rest timer between circuit exercises ────────────────────
+  const [showRest,        setShowRest]       = useState(false);
+  const [restSecs,        setRestSecs]       = useState(0);
+  const restIntervalRef = useRef(null);
+  const REST_DURATION = 60;
 
   // ── Global Alexi passive loop — pause immediately, resume after camera releases ─
   // Pausing prevents Alexi's recorder racing the WebView camera init (iOS only
@@ -398,13 +411,15 @@ export default function WorkoutActive({ route, navigation }) {
 
   // ── Cleanup on unmount ──────────────────────────────────────
   useEffect(() => {
+    const wv = webViewRef.current;
     return () => {
       isMountedRef.current    = false;
       pulseLoopActive.current = false;
       clearInterval(timerIntervalRef.current);
+      clearInterval(restIntervalRef.current);
       clearTimeout(tapTimerRef.current);
-      // Tell the WebView to stop speech recognition to save battery
-      webViewRef.current?.injectJavaScript(
+      Speech.stop().catch(() => {});
+      wv?.injectJavaScript(
         'if(window.onRNMessage) window.onRNMessage(\'{"type":"STOP_VOICE"}\'); true;'
       );
     };
@@ -552,7 +567,7 @@ export default function WorkoutActive({ route, navigation }) {
     };
 
     showStep();
-  }, [countScaleAnim, countOpacityAnim]);
+  }, [countScaleAnim, countOpacityAnim, speakYara, cameraAlpha]);
 
   useEffect(() => { startCountdown(); }, [startCountdown]);
 
@@ -729,17 +744,23 @@ export default function WorkoutActive({ route, navigation }) {
             }
           }
 
-          navigation.replace('WorkoutSummary', {
-            exerciseName: displayName,
-            repCount:     msg.reps,
-            formScore:    avgFormScore,
-            elapsed,
-            sessionId,
-          });
+          if (hasNext) {
+            startRestTimer();
+          } else {
+            navigation.replace('WorkoutSummary', {
+              exerciseName: displayName,
+              repCount:     msg.reps,
+              formScore:    avgFormScore,
+              elapsed,
+              sessionId,
+              circuit,
+              circuitIndex,
+            });
+          }
         })();
       }
     } catch (_) {}
-  }, [navigation, displayName, htmlKey, rawKey, user, updateSync, syncScaleAnim]);
+  }, [navigation, displayName, htmlKey, rawKey, user, speakYara, updateSync, syncScaleAnim, hasNext, startRestTimer, circuit, circuitIndex, isPostureMode]);
 
   const handleFinish = useCallback(() => {
     webViewRef.current?.injectJavaScript('if (window.getSessionState) window.getSessionState(); true;');
@@ -760,6 +781,35 @@ export default function WorkoutActive({ route, navigation }) {
       }, 800);
     }
   }, [isCountingDown]);
+
+  // ── Circuit: advance to next exercise ──────────────────────
+  const advanceToNext = useCallback(() => {
+    if (!hasNext || !circuit) return;
+    clearInterval(restIntervalRef.current);
+    setShowRest(false);
+    const nextEx = circuit[circuitIndex + 1];
+    navigation.replace('WorkoutActive', {
+      exerciseName: nextEx.key,
+      circuit,
+      circuitIndex: circuitIndex + 1,
+    });
+  }, [hasNext, circuit, circuitIndex, navigation]);
+
+  const startRestTimer = useCallback(() => {
+    setRestSecs(REST_DURATION);
+    setShowRest(true);
+    speakYara('Great work! Rest up. Next exercise coming soon.');
+    restIntervalRef.current = setInterval(() => {
+      setRestSecs(prev => {
+        if (prev <= 1) {
+          clearInterval(restIntervalRef.current);
+          advanceToNext();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }, [REST_DURATION, speakYara, advanceToNext]);
 
   // ── Unsupported / No permission screens ────────────────────
   if (htmlKey === null && !isPostureMode) {
@@ -842,6 +892,15 @@ export default function WorkoutActive({ route, navigation }) {
             <Text style={s.liveTimer}>{formatTimer(timerSecs)}</Text>
           </BlurView>
 
+          {/* Circuit progress pill */}
+          {circuit && (
+            <BlurView intensity={30} tint="dark" style={s.circuitPill}>
+              <Ionicons name="list-outline" size={11} color="#C8F135" />
+              <Text style={s.circuitPillTxt}>{circuitPos}/{circuitTotal}</Text>
+              {hasNext && <Text style={s.circuitPillNext}>Next: {circuit[circuitIndex + 1]?.name}</Text>}
+            </BlurView>
+          )}
+
           {/* Top-right: Neon Lime mic button → opens HelpOverlay (tap fallback + voice) */}
           <TouchableOpacity
             style={s.micGuideBtn}
@@ -854,6 +913,13 @@ export default function WorkoutActive({ route, navigation }) {
               <Ionicons name="mic" size={18} color="#000" />
             </Animated.View>
           </TouchableOpacity>
+
+          {/* Top-right below mic: Hologram Guide button */}
+          {!isPostureMode && (
+            <TouchableOpacity style={s.guideBtn} onPress={showGuide} activeOpacity={0.8}>
+              <Ionicons name="body-outline" size={16} color="#7C5CFC" />
+            </TouchableOpacity>
+          )}
 
           {/* Center-top: Rep bubble (Lime) + Form bubble (Violet) */}
           <View style={s.centerStats} pointerEvents="none">
@@ -1020,6 +1086,39 @@ export default function WorkoutActive({ route, navigation }) {
           </TouchableOpacity>
         </View>
       )}
+
+      {/* ══ REST TIMER OVERLAY (between circuit exercises) ══════ */}
+      {showRest && circuit && (
+        <View style={s.restOverlay}>
+          <Text style={s.restLabel}>REST</Text>
+          <Text style={s.restTimer}>{restSecs}</Text>
+
+          {/* Progress dots */}
+          <View style={s.restProgress}>
+            {circuit.map((_, i) => (
+              <View key={i} style={[
+                s.restDot,
+                i < circuitIndex + 1 && s.restDotDone,
+                i === circuitIndex + 1 && s.restDotActive,
+              ]} />
+            ))}
+          </View>
+
+          {/* Next exercise preview */}
+          {hasNext && (
+            <>
+              <Text style={s.restExLabel}>UP NEXT</Text>
+              <Text style={s.restExName}>{circuit[circuitIndex + 1]?.name}</Text>
+              <Text style={s.restExTarget}>{circuit[circuitIndex + 1]?.target} · {circuit[circuitIndex + 1]?.sets}</Text>
+            </>
+          )}
+
+          <TouchableOpacity style={s.restSkipBtn} onPress={advanceToNext} activeOpacity={0.8}>
+            <Ionicons name="play" size={14} color="#C8F135" />
+            <Text style={s.restSkipTxt}>Skip Rest</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 }
@@ -1047,6 +1146,40 @@ const s = StyleSheet.create({
   liveLabel: { color: '#FFF', fontSize: FS.label, fontWeight: '900', letterSpacing: 0.8 },
   liveTimer: { color: 'rgba(255,255,255,0.45)', fontSize: FS.label, fontWeight: '700', letterSpacing: 2, marginLeft: 10, fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace' },
 
+  // ── Circuit progress pill ──────────────────────────────────────
+  circuitPill: {
+    position: 'absolute', top: 88, left: 16,
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    borderRadius: 14, overflow: 'hidden',
+    paddingHorizontal: 10, paddingVertical: 5,
+    zIndex: 40,
+  },
+  circuitPillTxt:  { color: '#C8F135', fontSize: 10, fontWeight: '900' },
+  circuitPillNext: { color: 'rgba(255,255,255,0.4)', fontSize: 9, fontWeight: '600', marginLeft: 2 },
+
+  // ── Rest timer overlay ─────────────────────────────────────────
+  restOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(15,11,30,0.96)',
+    alignItems: 'center', justifyContent: 'center',
+    zIndex: 500,
+  },
+  restLabel:     { color: 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: '900', letterSpacing: 2, marginBottom: 8 },
+  restTimer:     { color: '#C8F135', fontSize: 72, fontWeight: '900', letterSpacing: -2 },
+  restExLabel:   { color: 'rgba(255,255,255,0.5)', fontSize: 10, fontWeight: '800', letterSpacing: 1.5, marginTop: 32 },
+  restExName:    { color: '#FFFFFF', fontSize: 22, fontWeight: '900', marginTop: 6 },
+  restExTarget:  { color: 'rgba(255,255,255,0.4)', fontSize: 12, marginTop: 4 },
+  restSkipBtn:   {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: 'rgba(200,241,53,0.12)', borderWidth: 1, borderColor: 'rgba(200,241,53,0.3)',
+    borderRadius: 14, paddingHorizontal: 20, paddingVertical: 12, marginTop: 40,
+  },
+  restSkipTxt:   { color: '#C8F135', fontSize: 13, fontWeight: '800' },
+  restProgress:  { flexDirection: 'row', gap: 6, marginTop: 24 },
+  restDot:       { width: 8, height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.15)' },
+  restDotDone:   { backgroundColor: '#C8F135' },
+  restDotActive: { backgroundColor: '#7C5CFC', width: 20, borderRadius: 4 },
+
   // ── Top-right: Neon Lime mic button ──────────────────────────
   micGuideBtn: {
     position: 'absolute', top: 48, right: 16,
@@ -1054,6 +1187,15 @@ const s = StyleSheet.create({
     backgroundColor: '#C8F135',
     alignItems: 'center', justifyContent: 'center',
     shadowColor: '#C8F135', shadowOpacity: 0.55, shadowRadius: 16,
+    shadowOffset: { width: 0, height: 0 },
+    zIndex: 40,
+  },
+  guideBtn: {
+    position: 'absolute', top: 100, right: 20,
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: 'rgba(124,92,252,0.25)',
+    borderWidth: 1, borderColor: 'rgba(124,92,252,0.4)',
+    alignItems: 'center', justifyContent: 'center',
     shadowOffset: { width: 0, height: 0 },
     zIndex: 40,
   },

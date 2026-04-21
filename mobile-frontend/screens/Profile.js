@@ -4,9 +4,6 @@ import { supabase } from '../lib/supabase';
 import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { calcMacroTargets, normalizeGoal } from '../lib/calculations';
 import { useAlexiVoice } from '../context/AlexiVoiceContext';
-import ThemeToggle from '../components/ThemeToggle';
-import { useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
 
 const C = {
   bg:'#0F0B1E', card:'#161230', border:'#1E1A35',
@@ -92,7 +89,6 @@ function Row({ label, value, color }) {
 export default function Profile({ navigate, replayTour }) {
   const { signOut, user: authUser } = useAuth();
   const { isMuted, setMutedState } = useAlexiVoice();
-  const navigation = useNavigation();
   const [profile, setProfile] = useState(null);
   const [calorieTarget, setCalorieTarget] = useState(null);
   const [proteinTarget, setProteinTarget] = useState(null);
@@ -283,15 +279,7 @@ export default function Profile({ navigate, replayTour }) {
     <View style={s.root}>
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
-        <View style={s.header}>
-          <Text style={s.title}>Profile</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <ThemeToggle />
-            <Pressable onPress={() => navigation.navigate('Settings')} hitSlop={8}>
-              <Ionicons name="settings-outline" size={22} color={C.sub} />
-            </Pressable>
-          </View>
-        </View>
+        <View style={s.header}><Text style={s.title}>Profile</Text></View>
 
         <View style={s.profileCard}>
           <View style={s.avatarCircle}>
@@ -579,7 +567,7 @@ export default function Profile({ navigate, replayTour }) {
 const s = StyleSheet.create({
   root:   { flex:1, backgroundColor:C.bg },
   scroll: { paddingHorizontal:16, paddingTop:52, paddingBottom:20 },
-  header: { marginBottom:20, flexDirection:'row', alignItems:'center', justifyContent:'space-between' },
+  header: { marginBottom:20 },
   title:  { color:C.text, fontSize:26, fontWeight:'800', letterSpacing:-0.5 },
   profileCard:  { backgroundColor:C.card, borderRadius:20, padding:18, marginBottom:14, borderWidth:1, borderColor:C.border, flexDirection:'row', alignItems:'center', gap:16 },
   avatarCircle: { width:64, height:64, borderRadius:32, backgroundColor:C.purple, alignItems:'center', justifyContent:'center', borderWidth:2, borderColor:C.accent },

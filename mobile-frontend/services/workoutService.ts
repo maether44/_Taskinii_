@@ -1,5 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { warn } from '../lib/logger';
+import { refreshAfterWorkout } from './embeddingService';
+
 // ── Exercise key (HTML camelCase) → muscles worked ────────────
 const EXERCISE_MUSCLES: Record<string, string[]> = {
   squat: ['Quads', 'Glutes', 'Hamstrings'],
@@ -95,6 +97,7 @@ export const saveWorkoutSession = async ({
     );
   }
 
+  refreshAfterWorkout(userId);
   return data?.id ?? null;
 };
 
@@ -113,43 +116,39 @@ export const getMuscleFatigue = async (userId: string) => {
   return (data ?? []) as { muscle_name: string; fatigue_pct: number }[];
 };
 
-// ── Fetch workout history with exercises joined ───────────────
+// ── Fetch workout history for a user ─────────────────────────
 export const fetchWorkoutHistory = async (userId: string, limit = 50) => {
-  try {
-    const { data: sessions, error } = await supabase
-      .from('workout_sessions')
-      .select(
-        `
+  const { data, error } = await supabase
+    .from('workout_sessions')
+    .select(`
+      id,
+      started_at,
+      ended_at,
+      calories_burned,
+      notes,
+      created_at,
+      workout_exercises (
         id,
-        started_at,
-        ended_at,
-        calories_burned,
-        notes,
-        created_at,
-        workout_exercises (
+        sets,
+        reps,
+        weight_kg,
+        duration_secs,
+        posture_score,
+        exercises (
           id,
-          sets,
-          reps,
-          weight_kg,
-          duration_secs,
-          posture_score,
-          exercises (
-            id,
-            name,
-            category,
-            muscle_group
-          )
+          name,
+          category,
+          muscle_group
         )
-      `,
       )
-      .eq('user_id', userId)
-      .order('started_at', { ascending: false })
-      .limit(limit);
+    `)
+    .eq('user_id', userId)
+    .order('started_at', { ascending: false })
+    .limit(limit);
 
-    if (error) throw error;
-    return sessions ?? [];
-  } catch (err: any) {
-    warn('[workoutService] fetchWorkoutHistory error:', err.message);
+  if (error) {
+    warn('[BodyQ] fetchWorkoutHistory error:', error.message);
     return [];
   }
+  return data ?? [];
 };
