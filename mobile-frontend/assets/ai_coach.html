@@ -1562,7 +1562,9 @@ document.addEventListener('visibilitychange', () => {
       if (!result.isFinal) continue;
       // Lower confidence threshold to 0.5 — mobile mics are noisier
       if (result[0].confidence < 0.5) continue;
-      const t = result[0].transcript.toLowerCase().trim();
+      const raw = result[0].transcript.toLowerCase().trim();
+      // Strip "Aria" / "Hey Aria" wake-word prefix before matching commands
+      const t = raw.replace(/^(?:hey\s+)?aria[,.]?\s*/, '');
       if (t.includes('show me how to move') || t.includes('show me how') || t.includes('how to move') || t.includes('help')) {
         postCmd('OPEN_HELP');
       } else if (t.includes('close') || t.includes('back to workout') || t.includes('hide') || t.includes('dismiss')) {

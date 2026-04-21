@@ -1,31 +1,18 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  Image,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import motivationalQuotes from '../data/motivationalQuotes.json';
-import TodayScheduleWidget from '../components/home/TodayScheduleWidget';
 
-import useNotification from '../hooks/useNotification';
 import { useDashboard } from '../hooks/useDashboard';
+import { useShakySteps } from '../hooks/useShakySteps';
 import WaterTracker from '../components/home/WaterTracker';
 import { COLORS } from '../constants/colors';
 import { FS } from '../constants/typography';
 import { supabase } from '../lib/supabase';
-import { getLocalAvatarForUser } from '../lib/avatar';
-import { useAuth } from '../context/AuthContext';
-const NOTIFICATION_PREFS_KEY = 'bodyq_notification_prefs';
+import { AlexiEvents } from '../context/AlexiVoiceContext';
 
 // ─── Level 5 Bento Components ───────────────────────────────────────────────
 
@@ -39,85 +26,35 @@ const BentoCard = ({ children, style, delay = 0 }) => (
 );
 
 export default function Home({ navigation }) {
-  const { isLoading, error, user, stats, logWater, logSleep, refresh, yaraInsight, muscleFatigue } =
-    useDashboard();
-  const { profileAvatarUri } = useAuth();
-  const totalSteps = stats?.steps || 0;
+  const { isLoading, error, user, stats, logWater, logSleep, refresh, yaraInsight, muscleFatigue } = useDashboard();
+  const { steps: liveSteps } = useShakySteps(user?.id);
+  const totalSteps = (stats?.steps || 0) + liveSteps;
   const [displayCal, setDisplayCal] = useState(0);
   const [lastSession, setLastSession] = useState(null);
-  const [headerAvatarUri, setHeaderAvatarUri] = useState(null);
-  const [quoteOfTheDay, setQuoteOfTheDay] = useState('');
-  const [notificationPrefs, setNotificationPrefs] = useState({
-    workout: true,
-    water: true,
-    meal: false,
-  });
 
-  const authUserId = useAuth().user?.id;
-
+  // ── Alexi voice updates — refresh dashboard instantly when voice logs data ────
   useEffect(() => {
-    let mounted = true;
-
-    const loadNotificationPrefs = async () => {
-      try {
-        const stored = await AsyncStorage.getItem(NOTIFICATION_PREFS_KEY);
-        if (!mounted || !stored) return;
-
-        const parsed = JSON.parse(stored);
-        setNotificationPrefs({
-          workout: parsed.workout ?? true,
-          water: parsed.water ?? true,
-          meal: parsed.meal ?? false,
-        });
-      } catch {
-        // Keep defaults if preference columns are not available.
-      }
-    };
-
-    loadNotificationPrefs();
-    return () => {
-      mounted = false;
-    };
-  }, [authUserId]);
-
-  useNotification(stats?.water?.current ?? 0, stats?.water?.target ?? 2000, notificationPrefs);
+    const off = AlexiEvents.on('dataUpdated', () => refresh());
+    return off;
+  }, [refresh]);
 
   useFocusEffect(
     useCallback(() => {
       refresh();
-      if (!authUserId) return;
       (async () => {
-        const localAvatar = await getLocalAvatarForUser(authUserId).catch(() => null);
-        setHeaderAvatarUri(localAvatar);
+        const { data: { user: u } } = await supabase.auth.getUser();
+        if (!u) return;
         const { data } = await supabase
           .from('workout_sessions')
           .select('notes, calories_burned, started_at')
-          .eq('user_id', authUserId)
+          .eq('user_id', u.id)
           .order('started_at', { ascending: false })
           .limit(1)
           .maybeSingle();
         setLastSession(data ?? null);
       })();
-    }, [refresh, authUserId]),
+    }, [refresh])
   );
-
-  // ── Motivational quote: one per day ───────────────────────────────────
-  useEffect(() => {
-    const loadQuote = async () => {
-      const today = new Date();
-      const key = `motivation-quote-${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`;
-      const stored = await AsyncStorage.getItem(key);
-      if (stored) {
-        setQuoteOfTheDay(stored);
-      } else {
-        const idx = Math.floor(Math.random() * motivationalQuotes.length);
-        const quote = motivationalQuotes[idx];
-        await AsyncStorage.setItem(key, quote);
-        setQuoteOfTheDay(quote);
-      }
-    };
-    loadQuote();
-  }, []);
 
   // Count-up effect for calories — only runs once data is ready
   useEffect(() => {
@@ -127,12 +64,8 @@ export default function Home({ navigation }) {
     const increment = end / (1000 / 16);
     const timer = setInterval(() => {
       start += increment;
-      if (start >= end) {
-        setDisplayCal(Math.floor(end));
-        clearInterval(timer);
-      } else {
-        setDisplayCal(Math.floor(start));
-      }
+      if (start >= end) { setDisplayCal(Math.floor(end)); clearInterval(timer); }
+      else { setDisplayCal(Math.floor(start)); }
     }, 16);
     return () => clearInterval(timer);
   }, [isLoading, error, stats?.calories?.remaining]);
@@ -160,39 +93,30 @@ export default function Home({ navigation }) {
   return (
     <View style={styles.root}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+
         {/* 1. TOP HEADER SECTION */}
         <View style={styles.header}>
           <View>
             <Text style={styles.greeting}>Hey {user.name} 👋</Text>
-            <Text style={styles.subGreeting}>
-              Let's hit your {user.goal?.replace('_', ' ')} goal.
-            </Text>
+            <Text style={styles.subGreeting}>Let's hit your {user.goal?.replace('_', ' ')} goal.</Text>
           </View>
           <Pressable style={styles.avatar} onPress={() => navigation.navigate('Profile')}>
-            {profileAvatarUri || headerAvatarUri || user.avatar_url ? (
-              <Image
-                source={{ uri: profileAvatarUri || headerAvatarUri || user.avatar_url }}
-                style={styles.avatarImg}
-              />
-            ) : (
-              <Text style={styles.avatarTxt}>{user.name?.charAt(0)}</Text>
-            )}
+            <Text style={styles.avatarTxt}>{user.name?.charAt(0)}</Text>
           </Pressable>
         </View>
 
-        {/* 2. DAILY MOTIVATIONAL QUOTE (Glow Card) */}
+        {/* 2. YARA AI INSIGHT (Glow Card) */}
         <BentoCard delay={100}>
           <LinearGradient
             colors={['#7C5CFC', '#4A2FC8']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
+            start={{x: 0, y: 0}} end={{x: 1, y: 1}}
             style={styles.aiCard}
           >
             <View style={styles.aiHeader}>
-              <Text style={styles.aiTitle}>DAILY MOTIVATION</Text>
+              <Text style={styles.aiTitle}>YARA COACH</Text>
               <View style={styles.liveDot} />
             </View>
-            <Text style={styles.aiText}>"{quoteOfTheDay}"</Text>
+            <Text style={styles.aiText}>"{yaraInsight}"</Text>
           </LinearGradient>
         </BentoCard>
 
@@ -203,9 +127,9 @@ export default function Home({ navigation }) {
             <Text style={styles.cardLabel}>CALORIES LEFT</Text>
             <Text style={styles.bigCal}>{displayCal}</Text>
             <View style={styles.calRow}>
-              <Text style={styles.calSub}>Eaten: {stats.calories.eaten}</Text>
-              <View style={styles.dividerV} />
-              <Text style={styles.calSub}>Goal: {stats.calories.target}</Text>
+               <Text style={styles.calSub}>Eaten: {stats.calories.eaten}</Text>
+               <View style={styles.dividerV} />
+               <Text style={styles.calSub}>Goal: {stats.calories.target}</Text>
             </View>
             {stats.calories.burned > 0 && (
               <Text style={styles.calBurned}>🔥 Burned: {stats.calories.burned} kcal</Text>
@@ -233,37 +157,15 @@ export default function Home({ navigation }) {
           {/* Macro Block (Right side) */}
           <View style={styles.macroColumn}>
             <BentoCard style={styles.macroSmallCard} delay={300}>
-              <Text style={[styles.macroLabel, { color: COLORS.lime }]}>PROTEIN</Text>
-              <Text style={styles.macroVal}>
-                {stats.macros.protein.current} / {stats.macros.protein.target}g
-              </Text>
-              <View style={styles.barContainer}>
-                <View
-                  style={[
-                    styles.barFill,
-                    {
-                      width: `${(stats.macros.protein.current / stats.macros.protein.target) * 100}%`,
-                      backgroundColor: COLORS.lime,
-                    },
-                  ]}
-                />
-              </View>
+              <Text style={[styles.macroLabel, {color: COLORS.lime}]}>PROTEIN</Text>
+              <Text style={styles.macroVal}>{stats.macros.protein.current} / {stats.macros.protein.target}g</Text>
+              <View style={styles.barContainer}><View style={[styles.barFill, {width: `${(stats.macros.protein.current / stats.macros.protein.target) * 100}%`, backgroundColor: COLORS.lime}]} /></View>
             </BentoCard>
 
             <BentoCard style={styles.macroSmallCard} delay={400}>
-              <Text style={[styles.macroLabel, { color: '#378ADD' }]}>CARBS</Text>
+              <Text style={[styles.macroLabel, {color: '#378ADD'}]}>CARBS</Text>
               <Text style={styles.macroVal}>{stats.macros.carbs.current}g</Text>
-              <View style={styles.barContainer}>
-                <View
-                  style={[
-                    styles.barFill,
-                    {
-                      width: `${(stats.macros.carbs.current / stats.macros.carbs.target) * 100}%`,
-                      backgroundColor: '#378ADD',
-                    },
-                  ]}
-                />
-              </View>
+              <View style={styles.barContainer}><View style={[styles.barFill, {width: `${(stats.macros.carbs.current / stats.macros.carbs.target) * 100}%`, backgroundColor: '#378ADD'}]} /></View>
             </BentoCard>
           </View>
         </View>
@@ -274,19 +176,9 @@ export default function Home({ navigation }) {
             <Text style={styles.cardLabel}>👟 STEPS</Text>
             <Text style={styles.statNum}>{totalSteps.toLocaleString()}</Text>
             <View style={styles.miniBarBg}>
-              <View
-                style={[
-                  styles.miniBarFill,
-                  {
-                    width: `${Math.min((totalSteps / (stats.stepsTarget || 10000)) * 100, 100)}%`,
-                    backgroundColor: COLORS.lime,
-                  },
-                ]}
-              />
+              <View style={[styles.miniBarFill, { width: `${Math.min((totalSteps / 10000) * 100, 100)}%`, backgroundColor: COLORS.lime }]} />
             </View>
-            <Text style={styles.smallSub}>
-              goal {(stats.stepsTarget || 10000).toLocaleString()}
-            </Text>
+            <Text style={styles.smallSub}>goal 10,000</Text>
           </BentoCard>
 
           <BentoCard style={styles.halfCard} delay={600}>
@@ -313,38 +205,17 @@ export default function Home({ navigation }) {
             <Text style={styles.cardLabel}>MUSCLE FATIGUE</Text>
             {muscleFatigue.slice(0, 3).map((m) => (
               <View key={m.muscle_name} style={{ marginBottom: 8 }}>
-                <View
-                  style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}
-                >
-                  <Text style={{ color: '#FFF', fontSize: 12, fontWeight: '700' }}>
-                    {m.muscle_name}
-                  </Text>
-                  <Text
-                    style={{
-                      color: m.fatigue_pct >= 70 ? '#FF9500' : '#C8F135',
-                      fontSize: 12,
-                      fontWeight: '800',
-                    }}
-                  >
-                    {m.fatigue_pct}%
-                  </Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
+                  <Text style={{ color: '#FFF', fontSize: 12, fontWeight: '700' }}>{m.muscle_name}</Text>
+                  <Text style={{ color: m.fatigue_pct >= 70 ? '#FF9500' : '#C8F135', fontSize: 12, fontWeight: '800' }}>{m.fatigue_pct}%</Text>
                 </View>
                 <View style={styles.barContainer}>
-                  <View
-                    style={[
-                      styles.barFill,
-                      {
-                        width: `${m.fatigue_pct}%`,
-                        backgroundColor: m.fatigue_pct >= 70 ? '#FF9500' : '#C8F135',
-                      },
-                    ]}
-                  />
+                  <View style={[styles.barFill, { width: `${m.fatigue_pct}%`, backgroundColor: m.fatigue_pct >= 70 ? '#FF9500' : '#C8F135' }]} />
                 </View>
               </View>
             ))}
           </BentoCard>
         )}
-              <TodayScheduleWidget navigation={navigation} />
 
         {/* 6. LAST SESSION / GO TRAIN */}
         <BentoCard delay={700} style={styles.workoutCard}>
@@ -369,14 +240,17 @@ export default function Home({ navigation }) {
                 </>
               )}
             </View>
-            <Pressable style={styles.playBtn} onPress={() => navigation.navigate('Training')}>
+            <Pressable
+              style={styles.playBtn}
+              onPress={() => navigation.navigate('Training')}
+            >
               <Ionicons name="play" size={24} color="#000" />
             </Pressable>
           </View>
         </BentoCard>
 
-        {/* Full Water Tracking Cups (The part you specifically wanted) */}
-        <View style={{ marginTop: 20 }}>
+        {/* Full Water Tracking Cups */}
+        <View style={{marginTop: 20}}>
           <WaterTracker
             waterMl={stats.water.current}
             waterGoalMl={stats.water.target}
@@ -384,7 +258,7 @@ export default function Home({ navigation }) {
           />
         </View>
 
-        <View style={{ height: 100 }} />
+        <View style={{height: 100}} />
       </ScrollView>
     </View>
   );
@@ -393,6 +267,7 @@ export default function Home({ navigation }) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#0F0B1E' },
   scroll: { paddingHorizontal: 16, paddingTop: 60 },
+
   loadingRoot: {
     flex: 1,
     backgroundColor: '#0F0B1E',
@@ -423,20 +298,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#7C5CFC',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWeight: 2,
+    borderWidth: 2,
     borderColor: '#C8F135',
   },
   avatarImg: { width: '100%', height: '100%', borderRadius: 22 },
   avatarTxt: { color: '#FFF', fontSize: FS.cardTitle, fontWeight: 'bold' },
 
-  cardBase: {
-    backgroundColor: '#161230',
-    borderRadius: 24,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#1E1A35',
-    marginBottom: 12,
-  },
+  cardBase: { backgroundColor: '#161230', borderRadius: 24, padding: 20, borderWidth: 1, borderColor: '#1E1A35', marginBottom: 12 },
 
   aiCard: { borderRadius: 24, padding: 20 },
   aiHeader: {

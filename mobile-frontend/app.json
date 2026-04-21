@@ -25,7 +25,11 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "permissions": ["android.permission.ACTIVITY_RECOGNITION", "CAMERA", "RECORD_AUDIO"],
+      "permissions": [
+        "android.permission.ACTIVITY_RECOGNITION",
+        "CAMERA",
+        "RECORD_AUDIO"
+      ],
       "edgeToEdgeEnabled": true
     },
     "web": {
@@ -45,6 +49,8 @@
         }
       ],
       "expo-asset",
+      "@react-native-voice/voice",
+      "expo-audio",
       "@react-native-community/datetimepicker"
     ],
     "extra": {}

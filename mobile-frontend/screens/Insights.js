@@ -21,9 +21,8 @@ import { FS } from '../constants/typography';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useInsights } from '../hooks/useInsights';
-import { generateAndCacheInsights } from '../services/yaraInsightsService';
-import { AppEvents, on } from '../lib/eventBus';
-import { error as logError } from '../lib/logger';
+import { generateAndCacheInsights } from '../services/alexiInsightsService';
+import { AlexiEvents } from '../context/AlexiVoiceContext';
 
 const PERIODS = ['Week', 'Month', '3 Months'];
 
@@ -78,15 +77,9 @@ export default function Insights() {
 
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
-  // Auto-refresh when user logs activity elsewhere in the app
   useEffect(() => {
-    const unsubs = [
-      on(AppEvents.WORKOUT_COMPLETED, refresh),
-      on(AppEvents.MEAL_LOGGED,       refresh),
-      on(AppEvents.WATER_LOGGED,      refresh),
-      on(AppEvents.SLEEP_LOGGED,      refresh),
-    ];
-    return () => unsubs.forEach(fn => fn());
+    const off = AlexiEvents.on('dataUpdated', () => refresh());
+    return off;
   }, [refresh]);
 
   const [aiInsights,      setAiInsights]      = useState([]);
@@ -102,7 +95,7 @@ export default function Insights() {
     setInsightsLoading(true);
     generateAndCacheInsights(userId, rawStats, period)
       .then(cards => setAiInsights(cards ?? []))
-      .catch(err  => logError('[Insights] AI cards error:', err))
+      .catch(err  => console.error('[Insights] AI cards error:', err))
       .finally(() => setInsightsLoading(false));
   }, [isLoading, period, userId]);
 

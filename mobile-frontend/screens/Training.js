@@ -1303,6 +1303,71 @@ export default function Training({ navigation }) {
           </View>
         </Reanimated.View>
 
+        {/* ══════════════════════════════════════
+            §5  ACTIVE GAMES
+        ══════════════════════════════════════ */}
+        <Reanimated.View entering={FadeInDown.delay(310).springify()}>
+          <SectionHeader title="ACTIVE GAMES" sub="Train while you play" />
+
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => navigation.navigate('FlappyBirdGame')}
+          >
+            <LinearGradient
+              colors={['#1A1040', '#0F0B1E']}
+              style={[s.gameCard, SHADOW]}
+            >
+              {/* Lime top accent */}
+              <View style={s.gameAccent} />
+
+              <View style={s.gameInner}>
+                {/* Icon */}
+                <View style={s.gameIconWrap}>
+                  <Ionicons name="game-controller-outline" size={30} color={C.lime} />
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <View style={s.gameBadgeRow}>
+                    <View style={s.gameBadge}>
+                      <Ionicons name="sparkles" size={9} color={C.lime} />
+                      <Text style={s.gameBadgeTxt}>  AI POSE CONTROL</Text>
+                    </View>
+                    <View style={[s.gameBadge, { borderColor: 'rgba(124,92,252,0.4)', backgroundColor: 'rgba(124,92,252,0.1)' }]}>
+                      <Text style={[s.gameBadgeTxt, { color: C.accent }]}>NEW</Text>
+                    </View>
+                  </View>
+
+                  <Text style={s.gameTitle}>BodyQ Flap</Text>
+                  <Text style={s.gameSub}>
+                    Raise your arm to flap · Beat your high score
+                  </Text>
+
+                  <View style={s.gameMetaRow}>
+                    {[
+                      { icon: 'body-outline',      label: 'Arm Raises' },
+                      { icon: 'camera-outline',    label: 'Pose AI' },
+                      { icon: 'trophy-outline',    label: 'High Score' },
+                    ].map((m, i) => (
+                      <View key={i} style={s.gameMeta}>
+                        <Ionicons name={m.icon} size={10} color="rgba(255,255,255,0.5)" />
+                        <Text style={s.gameMetaTxt}>{m.label}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              </View>
+
+              {/* Play arrow */}
+              <View style={s.gamePlayBtn}>
+                <Ionicons name="play" size={16} color="#000" />
+              </View>
+
+              {/* Border overlay */}
+              <View style={s.gameBorder} pointerEvents="none" />
+            </LinearGradient>
+          </TouchableOpacity>
+        </Reanimated.View>
+
         <View style={{ height: 100 }} />
       </ScrollView>
 
@@ -1655,4 +1720,84 @@ const s = StyleSheet.create({
   labCardSub:   { color: C.sub, fontSize: FS.sub, lineHeight: 16 },
   labArrow: { position: 'absolute', bottom: 14, right: 14, width: 28, height: 28, borderRadius: 14, backgroundColor: C.purple, alignItems: 'center', justifyContent: 'center' },
   labWideInner: { flexDirection: 'row', alignItems: 'center' },
+
+  // ── Active Games ──────────────────────────────────────────
+  gameCard: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  gameAccent: {
+    height: 2,
+    backgroundColor: '#C8F135',
+    marginHorizontal: 32,
+    borderBottomLeftRadius: 2,
+    borderBottomRightRadius: 2,
+    marginBottom: 0,
+    opacity: 0.6,
+  },
+  gameInner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 16,
+    padding: 20,
+    paddingTop: 18,
+  },
+  gameIconWrap: {
+    width: 58,
+    height: 58,
+    borderRadius: 16,
+    backgroundColor: 'rgba(200,241,53,0.09)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(200,241,53,0.25)',
+    marginTop: 2,
+  },
+  gameBadgeRow: { flexDirection: 'row', gap: 6, marginBottom: 10 },
+  gameBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(200,241,53,0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(200,241,53,0.28)',
+  },
+  gameBadgeTxt: { color: '#C8F135', fontSize: 9, fontWeight: '900', letterSpacing: 1 },
+  gameTitle:    { color: '#FFFFFF', fontSize: 22, fontWeight: '900', letterSpacing: -0.3, marginBottom: 4 },
+  gameSub:      { color: 'rgba(255,255,255,0.5)', fontSize: 12, lineHeight: 17, marginBottom: 12 },
+  gameMetaRow:  { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  gameMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  gameMetaTxt:  { color: 'rgba(255,255,255,0.45)', fontSize: 10, fontWeight: '600' },
+  gamePlayBtn: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#C8F135',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#C8F135',
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  gameBorder: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(200,241,53,0.18)',
+  },
 });
