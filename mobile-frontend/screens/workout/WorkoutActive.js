@@ -17,6 +17,8 @@ import { useAuth } from '../../context/AuthContext';
 import { saveWorkoutSession } from '../../services/workoutService';
 import { supabase } from '../../lib/supabase';
 import { useAlexiVoice, AlexiEvents } from '../../context/AlexiVoiceContext';
+import { AppEvents, emit } from '../../lib/eventBus';
+import { error as logError, log } from '../../lib/logger';
 
 const { height: SH } = Dimensions.get('window');
 
