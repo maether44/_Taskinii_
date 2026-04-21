@@ -677,9 +677,6 @@ export default function WorkoutActive({ route, navigation }) {
                 await supabase.from('daily_activity').insert({ user_id: user.id, date: TODAY, calories_burned: newTotal });
               }
             } catch (e) {
-<<<<<<< HEAD
-              console.error('[BodyQ] daily_activity:', e.message);
-=======
               logError('[BodyQ] daily_activity:', e.message);
             }
 
@@ -712,7 +709,6 @@ export default function WorkoutActive({ route, navigation }) {
               }
             } catch (e) {
               logError('[BodyQ] check_achievements exception:', e);
->>>>>>> backup/recovered-2026-04-19
             }
 
             // ── Update muscle fatigue ───────────────────────────
