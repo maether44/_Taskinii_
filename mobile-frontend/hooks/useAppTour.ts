@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Animated } from "react-native";
+import { Animated, Dimensions } from "react-native";
 import { STEPS } from "../constants/tourSteps";
 import { hasTourBeenSeen, markTourSeen } from "../services/tourService";
 import { measureTourRef } from "../components/onBoarding/tourRefs";
@@ -7,7 +7,6 @@ import { measureTourRef } from "../components/onBoarding/tourRefs";
 const PAD = 14;
 const BUBBLE_W = 220;
 const BUBBLE_H = 170;
-import { Dimensions } from "react-native";
 const { width: W, height: H } = Dimensions.get("window");
 
 export function useAppTour({ activeTab, onTabPress, showOnMount }) {

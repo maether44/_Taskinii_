@@ -46,31 +46,47 @@ function buildFallbackMealPlan({ goals, eaten, protein, carbs, fat, mealSections
   const remainingProtein = Math.max((goals?.protein_target || 0) - (protein || 0), 0);
   const remainingCarbs = Math.max((goals?.carbs_target || 0) - (carbs || 0), 0);
   const remainingFat = Math.max((goals?.fat_target || 0) - (fat || 0), 0);
-  const emptyMeals = (mealSections || []).filter((meal) => !meal.logged).map((meal) => meal.label.toLowerCase());
+  const emptyMeals = (mealSections || [])
+    .filter((meal) => !meal.logged)
+    .map((meal) => meal.label.toLowerCase());
   const nextMeals = emptyMeals.length ? emptyMeals.join(", ") : "your next meal";
   const plan = [];
 
   if (remainingProtein > 35) {
-    plan.push(`Protein is the main gap, so make ${nextMeals} center around chicken, tuna, Greek yogurt, eggs, or tofu.`);
+    plan.push(
+      `Protein is the main gap, so make ${nextMeals} center around chicken, tuna, Greek yogurt, eggs, or tofu.`,
+    );
   } else {
-    plan.push("Protein is in a decent place, so keep the next meals balanced instead of over-correcting.");
+    plan.push(
+      "Protein is in a decent place, so keep the next meals balanced instead of over-correcting.",
+    );
   }
 
   if (remainingCalories > 600) {
-    plan.push(`You still have about ${remainingCalories} kcal left, so you can fit a proper meal plus a snack.`);
+    plan.push(
+      `You still have about ${remainingCalories} kcal left, so you can fit a proper meal plus a snack.`,
+    );
   } else if (remainingCalories > 250) {
-    plan.push(`You have about ${remainingCalories} kcal left, so one balanced meal should finish the day well.`);
+    plan.push(
+      `You have about ${remainingCalories} kcal left, so one balanced meal should finish the day well.`,
+    );
   } else {
-    plan.push("Calories are already close to target, so keep the rest of the day light and satisfying.");
+    plan.push(
+      "Calories are already close to target, so keep the rest of the day light and satisfying.",
+    );
   }
 
   if (remainingCarbs > remainingFat) {
     plan.push("Add quality carbs like rice, oats, potatoes, or fruit to keep energy up.");
   } else if (remainingFat > 15) {
-    plan.push("Healthy fats are still low, so avocado, olive oil, nuts, or salmon would balance things nicely.");
+    plan.push(
+      "Healthy fats are still low, so avocado, olive oil, nuts, or salmon would balance things nicely.",
+    );
   }
 
-  plan.push("Fun version: build one easy plate with a protein, one smart carb, and one colorful fruit or vegetable so Alexi has even better data tomorrow.");
+  plan.push(
+    "Fun version: build one easy plate with a protein, one smart carb, and one colorful fruit or vegetable so Alexi has even better data tomorrow.",
+  );
 
   return plan.join(" ");
 }
@@ -114,7 +130,16 @@ async function invokeAlexiPlan(body) {
   }
 }
 
-function buildClientNutritionContext({ goals, eaten, protein, carbs, fat, waterMl, caloriesBurned, mealSections }) {
+function buildClientNutritionContext({
+  goals,
+  eaten,
+  protein,
+  carbs,
+  fat,
+  waterMl,
+  caloriesBurned,
+  mealSections,
+}) {
   const recentMeals = (mealSections || [])
     .filter((meal) => meal.logged)
     .map((meal) => ({
@@ -168,7 +193,17 @@ export default function Nutrition({ navigation }) {
     [goals, eaten, protein, carbs, fat, mealSections],
   );
   const clientContext = useMemo(
-    () => buildClientNutritionContext({ goals, eaten, protein, carbs, fat, waterMl, caloriesBurned, mealSections }),
+    () =>
+      buildClientNutritionContext({
+        goals,
+        eaten,
+        protein,
+        carbs,
+        fat,
+        waterMl,
+        caloriesBurned,
+        mealSections,
+      }),
     [goals, eaten, protein, carbs, fat, waterMl, caloriesBurned, mealSections],
   );
 
@@ -196,9 +231,11 @@ export default function Nutrition({ navigation }) {
       }
       if (resolvedData?.fallback) {
         setMealPlan(resolvedData?.response || fallbackMealPlan);
-        setMealPlanError(resolvedData?.reason
-          ? `Alexi is using fallback mode right now: ${resolvedData.reason}`
-          : "Alexi is using fallback mode right now.");
+        setMealPlanError(
+          resolvedData?.reason
+            ? `Alexi is using fallback mode right now: ${resolvedData.reason}`
+            : "Alexi is using fallback mode right now.",
+        );
         return;
       }
       setMealPlan(resolvedData?.response || "");
@@ -215,12 +252,14 @@ export default function Nutrition({ navigation }) {
     }
   }, [clientContext, fallbackMealPlan, userId]);
 
-  useFocusEffect(useCallback(() => {
-    refresh();
-  }, [refresh]));
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh]),
+  );
 
   useEffect(() => {
-    const off = AlexiEvents.on('dataUpdated', () => refresh());
+    const off = AlexiEvents.on("dataUpdated", () => refresh());
     return off;
   }, [refresh]);
 
@@ -257,21 +296,17 @@ export default function Nutrition({ navigation }) {
   };
 
   const confirmDeleteLog = (logId, foodName) => {
-    Alert.alert(
-      "Remove food",
-      `Remove "${foodName}" from today's log?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Remove",
-          style: "destructive",
-          onPress: async () => {
-            await deleteFoodLog(logId);
-            refresh();
-          },
+    Alert.alert("Remove food", `Remove "${foodName}" from today's log?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Remove",
+        style: "destructive",
+        onPress: async () => {
+          await deleteFoodLog(logId);
+          refresh();
         },
-      ],
-    );
+      },
+    ]);
   };
 
   if (loading) {
@@ -290,7 +325,11 @@ export default function Nutrition({ navigation }) {
           <View>
             <Text style={s.title}>Food diary</Text>
             <Text style={s.date}>
-              {new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
+              {new Date().toLocaleDateString("en-US", {
+                weekday: "long",
+                month: "short",
+                day: "numeric",
+              })}
             </Text>
           </View>
           <TouchableOpacity onPress={refresh} style={s.refreshBtn}>
@@ -298,7 +337,11 @@ export default function Nutrition({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity activeOpacity={0.9} onPress={() => openScanner("snack")} style={s.heroWrap}>
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPress={() => openScanner("snack")}
+          style={s.heroWrap}
+        >
           <LinearGradient colors={["#7C5CFC", "#9D85F5"]} style={s.heroCard}>
             <View style={{ flex: 1 }}>
               <Text style={s.heroEyebrow}>Food Scanner</Text>
@@ -322,7 +365,12 @@ export default function Nutrition({ navigation }) {
                   : "Track meals to help Alexi coach you better"}
               </Text>
             </View>
-            <RingProgress size={116} stroke={10} progress={calPct} color={eaten > adjustedGoal ? "#FF6B6B" : C.lime}>
+            <RingProgress
+              size={116}
+              stroke={10}
+              progress={calPct}
+              color={eaten > adjustedGoal ? "#FF6B6B" : C.lime}
+            >
               <View style={{ alignItems: "center" }}>
                 <Text style={s.ringValue}>{eaten}</Text>
                 <Text style={s.ringLabel}>eaten</Text>
@@ -348,7 +396,12 @@ export default function Nutrition({ navigation }) {
           </View>
 
           <View style={s.macroSection}>
-            <MacroBar label="Protein" eaten={protein} goal={goals.protein_target} color={C.purple} />
+            <MacroBar
+              label="Protein"
+              eaten={protein}
+              goal={goals.protein_target}
+              color={C.purple}
+            />
             <MacroBar label="Carbs" eaten={carbs} goal={goals.carbs_target} color={C.accent} />
             <MacroBar label="Fat" eaten={fat} goal={goals.fat_target} color={C.lime} />
           </View>
@@ -360,7 +413,11 @@ export default function Nutrition({ navigation }) {
               <Text style={s.cardLabel}>YARA PLAN</Text>
               <Text style={s.cardTitle}>Today's meal game plan</Text>
             </View>
-            <TouchableOpacity style={s.planRefreshBtn} onPress={loadMealPlan} disabled={mealPlanLoading}>
+            <TouchableOpacity
+              style={s.planRefreshBtn}
+              onPress={loadMealPlan}
+              disabled={mealPlanLoading}
+            >
               <Ionicons name="sparkles-outline" size={16} color={C.lime} />
               <Text style={s.planRefreshTxt}>{mealPlanLoading ? "Thinking" : "Refresh"}</Text>
             </TouchableOpacity>
@@ -369,14 +426,18 @@ export default function Nutrition({ navigation }) {
           {mealPlanLoading ? (
             <View style={s.planLoading}>
               <ActivityIndicator color={C.lime} />
-              <Text style={s.planLoadingTxt}>Alexi is building your plan from your real logs...</Text>
+              <Text style={s.planLoadingTxt}>
+                Alexi is building your plan from your real logs...
+              </Text>
             </View>
           ) : mealPlanError ? (
             <Text style={s.planError}>{mealPlanError}</Text>
           ) : mealPlan ? (
             <Text style={s.planBody}>{mealPlan}</Text>
           ) : (
-            <Text style={s.planEmpty}>Log a couple meals and Alexi will turn them into a more personalized day plan.</Text>
+            <Text style={s.planEmpty}>
+              Log a couple meals and Alexi will turn them into a more personalized day plan.
+            </Text>
           )}
         </View>
 
@@ -423,8 +484,7 @@ export default function Nutrition({ navigation }) {
                       <View style={{ flex: 1 }}>
                         <Text style={s.foodName}>{item.name}</Text>
                         <Text style={s.foodMeta}>
-                          {item.quantity}g
-                          {item.brand ? ` • ${item.brand}` : ""}
+                          {item.quantity}g{item.brand ? ` • ${item.brand}` : ""}
                         </Text>
                       </View>
                       <Text style={s.foodCals}>{item.calories} kcal</Text>
@@ -451,7 +511,9 @@ export default function Nutrition({ navigation }) {
                 <Text style={s.mealPrimaryTxt}>Scan to {meal.label}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.mealSecondaryBtn} onPress={() => openMealLogger(meal)}>
-                <Text style={s.mealSecondaryTxt}>{meal.logged ? "Add more manually" : "Add manually"}</Text>
+                <Text style={s.mealSecondaryTxt}>
+                  {meal.logged ? "Add more manually" : "Add manually"}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -486,7 +548,8 @@ export default function Nutrition({ navigation }) {
           <Text style={s.cardLabel}>YARA</Text>
           <Text style={s.cardTitle}>Daily meal coaching works best with real logs</Text>
           <Text style={s.cardSub}>
-            Every meal you save here becomes part of the nutrition context Alexi can use when you ask for analysis or meal ideas.
+            Every meal you save here becomes part of the nutrition context Alexi can use when you
+            ask for analysis or meal ideas.
           </Text>
         </View>
       </ScrollView>
@@ -499,7 +562,12 @@ const s = StyleSheet.create({
   centered: { justifyContent: "center", alignItems: "center" },
   loadingTxt: { color: C.sub, marginTop: 12, fontSize: 13 },
   scroll: { paddingHorizontal: 16, paddingTop: 52, paddingBottom: 24 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 18 },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 18,
+  },
   title: { color: C.text, fontSize: 30, fontWeight: "800", letterSpacing: -0.8 },
   date: { color: C.sub, fontSize: 13, marginTop: 2 },
   refreshBtn: {
@@ -520,7 +588,12 @@ const s = StyleSheet.create({
     alignItems: "center",
     gap: 16,
   },
-  heroEyebrow: { color: "rgba(255,255,255,0.7)", fontSize: 11, fontWeight: "800", letterSpacing: 1.2 },
+  heroEyebrow: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1.2,
+  },
   heroTitle: { color: "#fff", fontSize: 21, fontWeight: "800", lineHeight: 27, marginTop: 6 },
   heroSub: { color: "rgba(255,255,255,0.75)", fontSize: 13, lineHeight: 19, marginTop: 8 },
   heroIcon: {
@@ -539,7 +612,12 @@ const s = StyleSheet.create({
     padding: 18,
     marginBottom: 20,
   },
-  summaryTop: { flexDirection: "row", justifyContent: "space-between", gap: 16, alignItems: "center" },
+  summaryTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 16,
+    alignItems: "center",
+  },
   cardLabel: { color: C.sub, fontSize: 11, fontWeight: "800", letterSpacing: 1.1 },
   cardTitle: { color: C.text, fontSize: 20, fontWeight: "800", marginTop: 6 },
   cardSub: { color: C.dim, fontSize: 13, lineHeight: 19, marginTop: 6 },
@@ -559,8 +637,17 @@ const s = StyleSheet.create({
   summaryLabel: { color: C.sub, fontSize: 11, marginTop: 4 },
   summaryDivider: { width: 1, backgroundColor: C.border },
   macroSection: { marginTop: 18 },
-  sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
-  sectionHeaderTight: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  sectionHeaderTight: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
   sectionTitle: { color: C.text, fontSize: 22, fontWeight: "800" },
   sectionSub: { color: C.sub, fontSize: 13, marginTop: 2 },
   scanMiniBtn: {
@@ -585,13 +672,25 @@ const s = StyleSheet.create({
   },
   mealHead: { flexDirection: "row", justifyContent: "space-between", gap: 12 },
   mealTitleRow: { flexDirection: "row", gap: 12, flex: 1 },
-  mealIconWrap: { width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  mealIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   mealEmoji: { fontSize: 20 },
   mealName: { color: C.text, fontSize: 18, fontWeight: "700" },
   mealSub: { color: C.sub, fontSize: 12, marginTop: 3 },
   mealCalories: { color: C.lime, fontSize: 16, fontWeight: "800" },
   pillRow: { flexDirection: "row", gap: 8, marginTop: 14 },
-  macroPill: { flex: 1, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 10, borderWidth: 1 },
+  macroPill: {
+    flex: 1,
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    borderWidth: 1,
+  },
   macroPillValue: { fontSize: 14, fontWeight: "800" },
   macroPillLabel: { color: C.sub, fontSize: 11, marginTop: 2 },
   foodList: { marginTop: 14, gap: 8 },
@@ -661,7 +760,13 @@ const s = StyleSheet.create({
     marginTop: 8,
   },
   waterStat: { color: C.blue, fontSize: 14, fontWeight: "700" },
-  waterBar: { height: 10, borderRadius: 5, backgroundColor: `${C.blue}18`, marginTop: 14, overflow: "hidden" },
+  waterBar: {
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: `${C.blue}18`,
+    marginTop: 14,
+    overflow: "hidden",
+  },
   waterFill: { height: "100%", backgroundColor: C.blue, borderRadius: 5 },
   waterBtns: { flexDirection: "row", gap: 8, marginTop: 16 },
   waterBtn: {

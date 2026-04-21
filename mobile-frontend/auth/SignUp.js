@@ -1,12 +1,5 @@
 import React from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Pressable,
-  Alert,
-} from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from "react-native";
 import { useForm, Controller } from "react-hook-form";
 import { useNavigation } from "@react-navigation/native";
 import { Mail, Lock, User, UserPlus } from "lucide-react-native";
@@ -43,10 +36,7 @@ const SignUp = () => {
     }
 
     if (!authData.session) {
-      Alert.alert(
-        "Success!",
-        "Please check your inbox for email verification.",
-      );
+      Alert.alert("Success!", "Please check your inbox for email verification.");
     } else {
       Alert.alert("Success!", "Account created successfully!");
     }
@@ -54,10 +44,7 @@ const SignUp = () => {
 
   return (
     <AuthLayout>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
           <Text style={styles.title}>Create Account</Text>
           <Text style={styles.subtitle}>Join the revolution in fitness</Text>
@@ -136,8 +123,7 @@ const SignUp = () => {
             name="confirmPassword"
             rules={{
               required: "Please confirm your password",
-              validate: (value) =>
-                value === password || "Passwords do not match",
+              validate: (value) => value === password || "Passwords do not match",
             }}
             render={({ field: { onChange, onBlur, value } }) => (
               <Input

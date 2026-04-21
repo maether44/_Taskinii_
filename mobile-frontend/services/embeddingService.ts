@@ -9,17 +9,17 @@
  * the user or interrupt the calling flow.
  */
 
-import { supabase } from '../lib/supabase';
-import { warn } from '../lib/logger';
+import { supabase } from "../lib/supabase";
+import { warn } from "../lib/logger";
 
 type ChunkType =
-  | 'profile'
-  | 'nutrition_summary'
-  | 'activity_summary'
-  | 'workout_session'
-  | 'meal_log'
-  | 'memory_fact'
-  | 'body_metric';
+  | "profile"
+  | "nutrition_summary"
+  | "activity_summary"
+  | "workout_session"
+  | "meal_log"
+  | "memory_fact"
+  | "body_metric";
 
 let pendingTypes = new Set<ChunkType>();
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -31,11 +31,11 @@ function flush(userId: string) {
   pendingTypes = new Set();
 
   supabase.functions
-    .invoke('embed-user-data', { body: { userId, chunkTypes: types } })
+    .invoke("embed-user-data", { body: { userId, chunkTypes: types } })
     .then(({ error }) => {
-      if (error) warn('[embeddingService] refresh failed:', error.message);
+      if (error) warn("[embeddingService] refresh failed:", error.message);
     })
-    .catch((e: any) => warn('[embeddingService] refresh crashed:', e?.message));
+    .catch((e: any) => warn("[embeddingService] refresh crashed:", e?.message));
 }
 
 /**
@@ -51,33 +51,33 @@ export function refreshEmbeddings(userId: string, chunkTypes: ChunkType[]) {
 }
 
 export function refreshAfterFoodLog(userId: string) {
-  refreshEmbeddings(userId, ['meal_log', 'nutrition_summary']);
+  refreshEmbeddings(userId, ["meal_log", "nutrition_summary"]);
 }
 
 export function refreshAfterWorkout(userId: string) {
-  refreshEmbeddings(userId, ['workout_session', 'activity_summary']);
+  refreshEmbeddings(userId, ["workout_session", "activity_summary"]);
 }
 
 export function refreshAfterBodyMetric(userId: string) {
-  refreshEmbeddings(userId, ['body_metric']);
+  refreshEmbeddings(userId, ["body_metric"]);
 }
 
 export function refreshAfterProfileUpdate(userId: string) {
-  refreshEmbeddings(userId, ['profile']);
+  refreshEmbeddings(userId, ["profile"]);
 }
 
 export function refreshAfterWaterLog(userId: string) {
-  refreshEmbeddings(userId, ['activity_summary']);
+  refreshEmbeddings(userId, ["activity_summary"]);
 }
 
 export function refreshAll(userId: string) {
   refreshEmbeddings(userId, [
-    'profile',
-    'nutrition_summary',
-    'activity_summary',
-    'workout_session',
-    'meal_log',
-    'memory_fact',
-    'body_metric',
+    "profile",
+    "nutrition_summary",
+    "activity_summary",
+    "workout_session",
+    "meal_log",
+    "memory_fact",
+    "body_metric",
   ]);
 }

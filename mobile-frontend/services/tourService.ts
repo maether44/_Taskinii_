@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from "@react-native-async-storage/async-storage";
 // import { TOUR_VERSION } from '../constants/tourSteps';
 
 // const TOUR_KEY = `@fitapp_tour_v${TOUR_VERSION}`;
@@ -11,7 +11,7 @@ export const hasTourBeenSeen = async () => {
 };
 
 export const markTourSeen = async () => {
-  await AsyncStorage.setItem(TOUR_KEY, 'true');
+  await AsyncStorage.setItem(TOUR_KEY, "true");
 };
 
 export const resetTour = async () => {

@@ -1,13 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
-import {
-  Animated, Easing, Image, StyleSheet,
-  TouchableOpacity, View, Text,
-} from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import React, { useEffect, useRef, useState } from "react";
+import { Animated, Easing, Image, StyleSheet, TouchableOpacity, View } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 
-const SIZE      = 78;   // mascot image size
-const GLOW_MID  = SIZE + 16;
-const GLOW_OUT  = SIZE + 36;
+const SIZE = 78; // mascot image size
+const GLOW_MID = SIZE + 16;
+const GLOW_OUT = SIZE + 36;
 
 // Drawn fallback — shown if PNG is missing/empty
 function YaraFallback() {
@@ -20,8 +17,12 @@ function YaraFallback() {
         <View style={styles.faceInner}>
           {/* Eyes */}
           <View style={styles.eyeRow}>
-            <View style={styles.eye}><View style={styles.pupil} /></View>
-            <View style={styles.eye}><View style={styles.pupil} /></View>
+            <View style={styles.eye}>
+              <View style={styles.pupil} />
+            </View>
+            <View style={styles.eye}>
+              <View style={styles.pupil} />
+            </View>
           </View>
           {/* Mouth */}
           <View style={styles.mouth} />
@@ -36,7 +37,7 @@ export default function YaraToggle() {
   const [imgError, setImgError] = useState(false);
 
   // ── Animation values ────────────────────────────────────────
-  const bobAnim   = useRef(new Animated.Value(0)).current;
+  const bobAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -55,7 +56,7 @@ export default function YaraToggle() {
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
-      ])
+      ]),
     ).start();
 
     // Breathing scale — subtle inhale / exhale
@@ -73,7 +74,7 @@ export default function YaraToggle() {
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
-      ])
+      ]),
     ).start();
   }, []);
 
@@ -84,7 +85,7 @@ export default function YaraToggle() {
   });
   const glowOpacityMid = scaleAnim.interpolate({
     inputRange: [1, 1.08],
-    outputRange: [0.28, 0.60],
+    outputRange: [0.28, 0.6],
   });
   const glowScaleOuter = scaleAnim.interpolate({
     inputRange: [1, 1.08],
@@ -96,10 +97,7 @@ export default function YaraToggle() {
       style={[
         styles.wrapper,
         {
-          transform: [
-            { translateY: bobAnim },
-            { scale: scaleAnim },
-          ],
+          transform: [{ translateY: bobAnim }, { scale: scaleAnim }],
         },
       ]}
     >
@@ -115,16 +113,14 @@ export default function YaraToggle() {
       />
 
       {/* ── Inner glow halo ────────────────────────────────── */}
-      <Animated.View
-        style={[styles.glowMid, { opacity: glowOpacityMid }]}
-      />
+      <Animated.View style={[styles.glowMid, { opacity: glowOpacityMid }]} />
 
       {/* ── Core glow (always-on dim ring) ─────────────────── */}
       <View style={styles.glowCore} />
 
       {/* ── Mascot image + tap ─────────────────────────────── */}
       <TouchableOpacity
-        onPress={() => navigation.navigate('YaraAssistant')}
+        onPress={() => navigation.navigate("YaraAssistant")}
         activeOpacity={0.85}
         style={styles.touchable}
       >
@@ -133,7 +129,7 @@ export default function YaraToggle() {
         ) : (
           <View style={styles.imageClip}>
             <Image
-              source={require('../assets/alexi_avatar.png')}
+              source={require("../assets/alexi_avatar.png")}
               style={styles.mascot}
               resizeMode="cover"
               onError={() => setImgError(true)}
@@ -147,108 +143,125 @@ export default function YaraToggle() {
 
 const styles = StyleSheet.create({
   wrapper: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 104,
     right: 18,
-    width:  GLOW_OUT,
+    width: GLOW_OUT,
     height: GLOW_OUT,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     zIndex: 90,
   },
 
   // Three-layer glow stack — all centred on the same point
   glowOuter: {
-    position: 'absolute',
-    width:  GLOW_OUT,
+    position: "absolute",
+    width: GLOW_OUT,
     height: GLOW_OUT,
     borderRadius: GLOW_OUT / 2,
-    backgroundColor: 'rgba(200,241,53,0.08)',
+    backgroundColor: "rgba(200,241,53,0.08)",
     // iOS shadow gives the actual bloom on light surfaces
-    shadowColor: '#C8F135',
+    shadowColor: "#C8F135",
     shadowOpacity: 1,
     shadowRadius: 28,
     shadowOffset: { width: 0, height: 0 },
   },
   glowMid: {
-    position: 'absolute',
-    width:  GLOW_MID,
+    position: "absolute",
+    width: GLOW_MID,
     height: GLOW_MID,
     borderRadius: GLOW_MID / 2,
-    backgroundColor: 'rgba(200,241,53,0.14)',
-    shadowColor: '#C8F135',
+    backgroundColor: "rgba(200,241,53,0.14)",
+    shadowColor: "#C8F135",
     shadowOpacity: 0.85,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 0 },
   },
   glowCore: {
-    position: 'absolute',
-    width:  SIZE + 4,
+    position: "absolute",
+    width: SIZE + 4,
     height: SIZE + 4,
     borderRadius: (SIZE + 4) / 2,
-    backgroundColor: 'rgba(200,241,53,0.20)',
-    shadowColor: '#C8F135',
+    backgroundColor: "rgba(200,241,53,0.20)",
+    shadowColor: "#C8F135",
     shadowOpacity: 0.7,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 0 },
   },
 
   touchable: {
-    width:  SIZE,
+    width: SIZE,
     height: SIZE,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   imageClip: {
-    width:        SIZE,
-    height:       SIZE,
+    width: SIZE,
+    height: SIZE,
     borderRadius: SIZE / 2,
-    overflow:     'hidden',
+    overflow: "hidden",
   },
   mascot: {
-    width:  SIZE,
+    width: SIZE,
     height: SIZE,
   },
 
   // ── Drawn fallback (shown when PNG is missing) ──────────────
   fallback: {
-    width: SIZE, height: SIZE,
-    alignItems: 'center', justifyContent: 'center',
+    width: SIZE,
+    height: SIZE,
+    alignItems: "center",
+    justifyContent: "center",
   },
   flameRing: {
-    position: 'absolute',
-    width: SIZE, height: SIZE,
+    position: "absolute",
+    width: SIZE,
+    height: SIZE,
     borderRadius: SIZE / 2,
-    backgroundColor: 'rgba(124,92,252,0.55)',
-    shadowColor: '#7C5CFC',
+    backgroundColor: "rgba(124,92,252,0.55)",
+    shadowColor: "#7C5CFC",
     shadowOpacity: 0.9,
     shadowRadius: 14,
   },
   faceOuter: {
-    width: SIZE * 0.68, height: SIZE * 0.68,
+    width: SIZE * 0.68,
+    height: SIZE * 0.68,
     borderRadius: SIZE * 0.34,
-    backgroundColor: '#C8F135',
-    alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#C8F135', shadowOpacity: 0.8, shadowRadius: 12,
+    backgroundColor: "#C8F135",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#C8F135",
+    shadowOpacity: 0.8,
+    shadowRadius: 12,
   },
   faceInner: {
-    alignItems: 'center', justifyContent: 'center', gap: 4,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
   },
   eyeRow: {
-    flexDirection: 'row', gap: 8,
+    flexDirection: "row",
+    gap: 8,
   },
   eye: {
-    width: 12, height: 12, borderRadius: 6,
-    backgroundColor: '#fff',
-    alignItems: 'center', justifyContent: 'center',
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
   },
   pupil: {
-    width: 6, height: 6, borderRadius: 3,
-    backgroundColor: '#1a1a1a',
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#1a1a1a",
   },
   mouth: {
-    width: 10, height: 5,
-    borderBottomLeftRadius: 5, borderBottomRightRadius: 5,
-    backgroundColor: '#3d8c00',
+    width: 10,
+    height: 5,
+    borderBottomLeftRadius: 5,
+    borderBottomRightRadius: 5,
+    backgroundColor: "#3d8c00",
   },
 });

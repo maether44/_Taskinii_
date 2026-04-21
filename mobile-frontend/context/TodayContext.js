@@ -6,20 +6,27 @@
  *
  * All hooks that previously fetched these independently now read from here.
  */
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform } from 'react-native';
-import { Pedometer } from 'expo-sensors';
-import { supabase } from '../lib/supabase';
-import { useAuth } from './AuthContext';
-import { getMuscleFatigue } from '../services/workoutService';
-import { AppEvents, emit, on } from '../lib/eventBus';
-import { DEFAULT_TARGETS, computeWaterTarget } from '../constants/targets';
-import { error as logError } from '../lib/logger';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { Pedometer } from "expo-sensors";
+import { supabase } from "../lib/supabase";
+import { useAuth } from "./AuthContext";
+import { getMuscleFatigue } from "../services/workoutService";
+import { AppEvents, emit, on } from "../lib/eventBus";
+import { DEFAULT_TARGETS, computeWaterTarget } from "../constants/targets";
+import { error as logError } from "../lib/logger";
 
 const TodayContext = createContext(null);
 
 function todayString() {
-  return new Date().toISOString().split('T')[0];
+  return new Date().toISOString().split("T")[0];
 }
 
 function normalizeGoals(row, weightKg) {
@@ -66,54 +73,50 @@ export function TodayProvider({ children }) {
 
   // ── Central data loader ──────────────────────────────────────────
   const loadToday = useCallback(async () => {
-    if (!userId) { setLoading(false); return; }
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
     // Only show the global loader on the very first fetch for this user.
     // Refreshes after that update state in place.
     if (loadedForUserRef.current !== userId) setLoading(true);
     const today = todayString();
 
     try {
-      const [
-        { data: goalsData },
-        { data: logs },
-        { data: activity },
-        { data: profile },
-        fatigue,
-      ] = await Promise.all([
-        supabase
-          .from('calorie_targets')
-          .select('*')
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-        supabase
-          .from('food_logs')
-          .select(`
+      const [{ data: goalsData }, { data: logs }, { data: activity }, { data: profile }, fatigue] =
+        await Promise.all([
+          supabase
+            .from("calorie_targets")
+            .select("*")
+            .eq("user_id", userId)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+          supabase
+            .from("food_logs")
+            .select(
+              `
             id, meal_type, quantity_grams, consumed_at,
             foods (
               id, name, brand, barcode,
               calories_per_100g, protein_per_100g,
               carbs_per_100g, fat_per_100g, fiber_per_100g
             )
-          `)
-          .eq('user_id', userId)
-          .gte('consumed_at', `${today}T00:00:00.000Z`)
-          .lte('consumed_at', `${today}T23:59:59.999Z`)
-          .order('consumed_at', { ascending: true }),
-        supabase
-          .from('daily_activity')
-          .select('water_ml, calories_burned, sleep_hours, sleep_quality, steps')
-          .eq('user_id', userId)
-          .eq('date', today)
-          .maybeSingle(),
-        supabase
-          .from('profiles')
-          .select('weight_kg')
-          .eq('id', userId)
-          .maybeSingle(),
-        getMuscleFatigue(userId).catch(() => []),
-      ]);
+          `,
+            )
+            .eq("user_id", userId)
+            .gte("consumed_at", `${today}T00:00:00.000Z`)
+            .lte("consumed_at", `${today}T23:59:59.999Z`)
+            .order("consumed_at", { ascending: true }),
+          supabase
+            .from("daily_activity")
+            .select("water_ml, calories_burned, sleep_hours, sleep_quality, steps")
+            .eq("user_id", userId)
+            .eq("date", today)
+            .maybeSingle(),
+          supabase.from("profiles").select("weight_kg").eq("id", userId).maybeSingle(),
+          getMuscleFatigue(userId).catch(() => []),
+        ]);
 
       setGoals(normalizeGoals(goalsData, profile?.weight_kg));
       setFoodLogs(logs || []);
@@ -129,14 +132,16 @@ export function TodayProvider({ children }) {
       setMuscleFatigue(fatigue ?? []);
       loadedForUserRef.current = userId;
     } catch (error) {
-      logError('[TodayContext] loadToday error:', error);
+      logError("[TodayContext] loadToday error:", error);
     } finally {
       setLoading(false);
     }
   }, [userId]);
 
   // Load on mount / user change
-  useEffect(() => { loadToday(); }, [loadToday]);
+  useEffect(() => {
+    loadToday();
+  }, [loadToday]);
 
   // Subscribe to EventBus refresh signals.
   //
@@ -156,7 +161,7 @@ export function TodayProvider({ children }) {
       on(AppEvents.WORKOUT_COMPLETED, loadToday),
       on(AppEvents.TARGETS_UPDATED, loadToday),
     );
-    return () => unsub.forEach(fn => fn());
+    return () => unsub.forEach((fn) => fn());
   }, [loadToday]);
 
   // ── Pedometer: shared step source for Home + Fuel ───────────────
@@ -169,9 +174,11 @@ export function TodayProvider({ children }) {
       setPedometerAvailable(available);
       if (!available) return;
 
-      const { status } = await Pedometer.requestPermissionsAsync().catch(() => ({ status: 'denied' }));
+      const { status } = await Pedometer.requestPermissionsAsync().catch(() => ({
+        status: "denied",
+      }));
       setPedometerPermission(status);
-      if (status !== 'granted') return;
+      if (status !== "granted") return;
 
       sub = Pedometer.watchStepCount(({ steps: count }) => {
         cumulativeRef.current = count;
@@ -179,7 +186,9 @@ export function TodayProvider({ children }) {
       });
     })();
 
-    return () => { if (sub) sub.remove(); };
+    return () => {
+      if (sub) sub.remove();
+    };
   }, []);
 
   // Batch sync live steps to DB every 30 seconds
@@ -190,16 +199,18 @@ export function TodayProvider({ children }) {
       const delta = cumulative - syncedStepsRef.current;
       if (delta <= 0) return;
       const today = todayString();
-      supabase.rpc('increment_steps', {
-        p_user_id: userId,
-        p_steps: delta,
-        p_date: today,
-      }).then(({ error }) => {
-        if (!error) {
-          setDbSteps(prev => prev + delta);
-          syncedStepsRef.current = cumulative;
-        }
-      });
+      supabase
+        .rpc("increment_steps", {
+          p_user_id: userId,
+          p_steps: delta,
+          p_date: today,
+        })
+        .then(({ error }) => {
+          if (!error) {
+            setDbSteps((prev) => prev + delta);
+            syncedStepsRef.current = cumulative;
+          }
+        });
     }, 30000);
     syncTimerRef.current = timer;
     return () => clearInterval(timer);
@@ -213,96 +224,120 @@ export function TodayProvider({ children }) {
 
   // ── Write operations (optimistic + persist) ──────────────────────
 
-  const logWater = useCallback(async (mlDelta) => {
-    if (!userId) {
-      setWaterMl(prev => Math.max(0, prev + mlDelta));
-      return;
-    }
-    // Optimistic
-    setWaterMl(prev => Math.max(0, prev + mlDelta));
-    try {
-      const { data: newMl, error } = await supabase.rpc('log_water_ml', {
-        p_user_id: userId,
-        p_delta:   mlDelta,
-        p_date:    todayString(),
-      });
-      if (error) {
-        logError('[TodayContext] log_water_ml error:', error);
-        loadToday();
+  const logWater = useCallback(
+    async (mlDelta) => {
+      if (!userId) {
+        setWaterMl((prev) => Math.max(0, prev + mlDelta));
         return;
       }
-      if (typeof newMl === 'number') setWaterMl(newMl);
-      emit(AppEvents.WATER_LOGGED, { waterMl: newMl });
-    } catch (error) {
-      logError('[TodayContext] logWater error:', error);
-      loadToday();
-    }
-  }, [userId, loadToday]);
-
-  const logSleep = useCallback(async ({ hours, quality }) => {
-    if (!userId) return false;
-    // Optimistic
-    setSleepHours(hours);
-    setSleepQuality(quality ?? null);
-    try {
-      const today = todayString();
-      const { data: existing } = await supabase
-        .from('daily_activity')
-        .select('id, sleep_hours, sleep_quality')
-        .eq('user_id', userId)
-        .eq('date', today)
-        .maybeSingle();
-
-      if (existing?.id) {
-        await supabase.from('daily_activity').update({
-          sleep_hours: hours,
-          sleep_quality: quality ?? null,
-        }).eq('id', existing.id);
-      } else {
-        await supabase.from('daily_activity').insert({
-          user_id: userId,
-          date: today,
-          sleep_hours: hours,
-          sleep_quality: quality ?? null,
+      // Optimistic
+      setWaterMl((prev) => Math.max(0, prev + mlDelta));
+      try {
+        const { data: newMl, error } = await supabase.rpc("log_water_ml", {
+          p_user_id: userId,
+          p_delta: mlDelta,
+          p_date: todayString(),
         });
+        if (error) {
+          logError("[TodayContext] log_water_ml error:", error);
+          loadToday();
+          return;
+        }
+        if (typeof newMl === "number") setWaterMl(newMl);
+        emit(AppEvents.WATER_LOGGED, { waterMl: newMl });
+      } catch (error) {
+        logError("[TodayContext] logWater error:", error);
+        loadToday();
       }
-
-      emit(AppEvents.SLEEP_LOGGED, { hours, quality });
-      return true;
-    } catch (e) {
-      logError('[TodayContext] logSleep error:', e);
-      loadToday();
-      return false;
-    }
-  }, [userId, loadToday]);
-
-  const value = useMemo(() => ({
-    loading,
-    userId,
-    goals,
-    foodLogs,
-    waterMl,
-    sleepHours,
-    sleepQuality,
-    caloriesBurned,
-    muscleFatigue,
-    steps,
-    pedometerAvailable,
-    pedometerPermission,
-    logWater,
-    logSleep,
-    refresh: loadToday,
-  }), [loading, userId, goals, foodLogs, waterMl, sleepHours, sleepQuality, caloriesBurned, muscleFatigue, steps, pedometerAvailable, pedometerPermission, logWater, logSleep, loadToday]);
-
-  return (
-    <TodayContext.Provider value={value}>
-      {children}
-    </TodayContext.Provider>
+    },
+    [userId, loadToday],
   );
+
+  const logSleep = useCallback(
+    async ({ hours, quality }) => {
+      if (!userId) return false;
+      // Optimistic
+      setSleepHours(hours);
+      setSleepQuality(quality ?? null);
+      try {
+        const today = todayString();
+        const { data: existing } = await supabase
+          .from("daily_activity")
+          .select("id, sleep_hours, sleep_quality")
+          .eq("user_id", userId)
+          .eq("date", today)
+          .maybeSingle();
+
+        if (existing?.id) {
+          await supabase
+            .from("daily_activity")
+            .update({
+              sleep_hours: hours,
+              sleep_quality: quality ?? null,
+            })
+            .eq("id", existing.id);
+        } else {
+          await supabase.from("daily_activity").insert({
+            user_id: userId,
+            date: today,
+            sleep_hours: hours,
+            sleep_quality: quality ?? null,
+          });
+        }
+
+        emit(AppEvents.SLEEP_LOGGED, { hours, quality });
+        return true;
+      } catch (e) {
+        logError("[TodayContext] logSleep error:", e);
+        loadToday();
+        return false;
+      }
+    },
+    [userId, loadToday],
+  );
+
+  const value = useMemo(
+    () => ({
+      loading,
+      userId,
+      goals,
+      foodLogs,
+      waterMl,
+      sleepHours,
+      sleepQuality,
+      caloriesBurned,
+      muscleFatigue,
+      steps,
+      pedometerAvailable,
+      pedometerPermission,
+      logWater,
+      logSleep,
+      refresh: loadToday,
+    }),
+    [
+      loading,
+      userId,
+      goals,
+      foodLogs,
+      waterMl,
+      sleepHours,
+      sleepQuality,
+      caloriesBurned,
+      muscleFatigue,
+      steps,
+      pedometerAvailable,
+      pedometerPermission,
+      logWater,
+      logSleep,
+      loadToday,
+    ],
+  );
+
+  return <TodayContext.Provider value={value}>{children}</TodayContext.Provider>;
 }
 
 export function useToday() {
   const ctx = useContext(TodayContext);
-  if (!ctx) throw new Error('useToday must be used within a TodayProvider');
+  if (!ctx) throw new Error("useToday must be used within a TodayProvider");
   return ctx;
 }

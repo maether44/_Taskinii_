@@ -1,9 +1,9 @@
-import { useState } from 'react';
-import { signUpUser } from '../services/authService';
+import { useState } from "react";
+import { signUpUser } from "../services/authService";
 
 export function useSignUp() {
   const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState(null);
+  const [error, setError] = useState(null);
 
   const handleSignUp = async ({ email, password, fullName }) => {
     setLoading(true);

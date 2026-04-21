@@ -1,9 +1,16 @@
-import React, { useRef, useCallback, useEffect, useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text, StatusBar, ActivityIndicator } from 'react-native';
-import { WebView } from 'react-native-webview';
-import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Camera } from 'expo-camera';
+import React, { useRef, useCallback, useEffect, useState } from "react";
+import {
+  View,
+  StyleSheet,
+  TouchableOpacity,
+  Text,
+  StatusBar,
+  ActivityIndicator,
+} from "react-native";
+import { WebView } from "react-native-webview";
+import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Camera } from "expo-camera";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Layout (like the Python version):
@@ -454,7 +461,7 @@ export default function FlappyBirdGame({ navigation }) {
   const onMessage = useCallback((e) => {
     try {
       const { type, score } = JSON.parse(e.nativeEvent.data);
-      if (type === 'gameOver') console.log('[FlappyBird] score:', score);
+      if (type === "gameOver") console.log("[FlappyBird] score:", score);
     } catch (_) {}
   }, []);
 
@@ -481,13 +488,13 @@ export default function FlappyBirdGame({ navigation }) {
         <WebView
           ref={webRef}
           // baseUrl gives the page a non-null origin so CDN CORS / WASM fetch works
-          source={{ html: GAME_HTML, baseUrl: 'https://localhost' }}
+          source={{ html: GAME_HTML, baseUrl: "https://localhost" }}
           style={s.web}
           javaScriptEnabled
           allowsInlineMediaPlayback
           mediaPlaybackRequiresUserAction={false}
           domStorageEnabled
-          originWhitelist={['*']}
+          originWhitelist={["*"]}
           mixedContentMode="always"
           allowFileAccess
           allowUniversalAccessFromFileURLs
@@ -505,16 +512,23 @@ export default function FlappyBirdGame({ navigation }) {
 }
 
 const s = StyleSheet.create({
-  root: { flex:1, backgroundColor:'#0F0B1E' },
-  web:  { flex:1, backgroundColor:'#0F0B1E' },
-  wait: { flex:1, alignItems:'center', justifyContent:'center', gap:14 },
-  waitTxt: { color:'rgba(255,255,255,0.45)', fontSize:13 },
+  root: { flex: 1, backgroundColor: "#0F0B1E" },
+  web: { flex: 1, backgroundColor: "#0F0B1E" },
+  wait: { flex: 1, alignItems: "center", justifyContent: "center", gap: 14 },
+  waitTxt: { color: "rgba(255,255,255,0.45)", fontSize: 13 },
   back: {
-    position:'absolute', left:14, zIndex:20,
-    flexDirection:'row', alignItems:'center', gap:4,
-    backgroundColor:'rgba(12,8,26,0.88)',
-    paddingHorizontal:12, paddingVertical:7,
-    borderRadius:20, borderWidth:1, borderColor:'rgba(200,241,53,0.3)',
+    position: "absolute",
+    left: 14,
+    zIndex: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(12,8,26,0.88)",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(200,241,53,0.3)",
   },
-  backTxt: { color:'#C8F135', fontSize:13, fontWeight:'700' },
+  backTxt: { color: "#C8F135", fontSize: 13, fontWeight: "700" },
 });

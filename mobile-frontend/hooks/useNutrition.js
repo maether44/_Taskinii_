@@ -3,7 +3,7 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
 import { useToday } from "../context/TodayContext";
 import { AppEvents, emit } from "../lib/eventBus";
-import { error as logError } from '../lib/logger';
+import { error as logError } from "../lib/logger";
 
 export const MEAL_TYPE_MAP = {
   breakfast: "breakfast",
@@ -25,7 +25,17 @@ function round1(value) {
   return Math.round((Number(value) || 0) * 10) / 10;
 }
 
-function buildFoodPayload({ foodName, brand, barcode, calories, protein, carbs, fat, fiber, quantity }) {
+function buildFoodPayload({
+  foodName,
+  brand,
+  barcode,
+  calories,
+  protein,
+  carbs,
+  fat,
+  fiber,
+  quantity,
+}) {
   const safeQuantity = Math.max(1, Number(quantity) || 100);
   const scaleTo100 = 100 / safeQuantity;
   return {
@@ -98,131 +108,146 @@ export function useNutrition() {
   // Guest mode: local-only logs when not authenticated
   const [guestLogs, setGuestLogs] = useState([]);
 
-  const saveMealEntries = useCallback(async ({ mealType = "snack", items = [] }) => {
-    const dbMealType = MEAL_TYPE_MAP[mealType] || "snack";
-    const normalizedItems = items
-      .map((item) => ({
-        ...item,
-        quantity: Math.max(1, Number(item?.quantity) || 100),
-      }))
-      .filter((item) => item.foodName && item.quantity > 0);
+  const saveMealEntries = useCallback(
+    async ({ mealType = "snack", items = [] }) => {
+      const dbMealType = MEAL_TYPE_MAP[mealType] || "snack";
+      const normalizedItems = items
+        .map((item) => ({
+          ...item,
+          quantity: Math.max(1, Number(item?.quantity) || 100),
+        }))
+        .filter((item) => item.foodName && item.quantity > 0);
 
-    if (!normalizedItems.length) return false;
+      if (!normalizedItems.length) return false;
 
-    if (!userId) {
-      setGuestLogs((prev) => [
-        ...prev,
-        ...normalizedItems.map((item, index) => ({
-          id: `${Date.now()}-${index}`,
-          meal_type: dbMealType,
-          quantity_grams: item.quantity,
-          consumed_at: new Date().toISOString(),
-          foods: buildFoodPayload(item),
-        })),
-      ]);
-      return true;
-    }
-
-    try {
-      const inserts = [];
-      for (const item of normalizedItems) {
-        const payload = buildFoodPayload(item);
-        const foodId = await ensureFoodRecord(payload);
-        inserts.push({
-          user_id: userId,
-          food_id: foodId,
-          meal_type: dbMealType,
-          quantity_grams: item.quantity,
-          consumed_at: new Date().toISOString(),
-        });
+      if (!userId) {
+        setGuestLogs((prev) => [
+          ...prev,
+          ...normalizedItems.map((item, index) => ({
+            id: `${Date.now()}-${index}`,
+            meal_type: dbMealType,
+            quantity_grams: item.quantity,
+            consumed_at: new Date().toISOString(),
+            foods: buildFoodPayload(item),
+          })),
+        ]);
+        return true;
       }
 
-      const { error } = await supabase.from("food_logs").insert(inserts);
-      if (error) throw error;
-
-      // Award XP for logging meals
       try {
-        const xpAmount = inserts.length * 10;
-        const { error: xpError } = await supabase.rpc('award_xp', {
-          p_user_id: userId,
-          p_amount: xpAmount,
-          p_source: 'meal',
-          p_description: `Logged ${inserts.length} food item(s)`
-        });
-        if (xpError) logError('[BodyQ] award_xp meal:', xpError);
-      } catch (e) {
-        logError('[BodyQ] award_xp meal exception:', e);
-      }
-
-      // Check for achievements
-      try {
-        const { data: achievementsResult, error: achError } = await supabase.rpc('check_achievements', {
-          p_user_id: userId
-        });
-        if (achError) logError('[BodyQ] check_achievements:', achError);
-        else if (achievementsResult?.awarded?.length > 0) {
-          emit(AppEvents.ACHIEVEMENT_AWARDED, { awarded: achievementsResult.awarded });
+        const inserts = [];
+        for (const item of normalizedItems) {
+          const payload = buildFoodPayload(item);
+          const foodId = await ensureFoodRecord(payload);
+          inserts.push({
+            user_id: userId,
+            food_id: foodId,
+            meal_type: dbMealType,
+            quantity_grams: item.quantity,
+            consumed_at: new Date().toISOString(),
+          });
         }
-      } catch (e) {
-        logError('[BodyQ] check_achievements exception:', e);
+
+        const { error } = await supabase.from("food_logs").insert(inserts);
+        if (error) throw error;
+
+        // Award XP for logging meals
+        try {
+          const xpAmount = inserts.length * 10;
+          const { error: xpError } = await supabase.rpc("award_xp", {
+            p_user_id: userId,
+            p_amount: xpAmount,
+            p_source: "meal",
+            p_description: `Logged ${inserts.length} food item(s)`,
+          });
+          if (xpError) logError("[BodyQ] award_xp meal:", xpError);
+        } catch (e) {
+          logError("[BodyQ] award_xp meal exception:", e);
+        }
+
+        // Check for achievements
+        try {
+          const { data: achievementsResult, error: achError } = await supabase.rpc(
+            "check_achievements",
+            {
+              p_user_id: userId,
+            },
+          );
+          if (achError) logError("[BodyQ] check_achievements:", achError);
+          else if (achievementsResult?.awarded?.length > 0) {
+            emit(AppEvents.ACHIEVEMENT_AWARDED, { awarded: achievementsResult.awarded });
+          }
+        } catch (e) {
+          logError("[BodyQ] check_achievements exception:", e);
+        }
+
+        // Signal TodayContext to refresh + notify other subscribers
+        emit(AppEvents.MEAL_LOGGED, { mealType: dbMealType, itemCount: inserts.length });
+        return true;
+      } catch (error) {
+        logError("saveMealEntries error:", error);
+        return false;
       }
+    },
+    [refresh, userId],
+  );
 
-      // Signal TodayContext to refresh + notify other subscribers
-      emit(AppEvents.MEAL_LOGGED, { mealType: dbMealType, itemCount: inserts.length });
-      return true;
-    } catch (error) {
-      logError("saveMealEntries error:", error);
-      return false;
-    }
-  }, [refresh, userId]);
+  const deleteFoodLog = useCallback(
+    async (logId) => {
+      if (!userId) {
+        setGuestLogs((prev) => prev.filter((log) => log.id !== logId));
+        return true;
+      }
+      try {
+        const { error } = await supabase.from("food_logs").delete().eq("id", logId);
+        if (error) throw error;
+        emit(AppEvents.MEAL_LOGGED, { deleted: true });
+        return true;
+      } catch (err) {
+        logError("deleteFoodLog error:", err);
+        return false;
+      }
+    },
+    [userId],
+  );
 
-  const deleteFoodLog = useCallback(async (logId) => {
-    if (!userId) {
-      setGuestLogs((prev) => prev.filter((log) => log.id !== logId));
-      return true;
-    }
-    try {
-      const { error } = await supabase.from("food_logs").delete().eq("id", logId);
-      if (error) throw error;
-      emit(AppEvents.MEAL_LOGGED, { deleted: true });
-      return true;
-    } catch (err) {
-      logError("deleteFoodLog error:", err);
-      return false;
-    }
-  }, [userId]);
-
-  const logScannedFood = useCallback(async ({
-    mealType = "snack",
-    foodName,
-    brand = "",
-    calories = 0,
-    protein = 0,
-    carbs = 0,
-    fat = 0,
-    fiber = 0,
-    quantity = 100,
-    barcode = null,
-  }) => {
-    return saveMealEntries({
-      mealType,
-      items: [{ foodName, brand, calories, protein, carbs, fat, fiber, quantity, barcode }],
-    });
-  }, [saveMealEntries]);
+  const logScannedFood = useCallback(
+    async ({
+      mealType = "snack",
+      foodName,
+      brand = "",
+      calories = 0,
+      protein = 0,
+      carbs = 0,
+      fat = 0,
+      fiber = 0,
+      quantity = 100,
+      barcode = null,
+    }) => {
+      return saveMealEntries({
+        mealType,
+        items: [{ foodName, brand, calories, protein, carbs, fat, fiber, quantity, barcode }],
+      });
+    },
+    [saveMealEntries],
+  );
 
   const allLogs = userId ? foodLogs : guestLogs;
 
   const totals = useMemo(() => {
-    return allLogs.reduce((acc, log) => {
-      const entry = computeLogNutrition(log);
-      return {
-        calories: acc.calories + entry.calories,
-        protein: round1(acc.protein + entry.protein),
-        carbs: round1(acc.carbs + entry.carbs),
-        fat: round1(acc.fat + entry.fat),
-        fiber: round1(acc.fiber + entry.fiber),
-      };
-    }, { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
+    return allLogs.reduce(
+      (acc, log) => {
+        const entry = computeLogNutrition(log);
+        return {
+          calories: acc.calories + entry.calories,
+          protein: round1(acc.protein + entry.protein),
+          carbs: round1(acc.carbs + entry.carbs),
+          fat: round1(acc.fat + entry.fat),
+          fiber: round1(acc.fiber + entry.fiber),
+        };
+      },
+      { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 },
+    );
   }, [allLogs]);
 
   const mealSections = useMemo(() => {
@@ -240,12 +265,15 @@ export function useNutrition() {
         };
       });
 
-      const mealTotals = items.reduce((acc, item) => ({
-        calories: acc.calories + item.calories,
-        protein: round1(acc.protein + item.protein),
-        carbs: round1(acc.carbs + item.carbs),
-        fat: round1(acc.fat + item.fat),
-      }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+      const mealTotals = items.reduce(
+        (acc, item) => ({
+          calories: acc.calories + item.calories,
+          protein: round1(acc.protein + item.protein),
+          carbs: round1(acc.carbs + item.carbs),
+          fat: round1(acc.fat + item.fat),
+        }),
+        { calories: 0, protein: 0, carbs: 0, fat: 0 },
+      );
 
       return {
         ...MEAL_META[slotId],

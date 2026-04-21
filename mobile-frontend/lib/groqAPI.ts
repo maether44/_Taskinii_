@@ -1,26 +1,50 @@
 const GROQ_API_KEY = process.env.EXPO_PUBLIC_GROQ_API_KEY!;
 
-const INTERNAL_LINE_RE = /^[^\n]*(COMMAND\s*:|MEMORIES\s*:|log_water|log_sleep|log_weight|log_food|log_workout|forget_fact|navigate)[^\n]*$/gim;
+const INTERNAL_LINE_RE =
+  /^[^\n]*(COMMAND\s*:|MEMORIES\s*:|log_water|log_sleep|log_weight|log_food|log_workout|forget_fact|navigate)[^\n]*$/gim;
 
 function cleanAiText(text: string): string {
   if (!text) return text;
-  return text.replace(INTERNAL_LINE_RE, '').replace(/\n{3,}/g, '\n\n').trim();
+  return text
+    .replace(INTERNAL_LINE_RE, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function buildPrompt(answers) {
   const {
-    goal, gender, age, height, weight, targetW, activity, experience,
-    injuries, days, duration, timeOfDay, equipment, focus, sleep,
-    stress, diet, calTarget, protein,
+    goal,
+    gender,
+    age,
+    height,
+    weight,
+    targetW,
+    activity,
+    experience,
+    injuries,
+    days,
+    duration,
+    timeOfDay,
+    equipment,
+    focus,
+    sleep,
+    stress,
+    diet,
+    calTarget,
+    protein,
   } = answers;
 
-  const injList   = injuries?.filter((x) => x !== "none").join(", ") || "none";
+  const injList = injuries?.filter((x) => x !== "none").join(", ") || "none";
   const focusList = focus?.join(", ") || "balanced";
   const goalLabel = {
-    lose_fat: "lose body fat", fat_loss: "lose body fat",
-    gain_muscle: "build muscle", muscle: "build muscle",
-    maintain: "stay healthy", gain_weight: "gain weight",
-    build_habits: "build healthy habits", athletic: "athletic performance",
+    lose_fat: "lose body fat",
+    fat_loss: "lose body fat",
+    gain_muscle: "build muscle",
+    muscle: "build muscle",
+    maintain: "stay healthy",
+    gain_weight: "gain weight",
+    build_habits: "build healthy habits",
+    athletic: "athletic performance",
   }[goal];
 
   return `You are an expert fitness coach. Create a highly personalised ${days}-day training plan for this user.
@@ -58,23 +82,28 @@ function parseGroqResponse(text) {
   if (!jsonMatch) throw new Error("No JSON found in response");
 
   let clean = jsonMatch[0];
-  try { return JSON.parse(clean); } catch (e) {}
+  try {
+    return JSON.parse(clean);
+  } catch {}
 
   clean = clean
     .replace(/,\s*}/g, "}")
     .replace(/,\s*]/g, "]")
     .replace(/[\x00-\x1F\x7F]/g, " ");
 
-  const opens  = (clean.match(/{/g) || []).length;
+  const opens = (clean.match(/{/g) || []).length;
   const closes = (clean.match(/}/g) || []).length;
   for (let i = 0; i < opens - closes; i++) clean += "}";
 
-  const aOpens  = (clean.match(/\[/g) || []).length;
+  const aOpens = (clean.match(/\[/g) || []).length;
   const aCloses = (clean.match(/\]/g) || []).length;
   for (let i = 0; i < aOpens - aCloses; i++) clean += "]";
 
-  try { return JSON.parse(clean); }
-  catch (e) { throw new Error("Could not parse AI response. Please retry."); }
+  try {
+    return JSON.parse(clean);
+  } catch {
+    throw new Error("Could not parse AI response. Please retry.");
+  }
 }
 
 export async function generateAIPlan(answers) {
@@ -125,52 +154,57 @@ Rules:
   if (!profile) return base;
 
   const goalMap = {
-    lose_fat: 'lose body fat', fat_loss: 'lose body fat',
-    gain_muscle: 'build muscle', muscle: 'build muscle',
-    gain_weight: 'gain weight', build_habits: 'build healthy habits',
-    maintain: 'stay healthy', athletic: 'improve athletic performance',
+    lose_fat: "lose body fat",
+    fat_loss: "lose body fat",
+    gain_muscle: "build muscle",
+    muscle: "build muscle",
+    gain_weight: "gain weight",
+    build_habits: "build healthy habits",
+    maintain: "stay healthy",
+    athletic: "improve athletic performance",
   };
-  const injList = profile.injuries?.filter(x => x !== 'none').join(', ') || 'none';
+  const injList = profile.injuries?.filter((x) => x !== "none").join(", ") || "none";
 
-  return base + `
+  return (
+    base +
+    `
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 USER PROFILE — memorise this, never ask for it again:
 • Goal: ${goalMap[profile.goal] || profile.goal}
-• Gender: ${profile.gender} | Age: ${profile.age} | Height: ${profile.height}cm | Weight: ${profile.weight}kg${profile.targetW ? ` | Target: ${profile.targetW}kg` : ''}
+• Gender: ${profile.gender} | Age: ${profile.age} | Height: ${profile.height}cm | Weight: ${profile.weight}kg${profile.targetW ? ` | Target: ${profile.targetW}kg` : ""}
 • Experience: ${profile.experience}
 • Training: ${profile.days} days/week, ${profile.duration} min sessions, ${profile.timeOfDay} preferred
 • Equipment: ${profile.equipment}
-• Focus areas: ${profile.focus?.join(', ') || 'balanced'}
+• Focus areas: ${profile.focus?.join(", ") || "balanced"}
 • Injuries: ${injList}
 • Sleep: ${profile.sleep} | Stress: ${profile.stress} | Diet: ${profile.diet}
 • Daily calories: ${profile.calTarget} kcal | Protein: ${profile.protein}g
 • TDEE: ${profile.tdee} | BMR: ${profile.bmr}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Use this to give precise, personalised advice every time.`;
+Use this to give precise, personalised advice every time.`
+  );
 }
 
 export async function callYara(history, profile) {
-  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
     headers: {
-      'Content-Type':  'application/json',
-      'Authorization': `Bearer ${GROQ_API_KEY}`,
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${GROQ_API_KEY}`,
     },
     body: JSON.stringify({
-      model:      'llama-3.1-8b-instant',
+      model: "llama-3.1-8b-instant",
       max_tokens: 512,
-      messages: [
-        { role: 'system', content: buildYaraSystem(profile) },
-        ...history,
-      ],
+      messages: [{ role: "system", content: buildYaraSystem(profile) }, ...history],
     }),
   });
 
   const body = await res.json();
   if (!res.ok) throw new Error(JSON.stringify(body?.error ?? body));
-  return cleanAiText(body.choices?.[0]?.message?.content
-    ?? "I'm having trouble connecting. Try again in a moment.");
+  return cleanAiText(
+    body.choices?.[0]?.message?.content ?? "I'm having trouble connecting. Try again in a moment.",
+  );
 }
 
 // ─── Yara coach (Supabase profile shape) ─────────────────────────────────────
@@ -191,32 +225,39 @@ Rules:
 - NEVER ask the user for info already in their profile below.
 - Always reference their profile when giving advice.
 - Never give dangerous medical advice. Refer to a physio for serious pain.${
-  scheduleMode ? '\n- You MUST respond with a valid JSON object only. No text outside the JSON.' : ''
-}`;
+    scheduleMode
+      ? "\n- You MUST respond with a valid JSON object only. No text outside the JSON."
+      : ""
+  }`;
 
   if (!profile) return base;
 
   const goalMap: Record<string, string> = {
-    lose_fat: 'lose body fat', gain_muscle: 'build muscle',
-    gain_weight: 'gain weight', maintain: 'maintain fitness',
-    build_habits: 'build healthy habits',
+    lose_fat: "lose body fat",
+    gain_muscle: "build muscle",
+    gain_weight: "gain weight",
+    maintain: "maintain fitness",
+    build_habits: "build healthy habits",
   };
   const age = profile.date_of_birth
     ? new Date().getFullYear() - new Date(profile.date_of_birth).getFullYear()
-    : 'unknown';
+    : "unknown";
 
-  return base + `
+  return (
+    base +
+    `
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 USER PROFILE — memorise this, never ask for it again:
-• Name: ${profile.full_name || 'User'}
-• Goal: ${goalMap[profile.goal] || profile.goal || 'unknown'}
-• Gender: ${profile.gender || 'unknown'} | Age: ${age} | Height: ${profile.height_cm || '?'}cm | Weight: ${profile.weight_kg || '?'}kg
-• Activity level: ${profile.activity_level || 'moderate'}
-• Daily calorie target: ${targets?.daily_calories || '?'} kcal
-• Protein / Carbs / Fat targets: ${targets?.protein_target || '?'}g / ${targets?.carbs_target || '?'}g / ${targets?.fat_target || '?'}g
+• Name: ${profile.full_name || "User"}
+• Goal: ${goalMap[profile.goal] || profile.goal || "unknown"}
+• Gender: ${profile.gender || "unknown"} | Age: ${age} | Height: ${profile.height_cm || "?"}cm | Weight: ${profile.weight_kg || "?"}kg
+• Activity level: ${profile.activity_level || "moderate"}
+• Daily calorie target: ${targets?.daily_calories || "?"} kcal
+• Protein / Carbs / Fat targets: ${targets?.protein_target || "?"}g / ${targets?.carbs_target || "?"}g / ${targets?.fat_target || "?"}g
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Use this to give precise, personalised advice every time.`;
+Use this to give precise, personalised advice every time.`
+  );
 }
 
 // callAriaCoach — identical to callYaraCoach but under the Aria brand name.
@@ -235,19 +276,19 @@ export async function callYaraCoach(
   targets: any,
   scheduleMode = false,
 ): Promise<string> {
-  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
     headers: {
-      'Content-Type':  'application/json',
-      'Authorization': `Bearer ${GROQ_API_KEY}`,
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${GROQ_API_KEY}`,
     },
     body: JSON.stringify({
-      model:           scheduleMode ? 'llama-3.3-70b-versatile' : 'llama-3.1-8b-instant',
-      max_tokens:      scheduleMode ? 4096 : 512,
-      temperature:     scheduleMode ? 0.3 : 0.7,
-      response_format: scheduleMode ? { type: 'json_object' } : undefined,
+      model: scheduleMode ? "llama-3.3-70b-versatile" : "llama-3.1-8b-instant",
+      max_tokens: scheduleMode ? 4096 : 512,
+      temperature: scheduleMode ? 0.3 : 0.7,
+      response_format: scheduleMode ? { type: "json_object" } : undefined,
       messages: [
-        { role: 'system', content: buildYaraCoachSystem(profile, targets, scheduleMode) },
+        { role: "system", content: buildYaraCoachSystem(profile, targets, scheduleMode) },
         ...history,
       ],
     }),
@@ -255,6 +296,7 @@ export async function callYaraCoach(
 
   const body = await res.json();
   if (!res.ok) throw new Error(JSON.stringify(body?.error ?? body));
-  return cleanAiText(body.choices?.[0]?.message?.content
-    ?? "I'm having trouble connecting. Try again in a moment.");
+  return cleanAiText(
+    body.choices?.[0]?.message?.content ?? "I'm having trouble connecting. Try again in a moment.",
+  );
 }

@@ -1,14 +1,6 @@
-import {
-  View,
-  Text,
-  ScrollView,
-  Image,
-  StyleSheet,
-  TouchableOpacity,
-} from "react-native";
+import { View, Text, ScrollView, Image, StyleSheet, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { BASE_IMG } from "../services/exerciseService";
-
 
 const C = {
   bg: "#0F0B1E",
@@ -38,10 +30,7 @@ export default function ExerciseInfo({ route, navigation }) {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView
-        contentContainerStyle={s.scroll}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
         {/* Exercise Name */}
         <Text style={s.name}>{exercise.name}</Text>
 
@@ -65,11 +54,7 @@ export default function ExerciseInfo({ route, navigation }) {
         {(exercise.images || []).length > 0 && (
           <View style={s.section}>
             <Text style={s.sectionTitle}>Visual Guide</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={s.imageScroll}
-            >
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.imageScroll}>
               {(exercise.images || []).map((img, i) => (
                 <Image
                   key={i}
@@ -133,7 +118,9 @@ export default function ExerciseInfo({ route, navigation }) {
       <View style={s.footer}>
         <TouchableOpacity
           style={s.mainActionBtn}
-          onPress={() => navigation.navigate('WorkoutActive', { exerciseKey: exercise.name.toLowerCase() })}
+          onPress={() =>
+            navigation.navigate("WorkoutActive", { exerciseKey: exercise.name.toLowerCase() })
+          }
         >
           <Text style={s.mainActionTxt}>START AI POSTURE COACH</Text>
         </TouchableOpacity>
@@ -256,13 +243,13 @@ const s = StyleSheet.create({
     borderTopColor: C.border,
   },
   mainActionBtn: {
-    backgroundColor: '#C8F135',
+    backgroundColor: "#C8F135",
     paddingVertical: 18,
     borderRadius: 16,
-    alignItems: 'center',
-    shadowColor: '#C8F135',
+    alignItems: "center",
+    shadowColor: "#C8F135",
     shadowOpacity: 0.3,
     shadowRadius: 10,
   },
-  mainActionTxt: { color: '#000', fontWeight: '900', fontSize: 16, letterSpacing: 1 },
+  mainActionTxt: { color: "#000", fontWeight: "900", fontSize: 16, letterSpacing: 1 },
 });

@@ -3,7 +3,7 @@
  * Intercepts the user when a streak milestone is reached.
  * Two actions: "Claim Report" or "Skip for now".
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef } from "react";
 import {
   Animated,
   Dimensions,
@@ -12,16 +12,46 @@ import {
   Text,
   TouchableOpacity,
   View,
-} from 'react-native';
+} from "react-native";
 
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 
 const MILESTONE_META = {
-  weekly:    { emoji: '🔥', title: '7-Day Streak!',    sub: 'Weekly Report Unlocked',    color: '#CDF27E', streak: 7 },
-  monthly:   { emoji: '⭐', title: '30-Day Streak!',   sub: 'Monthly Report Unlocked',   color: '#FF9500', streak: 30 },
-  quarterly: { emoji: '🏆', title: '90-Day Streak!',   sub: 'Quarterly Report Unlocked', color: '#A38DF2', streak: 90 },
-  biannual:  { emoji: '💎', title: '180-Day Streak!',  sub: '6-Month Report Unlocked',   color: '#6F4BF2', streak: 180 },
-  yearly:    { emoji: '👑', title: '365-Day Streak!',  sub: 'Yearly Report Unlocked',    color: '#7C5CFC', streak: 365 },
+  weekly: {
+    emoji: "🔥",
+    title: "7-Day Streak!",
+    sub: "Weekly Report Unlocked",
+    color: "#CDF27E",
+    streak: 7,
+  },
+  monthly: {
+    emoji: "⭐",
+    title: "30-Day Streak!",
+    sub: "Monthly Report Unlocked",
+    color: "#FF9500",
+    streak: 30,
+  },
+  quarterly: {
+    emoji: "🏆",
+    title: "90-Day Streak!",
+    sub: "Quarterly Report Unlocked",
+    color: "#A38DF2",
+    streak: 90,
+  },
+  biannual: {
+    emoji: "💎",
+    title: "180-Day Streak!",
+    sub: "6-Month Report Unlocked",
+    color: "#6F4BF2",
+    streak: 180,
+  },
+  yearly: {
+    emoji: "👑",
+    title: "365-Day Streak!",
+    sub: "Yearly Report Unlocked",
+    color: "#7C5CFC",
+    streak: 365,
+  },
 };
 
 function ConfettiDot({ delay, startX, color }) {
@@ -47,7 +77,7 @@ function ConfettiDot({ delay, startX, color }) {
           Animated.sequence([
             Animated.timing(sway, { toValue: 15, duration: 400, useNativeDriver: true }),
             Animated.timing(sway, { toValue: -15, duration: 400, useNativeDriver: true }),
-          ])
+          ]),
         ),
       ]).start();
     }, delay);
@@ -55,19 +85,29 @@ function ConfettiDot({ delay, startX, color }) {
   }, []);
 
   return (
-    <Animated.View style={[
-      st.confetti,
-      {
-        left: startX,
-        backgroundColor: color,
-        transform: [{ translateY: fall }, { translateX: sway }],
-        opacity,
-      },
-    ]} />
+    <Animated.View
+      style={[
+        st.confetti,
+        {
+          left: startX,
+          backgroundColor: color,
+          transform: [{ translateY: fall }, { translateX: sway }],
+          opacity,
+        },
+      ]}
+    />
   );
 }
 
-const CONFETTI_COLORS = ['#CDF27E', '#6F4BF2', '#FF9500', '#A38DF2', '#7C5CFC', '#FF6464', '#34C759'];
+const CONFETTI_COLORS = [
+  "#CDF27E",
+  "#6F4BF2",
+  "#FF9500",
+  "#A38DF2",
+  "#7C5CFC",
+  "#FF6464",
+  "#34C759",
+];
 
 export default function CelebrationInterstitial({ visible, milestone, onClaim, onSkip }) {
   const scaleAnim = useRef(new Animated.Value(0.3)).current;
@@ -86,10 +126,20 @@ export default function CelebrationInterstitial({ visible, milestone, onClaim, o
 
       Animated.sequence([
         Animated.parallel([
-          Animated.spring(scaleAnim, { toValue: 1, friction: 6, tension: 80, useNativeDriver: true }),
+          Animated.spring(scaleAnim, {
+            toValue: 1,
+            friction: 6,
+            tension: 80,
+            useNativeDriver: true,
+          }),
           Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
         ]),
-        Animated.spring(emojiScale, { toValue: 1, friction: 4, tension: 60, useNativeDriver: true }),
+        Animated.spring(emojiScale, {
+          toValue: 1,
+          friction: 4,
+          tension: 60,
+          useNativeDriver: true,
+        }),
         Animated.timing(btnFade, { toValue: 1, duration: 300, useNativeDriver: true }),
       ]).start();
     }
@@ -134,7 +184,7 @@ export default function CelebrationInterstitial({ visible, milestone, onClaim, o
           </View>
 
           <Text style={st.desc}>
-            Your dedication has earned you a personalized{'\n'}
+            Your dedication has earned you a personalized{"\n"}
             performance report from Alexi.
           </Text>
 
@@ -160,101 +210,101 @@ export default function CelebrationInterstitial({ visible, milestone, onClaim, o
 const st = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(15, 11, 30, 0.95)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(15, 11, 30, 0.95)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   confettiLayer: {
     ...StyleSheet.absoluteFillObject,
-    overflow: 'hidden',
-    pointerEvents: 'none',
+    overflow: "hidden",
+    pointerEvents: "none",
   },
   confetti: {
-    position: 'absolute',
+    position: "absolute",
     width: 8,
     height: 8,
     borderRadius: 4,
     top: -20,
   },
   card: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingHorizontal: 32,
     paddingVertical: 40,
     width: SCREEN_W - 48,
-    backgroundColor: '#1A1432',
+    backgroundColor: "#1A1432",
     borderRadius: 28,
     borderWidth: 1,
-    borderColor: '#3D2F7A',
+    borderColor: "#3D2F7A",
   },
   glowRing: {
     width: 100,
     height: 100,
     borderRadius: 50,
     borderWidth: 3,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(111, 75, 242, 0.15)',
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(111, 75, 242, 0.15)",
     marginBottom: 20,
   },
   emoji: {
     fontSize: 44,
   },
   title: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 28,
-    fontWeight: '800',
-    textAlign: 'center',
+    fontWeight: "800",
+    textAlign: "center",
     marginBottom: 6,
   },
   sub: {
     fontSize: 14,
-    fontWeight: '700',
-    textAlign: 'center',
+    fontWeight: "700",
+    textAlign: "center",
     marginBottom: 16,
     letterSpacing: 0.5,
   },
   streakBadge: {
-    backgroundColor: 'rgba(111, 75, 242, 0.2)',
+    backgroundColor: "rgba(111, 75, 242, 0.2)",
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderWidth: 1,
-    borderColor: '#6F4BF2',
+    borderColor: "#6F4BF2",
     marginBottom: 16,
   },
   streakText: {
-    color: '#A38DF2',
+    color: "#A38DF2",
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   desc: {
-    color: '#7A6AAA',
+    color: "#7A6AAA",
     fontSize: 13,
     lineHeight: 20,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 28,
   },
   btnGroup: {
-    width: '100%',
+    width: "100%",
     gap: 12,
   },
   claimBtn: {
     borderRadius: 14,
     paddingVertical: 14,
-    alignItems: 'center',
+    alignItems: "center",
   },
   claimText: {
-    color: '#0F0B1E',
+    color: "#0F0B1E",
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   skipBtn: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: 8,
   },
   skipText: {
-    color: '#7A6AAA',
+    color: "#7A6AAA",
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });

@@ -1,27 +1,32 @@
 /* eslint-disable no-undef */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from "react";
 import {
-  Animated, ScrollView, StyleSheet,
-  Text, TouchableOpacity, View, ActivityIndicator,
-} from 'react-native';
-import Svg, { Circle } from 'react-native-svg';
-import { Ionicons } from '@expo/vector-icons';
-import { CommonActions } from '@react-navigation/native';
-import { supabase } from '../../lib/supabase';
-import { warn } from '../../lib/logger';
+  Animated,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  ActivityIndicator,
+} from "react-native";
+import Svg, { Circle } from "react-native-svg";
+import { Ionicons } from "@expo/vector-icons";
+import { CommonActions } from "@react-navigation/native";
+import { supabase } from "../../lib/supabase";
+import { warn } from "../../lib/logger";
 
 // ── Design tokens ─────────────────────────────────────────────
 const C = {
-  bg:     '#0F0B1E',
-  card:   '#13102A',
-  card2:  '#0D0B22',
-  border: '#1E1A38',
-  purple: '#7C5CFC',
-  lime:   '#C8F135',
-  amber:  '#FF9500',
-  red:    '#FF3B30',
-  sub:    '#6B5F8A',
-  text:   '#FFFFFF',
+  bg: "#0F0B1E",
+  card: "#13102A",
+  card2: "#0D0B22",
+  border: "#1E1A38",
+  purple: "#7C5CFC",
+  lime: "#C8F135",
+  amber: "#FF9500",
+  red: "#FF3B30",
+  sub: "#6B5F8A",
+  text: "#FFFFFF",
 };
 
 const GLOW = (color, r = 16) => ({
@@ -46,53 +51,59 @@ function scoreColor(pct) {
 }
 
 function yaraMessage(score) {
-  if (score >= 90) return {
-    tag: 'ELITE FORM',
-    msg: 'Elite Form! You are mastering this move. Your body is building real, lasting strength.',
-  };
-  if (score >= 80) return {
-    tag: 'GREAT FORM',
-    msg: `Great session at ${score}% stability. You are ready to push the weight higher next time.`,
-  };
-  if (score >= 65) return {
-    tag: 'SOLID',
-    msg: `Solid work at ${score}%. Focus on full range of motion and the gains will accelerate.`,
-  };
-  if (score >= 50) return {
-    tag: 'KEEP GOING',
-    msg: `Good effort — ${score}% accuracy. Slow down the tempo slightly for big improvements next session.`,
-  };
-  if (score > 0) return {
-    tag: 'NEEDS WORK',
-    msg: `Form was ${score}% — let's master the technique before adding more load. Quality over quantity.`,
-  };
+  if (score >= 90)
+    return {
+      tag: "ELITE FORM",
+      msg: "Elite Form! You are mastering this move. Your body is building real, lasting strength.",
+    };
+  if (score >= 80)
+    return {
+      tag: "GREAT FORM",
+      msg: `Great session at ${score}% stability. You are ready to push the weight higher next time.`,
+    };
+  if (score >= 65)
+    return {
+      tag: "SOLID",
+      msg: `Solid work at ${score}%. Focus on full range of motion and the gains will accelerate.`,
+    };
+  if (score >= 50)
+    return {
+      tag: "KEEP GOING",
+      msg: `Good effort — ${score}% accuracy. Slow down the tempo slightly for big improvements next session.`,
+    };
+  if (score > 0)
+    return {
+      tag: "NEEDS WORK",
+      msg: `Form was ${score}% — let's master the technique before adding more load. Quality over quantity.`,
+    };
   return {
-    tag: 'WELL DONE',
-    msg: 'Consistency beats perfection. Showing up is what counts most — see you next session.',
+    tag: "WELL DONE",
+    msg: "Consistency beats perfection. Showing up is what counts most — see you next session.",
   };
 }
 
 // ── Circular Form Accuracy Ring ───────────────────────────────
 function FormRing({ score, color }) {
-  const SIZE  = 110;
-  const SW    = 9;          // stroke width
-  const r     = (SIZE - SW) / 2;
-  const circ  = 2 * Math.PI * r;
-  const pct   = Math.max(0, Math.min(100, score));
-  const dash  = (pct / 100) * circ;
+  const SIZE = 110;
+  const SW = 9; // stroke width
+  const r = (SIZE - SW) / 2;
+  const circ = 2 * Math.PI * r;
+  const pct = Math.max(0, Math.min(100, score));
+  const dash = (pct / 100) * circ;
 
   return (
     <View style={ring.wrap}>
       <Svg width={SIZE} height={SIZE} style={ring.svg}>
         {/* Track */}
-        <Circle
-          cx={SIZE / 2} cy={SIZE / 2} r={r}
-          stroke={C.border} strokeWidth={SW} fill="none"
-        />
+        <Circle cx={SIZE / 2} cy={SIZE / 2} r={r} stroke={C.border} strokeWidth={SW} fill="none" />
         {/* Arc */}
         <Circle
-          cx={SIZE / 2} cy={SIZE / 2} r={r}
-          stroke={color} strokeWidth={SW} fill="none"
+          cx={SIZE / 2}
+          cy={SIZE / 2}
+          r={r}
+          stroke={color}
+          strokeWidth={SW}
+          fill="none"
           strokeDasharray={`${dash} ${circ}`}
           strokeLinecap="round"
           transform={`rotate(-90, ${SIZE / 2}, ${SIZE / 2})`}
@@ -107,104 +118,139 @@ function FormRing({ score, color }) {
 }
 
 const ring = StyleSheet.create({
-  wrap:  { width: 110, height: 110, alignItems: 'center', justifyContent: 'center' },
-  svg:   { position: 'absolute' },
-  label: { alignItems: 'center' },
-  pct:   { fontSize: 26, fontWeight: '900', lineHeight: 28 },
-  sub:   { color: 'rgba(255,255,255,0.35)', fontSize: 8, fontWeight: '800', letterSpacing: 1.5, marginTop: 2 },
+  wrap: { width: 110, height: 110, alignItems: "center", justifyContent: "center" },
+  svg: { position: "absolute" },
+  label: { alignItems: "center" },
+  pct: { fontSize: 26, fontWeight: "900", lineHeight: 28 },
+  sub: {
+    color: "rgba(255,255,255,0.35)",
+    fontSize: 8,
+    fontWeight: "800",
+    letterSpacing: 1.5,
+    marginTop: 2,
+  },
 });
 
 // ── Main screen ───────────────────────────────────────────────
 export default function WorkoutSummary({ route, navigation }) {
-  const params    = route?.params || {};
+  const params = route?.params || {};
   const sessionId = params.sessionId ?? null;
 
   // Optimistic values — shown instantly, overwritten by DB fetch
-  const [reps,      setReps]      = useState(params.repCount    ?? 0);
-  const [score,     setScore]     = useState(params.formScore   ?? 0);
-  const [calories,  setCalories]  = useState(Math.max(1, (params.repCount ?? 0) * 5));
-  const [elapsed]                  = useState(params.elapsed     ?? 0);
-  const [exName,    setExName]    = useState(params.exerciseName ?? 'Workout');
+  const [reps, setReps] = useState(params.repCount ?? 0);
+  const [score, setScore] = useState(params.formScore ?? 0);
+  const [calories, setCalories] = useState(Math.max(1, (params.repCount ?? 0) * 5));
+  const [elapsed] = useState(params.elapsed ?? 0);
+  const [exName, setExName] = useState(params.exerciseName ?? "Workout");
   const [dbLoading, setDbLoading] = useState(!!sessionId);
 
   // Staggered entrance anims
-  const trophyScale   = useRef(new Animated.Value(0.15)).current;
+  const trophyScale = useRef(new Animated.Value(0.15)).current;
   const trophyOpacity = useRef(new Animated.Value(0)).current;
-  const cardSlide     = useRef(new Animated.Value(40)).current;
-  const cardOpacity   = useRef(new Animated.Value(0)).current;
-  const yaraSlide     = useRef(new Animated.Value(40)).current;
-  const yaraOpacity   = useRef(new Animated.Value(0)).current;
-  const actionsOpacity= useRef(new Animated.Value(0)).current;
+  const cardSlide = useRef(new Animated.Value(40)).current;
+  const cardOpacity = useRef(new Animated.Value(0)).current;
+  const yaraSlide = useRef(new Animated.Value(40)).current;
+  const yaraOpacity = useRef(new Animated.Value(0)).current;
+  const actionsOpacity = useRef(new Animated.Value(0)).current;
 
   // ── Fetch confirmed data from Supabase ──────────────────────
   useEffect(() => {
     const runEntrance = () => {
       Animated.parallel([
-        Animated.spring(trophyScale,   { toValue: 1, tension: 70, friction: 7, useNativeDriver: true }),
+        Animated.spring(trophyScale, {
+          toValue: 1,
+          tension: 70,
+          friction: 7,
+          useNativeDriver: true,
+        }),
         Animated.timing(trophyOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
       ]).start();
 
       setTimeout(() => {
         Animated.parallel([
-          Animated.spring(cardSlide,   { toValue: 0, tension: 60, friction: 9, useNativeDriver: true }),
+          Animated.spring(cardSlide, {
+            toValue: 0,
+            tension: 60,
+            friction: 9,
+            useNativeDriver: true,
+          }),
           Animated.timing(cardOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
         ]).start();
       }, 200);
 
       setTimeout(() => {
         Animated.parallel([
-          Animated.spring(yaraSlide,   { toValue: 0, tension: 60, friction: 9, useNativeDriver: true }),
+          Animated.spring(yaraSlide, {
+            toValue: 0,
+            tension: 60,
+            friction: 9,
+            useNativeDriver: true,
+          }),
           Animated.timing(yaraOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
         ]).start();
       }, 400);
 
       setTimeout(() => {
-        Animated.timing(actionsOpacity, { toValue: 1, duration: 350, useNativeDriver: true }).start();
+        Animated.timing(actionsOpacity, {
+          toValue: 1,
+          duration: 350,
+          useNativeDriver: true,
+        }).start();
       }, 600);
     };
 
-    if (!sessionId) { runEntrance(); return; }
+    if (!sessionId) {
+      runEntrance();
+      return;
+    }
 
     (async () => {
       const { data, error } = await supabase
-        .from('workout_sessions')
-        .select('reps, posture_score, calories_burned, exercise_name')
-        .eq('id', sessionId)
+        .from("workout_sessions")
+        .select("reps, posture_score, calories_burned, exercise_name")
+        .eq("id", sessionId)
         .single();
 
       if (!error && data) {
-        if (data.reps            != null) setReps(data.reps);
-        if (data.posture_score   != null) setScore(data.posture_score);
+        if (data.reps != null) setReps(data.reps);
+        if (data.posture_score != null) setScore(data.posture_score);
         if (data.calories_burned != null) setCalories(data.calories_burned);
-        if (data.exercise_name)           setExName(data.exercise_name);
+        if (data.exercise_name) setExName(data.exercise_name);
       } else {
-        warn('[BodyQ] Session fetch error:', error?.message);
+        warn("[BodyQ] Session fetch error:", error?.message);
       }
       setDbLoading(false);
       runEntrance();
     })();
-  }, [sessionId, trophyScale, trophyOpacity, cardSlide, cardOpacity, yaraSlide, yaraOpacity, actionsOpacity]);
+  }, [
+    sessionId,
+    trophyScale,
+    trophyOpacity,
+    cardSlide,
+    cardOpacity,
+    yaraSlide,
+    yaraOpacity,
+    actionsOpacity,
+  ]);
 
-  const xp        = Math.min(200, reps * 5 + Math.round(score / 2));
+  const xp = Math.min(200, reps * 5 + Math.round(score / 2));
   const ringColor = scoreColor(score);
-  const yara      = yaraMessage(score);
+  const yara = yaraMessage(score);
 
   // ── Circuit context ──────────────────────────────────────────
-  const circuit      = params.circuit || null;
+  const circuit = params.circuit || null;
   const circuitIndex = params.circuitIndex ?? 0;
-  const hasNext      = circuit && circuitIndex < circuit.length - 1;
+  const hasNext = circuit && circuitIndex < circuit.length - 1;
 
   const goHome = () =>
-    navigation.dispatch(
-      CommonActions.reset({ index: 0, routes: [{ name: 'MainApp' }] })
-    );
+    navigation.dispatch(CommonActions.reset({ index: 0, routes: [{ name: "MainApp" }] }));
 
   const goAgain = () => navigation.goBack();
 
   const goNext = () => {
     if (!hasNext) return;
     const nextEx = circuit[circuitIndex + 1];
-    navigation.replace('WorkoutActive', {
+    navigation.replace("WorkoutActive", {
       exerciseName: nextEx.key,
       circuit,
       circuitIndex: circuitIndex + 1,
@@ -224,7 +270,6 @@ export default function WorkoutSummary({ route, navigation }) {
   return (
     <View style={s.root}>
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
-
         {/* ── TROPHY HEADER ── */}
         <Animated.View
           style={[s.header, { opacity: trophyOpacity, transform: [{ scale: trophyScale }] }]}
@@ -235,7 +280,11 @@ export default function WorkoutSummary({ route, navigation }) {
           <Text style={s.doneLabel}>SESSION COMPLETE</Text>
           <Text style={s.workoutName}>{exName}</Text>
           <Text style={s.timestamp}>
-            {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+            {new Date().toLocaleDateString("en-US", {
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+            })}
           </Text>
         </Animated.View>
 
@@ -304,7 +353,12 @@ export default function WorkoutSummary({ route, navigation }) {
             </View>
             <View>
               <Text style={s.yaraName}>Yara AI Coach</Text>
-              <View style={[s.yaraTagPill, { backgroundColor: `${ringColor}22`, borderColor: `${ringColor}55` }]}>
+              <View
+                style={[
+                  s.yaraTagPill,
+                  { backgroundColor: `${ringColor}22`, borderColor: `${ringColor}55` },
+                ]}
+              >
                 <Text style={[s.yaraTagTxt, { color: ringColor }]}>{yara.tag}</Text>
               </View>
             </View>
@@ -317,7 +371,9 @@ export default function WorkoutSummary({ route, navigation }) {
           {hasNext && (
             <TouchableOpacity style={[s.nextExBtn, GLOW(C.lime, 14)]} onPress={goNext}>
               <View style={{ flex: 1 }}>
-                <Text style={s.nextExLabel}>NEXT EXERCISE ({circuitIndex + 2}/{circuit.length})</Text>
+                <Text style={s.nextExLabel}>
+                  NEXT EXERCISE ({circuitIndex + 2}/{circuit.length})
+                </Text>
                 <Text style={s.nextExName}>{circuit[circuitIndex + 1]?.name}</Text>
               </View>
               <Ionicons name="arrow-forward" size={18} color="#000" />
@@ -325,7 +381,7 @@ export default function WorkoutSummary({ route, navigation }) {
           )}
           <TouchableOpacity style={[s.homeBtn, GLOW(C.purple, 14)]} onPress={goHome}>
             <Ionicons name="home" size={16} color="#fff" style={{ marginRight: 8 }} />
-            <Text style={s.homeBtnTxt}>{hasNext ? 'End Circuit' : 'Back to Home'}</Text>
+            <Text style={s.homeBtnTxt}>{hasNext ? "End Circuit" : "Back to Home"}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={s.againBtn} onPress={goAgain}>
             <Ionicons name="refresh" size={14} color={C.sub} style={{ marginRight: 6 }} />
@@ -340,92 +396,170 @@ export default function WorkoutSummary({ route, navigation }) {
 }
 
 const s = StyleSheet.create({
-  root:          { flex: 1, backgroundColor: C.bg },
-  scroll:        { paddingHorizontal: 24, paddingTop: 60, paddingBottom: 24, alignItems: 'center' },
-  loadingScreen: { flex: 1, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center' },
-  loadingTxt:    { color: C.sub, marginTop: 14, fontSize: 14, fontWeight: '600' },
+  root: { flex: 1, backgroundColor: C.bg },
+  scroll: { paddingHorizontal: 24, paddingTop: 60, paddingBottom: 24, alignItems: "center" },
+  loadingScreen: { flex: 1, backgroundColor: C.bg, alignItems: "center", justifyContent: "center" },
+  loadingTxt: { color: C.sub, marginTop: 14, fontSize: 14, fontWeight: "600" },
 
   // ── Header ──────────────────────────────────────────────────
-  header:       { alignItems: 'center', width: '100%', marginBottom: 4 },
+  header: { alignItems: "center", width: "100%", marginBottom: 4 },
   trophyCircle: {
-    width: 88, height: 88, borderRadius: 44,
+    width: 88,
+    height: 88,
+    borderRadius: 44,
     backgroundColor: C.lime,
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 20,
   },
-  trophyEmoji:  { fontSize: 42 },
-  doneLabel:    { color: C.lime, fontSize: 11, fontWeight: '900', letterSpacing: 3, marginBottom: 8 },
-  workoutName:  { color: C.text, fontSize: 26, fontWeight: '900', letterSpacing: -0.5, textAlign: 'center' },
-  timestamp:    { color: C.sub, fontSize: 12, marginTop: 6 },
+  trophyEmoji: { fontSize: 42 },
+  doneLabel: { color: C.lime, fontSize: 11, fontWeight: "900", letterSpacing: 3, marginBottom: 8 },
+  workoutName: {
+    color: C.text,
+    fontSize: 26,
+    fontWeight: "900",
+    letterSpacing: -0.5,
+    textAlign: "center",
+  },
+  timestamp: { color: C.sub, fontSize: 12, marginTop: 6 },
 
   // ── Perforated divider ──────────────────────────────────────
-  perfRow: { flexDirection: 'row', alignItems: 'center', width: '100%', marginVertical: 22 },
-  perfDot: { width: 16, height: 16, borderRadius: 8, backgroundColor: C.bg, borderWidth: 1, borderColor: C.border },
-  perfLine:{ flex: 1, borderTopWidth: 1, borderColor: C.border, borderStyle: 'dashed', marginHorizontal: -1 },
+  perfRow: { flexDirection: "row", alignItems: "center", width: "100%", marginVertical: 22 },
+  perfDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: C.bg,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  perfLine: {
+    flex: 1,
+    borderTopWidth: 1,
+    borderColor: C.border,
+    borderStyle: "dashed",
+    marginHorizontal: -1,
+  },
 
   // ── Stats card ───────────────────────────────────────────────
   card: {
-    backgroundColor: C.card, borderRadius: 26, width: '100%',
-    borderWidth: 1, borderColor: C.border, marginBottom: 14,
-    overflow: 'hidden',
+    backgroundColor: C.card,
+    borderRadius: 26,
+    width: "100%",
+    borderWidth: 1,
+    borderColor: C.border,
+    marginBottom: 14,
+    overflow: "hidden",
   },
 
   // Hero row: reps + form ring
-  heroRow:       { flexDirection: 'row', alignItems: 'center', padding: 24, paddingBottom: 20 },
+  heroRow: { flexDirection: "row", alignItems: "center", padding: 24, paddingBottom: 20 },
   heroRepsBlock: { flex: 1 },
-  heroRepsLabel: { color: C.sub, fontSize: 10, fontWeight: '900', letterSpacing: 2, marginBottom: 4 },
-  heroRepsNum:   { color: C.lime, fontSize: 88, fontWeight: '900', lineHeight: 90, letterSpacing: -4 },
-  heroRepsSub:   { color: C.sub, fontSize: 11, marginTop: 2 },
-  ringBlock:     { alignItems: 'center', justifyContent: 'center', paddingLeft: 12 },
+  heroRepsLabel: {
+    color: C.sub,
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 2,
+    marginBottom: 4,
+  },
+  heroRepsNum: {
+    color: C.lime,
+    fontSize: 88,
+    fontWeight: "900",
+    lineHeight: 90,
+    letterSpacing: -4,
+  },
+  heroRepsSub: { color: C.sub, fontSize: 11, marginTop: 2 },
+  ringBlock: { alignItems: "center", justifyContent: "center", paddingLeft: 12 },
 
   // Stat rows
-  divider:       { height: 1, backgroundColor: C.border, marginHorizontal: 20 },
-  statRow:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16 },
-  statLeft:      { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  statLabel:     { color: '#B0A8CC', fontSize: 14, fontWeight: '600' },
-  statSublabel:  { color: C.sub, fontSize: 10, marginTop: 2 },
-  statVal:       { fontSize: 17, fontWeight: '900', letterSpacing: -0.5 },
+  divider: { height: 1, backgroundColor: C.border, marginHorizontal: 20 },
+  statRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  statLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
+  statLabel: { color: "#B0A8CC", fontSize: 14, fontWeight: "600" },
+  statSublabel: { color: C.sub, fontSize: 10, marginTop: 2 },
+  statVal: { fontSize: 17, fontWeight: "900", letterSpacing: -0.5 },
 
   xpRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    marginHorizontal: 20, marginTop: 4, marginBottom: 18,
-    paddingTop: 14, borderTopWidth: 1, borderTopColor: C.border,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: 20,
+    marginTop: 4,
+    marginBottom: 18,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: C.border,
   },
-  xpTxt: { color: C.lime, fontSize: 13, fontWeight: '700' },
+  xpTxt: { color: C.lime, fontSize: 13, fontWeight: "700" },
 
   // ── Yara card ────────────────────────────────────────────────
-  yaraCard:    {
-    backgroundColor: C.card, borderRadius: 22, padding: 20,
-    width: '100%', borderWidth: 1, borderColor: C.border, marginBottom: 20,
+  yaraCard: {
+    backgroundColor: C.card,
+    borderRadius: 22,
+    padding: 20,
+    width: "100%",
+    borderWidth: 1,
+    borderColor: C.border,
+    marginBottom: 20,
   },
-  yaraHeader:  { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 14 },
-  yaraAvatar:  {
-    width: 46, height: 46, borderRadius: 23,
-    backgroundColor: C.purple, alignItems: 'center', justifyContent: 'center',
+  yaraHeader: { flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 14 },
+  yaraAvatar: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: C.purple,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  yaraEmoji:   { fontSize: 22 },
-  yaraName:    { color: C.text, fontSize: 14, fontWeight: '800', marginBottom: 5 },
-  yaraTagPill: { alignSelf: 'flex-start', borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  yaraTagTxt:  { fontSize: 9, fontWeight: '900', letterSpacing: 1.2 },
-  yaraMsg:     { color: '#C9C2DF', fontSize: 14, lineHeight: 23, fontStyle: 'italic' },
+  yaraEmoji: { fontSize: 22 },
+  yaraName: { color: C.text, fontSize: 14, fontWeight: "800", marginBottom: 5 },
+  yaraTagPill: {
+    alignSelf: "flex-start",
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  yaraTagTxt: { fontSize: 9, fontWeight: "900", letterSpacing: 1.2 },
+  yaraMsg: { color: "#C9C2DF", fontSize: 14, lineHeight: 23, fontStyle: "italic" },
 
   // ── Actions ──────────────────────────────────────────────────
-  actionsWrap: { width: '100%', gap: 10 },
-  nextExBtn:   {
-    backgroundColor: C.lime, borderRadius: 16, paddingVertical: 17, paddingHorizontal: 20,
-    flexDirection: 'row', alignItems: 'center',
+  actionsWrap: { width: "100%", gap: 10 },
+  nextExBtn: {
+    backgroundColor: C.lime,
+    borderRadius: 16,
+    paddingVertical: 17,
+    paddingHorizontal: 20,
+    flexDirection: "row",
+    alignItems: "center",
   },
-  nextExLabel: { color: 'rgba(0,0,0,0.5)', fontSize: 9, fontWeight: '900', letterSpacing: 1.2 },
-  nextExName:  { color: '#000', fontSize: 16, fontWeight: '900', marginTop: 2 },
-  homeBtn:     {
-    backgroundColor: C.purple, borderRadius: 16, paddingVertical: 17,
-    alignItems: 'center', flexDirection: 'row', justifyContent: 'center',
+  nextExLabel: { color: "rgba(0,0,0,0.5)", fontSize: 9, fontWeight: "900", letterSpacing: 1.2 },
+  nextExName: { color: "#000", fontSize: 16, fontWeight: "900", marginTop: 2 },
+  homeBtn: {
+    backgroundColor: C.purple,
+    borderRadius: 16,
+    paddingVertical: 17,
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
   },
-  homeBtnTxt:  { color: '#fff', fontSize: 15, fontWeight: '900' },
-  againBtn:    {
-    backgroundColor: C.card, borderRadius: 16, paddingVertical: 15,
-    alignItems: 'center', flexDirection: 'row', justifyContent: 'center',
-    borderWidth: 1, borderColor: C.border,
+  homeBtnTxt: { color: "#fff", fontSize: 15, fontWeight: "900" },
+  againBtn: {
+    backgroundColor: C.card,
+    borderRadius: 16,
+    paddingVertical: 15,
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: C.border,
   },
-  againBtnTxt: { color: C.sub, fontSize: 14, fontWeight: '700' },
+  againBtnTxt: { color: C.sub, fontSize: 14, fontWeight: "700" },
 });

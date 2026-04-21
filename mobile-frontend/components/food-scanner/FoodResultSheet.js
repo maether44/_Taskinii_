@@ -1,14 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useMemo } from "react";
-import {
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import MacroBar from "../shared/MacroBar";
 import RingProgress from "../shared/RingProgress";
 import StatCard from "../shared/StatCard";
@@ -42,20 +35,25 @@ function goalFitLabel(goalType, { calories, protein, carbs, fat }) {
   const lightMeal = calories < 260;
 
   if (goalType === "lose_fat") {
-    if (highProtein && !highFat && calories <= 420) return "Lean choice for a cut. This fits well as part of a controlled day.";
-    if (highFat || calories > 600) return "Tasty but heavy. Keep the rest of the day lighter if fat loss is your priority.";
+    if (highProtein && !highFat && calories <= 420)
+      return "Lean choice for a cut. This fits well as part of a controlled day.";
+    if (highFat || calories > 600)
+      return "Tasty but heavy. Keep the rest of the day lighter if fat loss is your priority.";
     return "Decent middle ground. Watch portion size and anchor it with protein.";
   }
 
   if (goalType === "gain_muscle") {
-    if (highProtein && calories >= 350) return "Strong muscle-building option with enough fuel to support training.";
+    if (highProtein && calories >= 350)
+      return "Strong muscle-building option with enough fuel to support training.";
     if (!highProtein) return "Add more protein to make this more useful for growth and recovery.";
     return "Good base meal. Add carbs around training if you need more performance fuel.";
   }
 
   if (highProtein && !highFat) return "Balanced pick for a solid everyday meal.";
-  if (highCarb && !highFat) return "Carb-forward choice that works especially well before or after activity.";
-  if (lightMeal) return "Light option. Useful when you want something quick without burning much of your calorie budget.";
+  if (highCarb && !highFat)
+    return "Carb-forward choice that works especially well before or after activity.";
+  if (lightMeal)
+    return "Light option. Useful when you want something quick without burning much of your calorie budget.";
   return "Reasonable overall. The portion you choose will make the biggest difference.";
 }
 
@@ -108,7 +106,12 @@ export default function FoodResultSheet({
   const confidencePct = Math.round(Math.max(0, Math.min(1, confidence || 0)) * 100);
   const mealLabel = MEAL_OPTIONS.find((option) => option.id === selectedMeal)?.label || "Meal";
   const fitText = goalFitLabel(goalType, scaled);
-  const quickQuantities = [Math.round(servingSize * 0.5), servingSize, Math.round(servingSize * 1.5), Math.round(servingSize * 2)]
+  const quickQuantities = [
+    Math.round(servingSize * 0.5),
+    servingSize,
+    Math.round(servingSize * 1.5),
+    Math.round(servingSize * 2),
+  ]
     .map((value) => Math.max(1, Math.round(value)))
     .filter((value, index, array) => array.indexOf(value) === index);
 
@@ -132,9 +135,7 @@ export default function FoodResultSheet({
               {!!brand && <Text style={s.brand}>{brand}</Text>}
               <View style={s.metaRow}>
                 <View style={s.metaPill}>
-                  <Text style={s.metaTxt}>
-                    {source === "photo_ai" ? "AI photo" : "Barcode"}
-                  </Text>
+                  <Text style={s.metaTxt}>{source === "photo_ai" ? "AI photo" : "Barcode"}</Text>
                 </View>
                 <View style={s.metaPill}>
                   <Text style={s.metaTxt}>{confidencePct}% confidence</Text>
@@ -149,7 +150,12 @@ export default function FoodResultSheet({
           </View>
 
           <View style={s.heroBottom}>
-            <RingProgress size={110} stroke={10} progress={calProgress} color={calAfter > goalCalories ? C.red : C.lime}>
+            <RingProgress
+              size={110}
+              stroke={10}
+              progress={calProgress}
+              color={calAfter > goalCalories ? C.red : C.lime}
+            >
               <View style={{ alignItems: "center" }}>
                 <Text style={s.ringNum}>{scaled.calories}</Text>
                 <Text style={s.ringLbl}>kcal</Text>
@@ -180,10 +186,16 @@ export default function FoodResultSheet({
         <View style={s.card}>
           <Text style={s.sectionLabel}>Portion</Text>
           <Text style={s.sectionTitle}>Adjust how much you actually ate</Text>
-          <Text style={s.sectionSub}>Serving detected: {servingSize}{servingUnit}</Text>
+          <Text style={s.sectionSub}>
+            Serving detected: {servingSize}
+            {servingUnit}
+          </Text>
 
           <View style={s.portionControl}>
-            <TouchableOpacity style={s.portionBtn} onPress={() => onQuantityChange(Math.max(1, quantityValue - 25))}>
+            <TouchableOpacity
+              style={s.portionBtn}
+              onPress={() => onQuantityChange(Math.max(1, quantityValue - 25))}
+            >
               <Ionicons name="remove" size={20} color={C.text} />
             </TouchableOpacity>
             <View style={s.portionCenter}>
@@ -191,11 +203,16 @@ export default function FoodResultSheet({
                 style={s.portionInput}
                 value={String(quantityValue)}
                 keyboardType="numeric"
-                onChangeText={(value) => onQuantityChange(Math.max(1, Number(value.replace(/[^\d]/g, "")) || 1))}
+                onChangeText={(value) =>
+                  onQuantityChange(Math.max(1, Number(value.replace(/[^\d]/g, "")) || 1))
+                }
               />
               <Text style={s.portionUnit}>{servingUnit}</Text>
             </View>
-            <TouchableOpacity style={s.portionBtn} onPress={() => onQuantityChange(quantityValue + 25)}>
+            <TouchableOpacity
+              style={s.portionBtn}
+              onPress={() => onQuantityChange(quantityValue + 25)}
+            >
               <Ionicons name="add" size={20} color={C.text} />
             </TouchableOpacity>
           </View>
@@ -208,7 +225,8 @@ export default function FoodResultSheet({
                 onPress={() => onQuantityChange(value)}
               >
                 <Text style={[s.quickChipTxt, value === quantityValue && s.quickChipTxtActive]}>
-                  {value}{servingUnit}
+                  {value}
+                  {servingUnit}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -240,15 +258,43 @@ export default function FoodResultSheet({
           <Text style={s.sectionLabel}>Nutrition</Text>
           <Text style={s.sectionTitle}>This portion in your day</Text>
           <View style={s.macroWrap}>
-            <MacroBar label="Protein" eaten={currentProtein + scaled.protein} goal={goalProtein} color={C.purple} />
-            <MacroBar label="Carbs" eaten={currentCarbs + scaled.carbs} goal={goalCarbs} color={C.accent} />
+            <MacroBar
+              label="Protein"
+              eaten={currentProtein + scaled.protein}
+              goal={goalProtein}
+              color={C.purple}
+            />
+            <MacroBar
+              label="Carbs"
+              eaten={currentCarbs + scaled.carbs}
+              goal={goalCarbs}
+              color={C.accent}
+            />
             <MacroBar label="Fat" eaten={currentFat + scaled.fat} goal={goalFat} color={C.lime} />
           </View>
 
           <View style={s.statRow}>
-            <StatCard icon="💪" label="Protein" value={`${scaled.protein}g`} color={C.purple} style={{ flex: 1 }} />
-            <StatCard icon="🌾" label="Carbs" value={`${scaled.carbs}g`} color={C.accent} style={{ flex: 1 }} />
-            <StatCard icon="🥑" label="Fat" value={`${scaled.fat}g`} color={C.lime} style={{ flex: 1 }} />
+            <StatCard
+              icon="💪"
+              label="Protein"
+              value={`${scaled.protein}g`}
+              color={C.purple}
+              style={{ flex: 1 }}
+            />
+            <StatCard
+              icon="🌾"
+              label="Carbs"
+              value={`${scaled.carbs}g`}
+              color={C.accent}
+              style={{ flex: 1 }}
+            />
+            <StatCard
+              icon="🥑"
+              label="Fat"
+              value={`${scaled.fat}g`}
+              color={C.lime}
+              style={{ flex: 1 }}
+            />
           </View>
           {scaled.fiber > 0 && (
             <View style={s.fiberRow}>
@@ -281,7 +327,11 @@ export default function FoodResultSheet({
           activeOpacity={0.85}
         >
           <LinearGradient colors={[C.purple, C.accent]} style={s.logGradient}>
-            <Ionicons name={saving ? "sync-outline" : "add-circle-outline"} size={19} color="#fff" />
+            <Ionicons
+              name={saving ? "sync-outline" : "add-circle-outline"}
+              size={19}
+              color="#fff"
+            />
             <Text style={s.logTxt}>{saving ? "Saving..." : `Add to ${mealLabel}`}</Text>
           </LinearGradient>
         </TouchableOpacity>
@@ -326,7 +376,14 @@ const s = StyleSheet.create({
   foodName: { color: C.text, fontSize: 24, fontWeight: "800", lineHeight: 30 },
   brand: { color: C.accent, fontSize: 13, marginTop: 4 },
   metaRow: { flexDirection: "row", gap: 8, marginTop: 12, flexWrap: "wrap" },
-  metaPill: { backgroundColor: "#231D46", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: "#382D68" },
+  metaPill: {
+    backgroundColor: "#231D46",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: "#382D68",
+  },
   metaTxt: { color: C.sub, fontSize: 11, fontWeight: "700" },
   scoreBadge: {
     width: 64,
@@ -351,7 +408,14 @@ const s = StyleSheet.create({
     padding: 18,
     marginBottom: 14,
   },
-  sectionLabel: { color: C.sub, fontSize: 11, fontWeight: "800", letterSpacing: 1.1, marginBottom: 6, textTransform: "uppercase" },
+  sectionLabel: {
+    color: C.sub,
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1.1,
+    marginBottom: 6,
+    textTransform: "uppercase",
+  },
   sectionTitle: { color: C.text, fontSize: 18, fontWeight: "700" },
   sectionSub: { color: C.dim, fontSize: 13, marginTop: 4 },
   portionControl: {

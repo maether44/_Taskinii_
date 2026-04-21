@@ -3,24 +3,29 @@
  * Home page widget showing today's Yara schedule.
  * Reads from scheduleStore — no extra API calls.
  */
-import React, { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
-import { scheduleStore } from '../../store/scheduleStore';
+import React, { useEffect, useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import Animated, { FadeInDown } from "react-native-reanimated";
+import { scheduleStore } from "../../store/scheduleStore";
 
-const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const WORKOUT_COLORS = {
-  push: '#7B61FF', pull: '#FF6B6B', legs: '#C6FF33',
-  upper: '#61D4FF', lower: '#FFB347', full: '#FF61D4', cardio: '#61FFD4',
+  push: "#7B61FF",
+  pull: "#FF6B6B",
+  legs: "#C6FF33",
+  upper: "#61D4FF",
+  lower: "#FFB347",
+  full: "#FF61D4",
+  cardio: "#61FFD4",
 };
 
-const getWorkoutColor = (type = '') => {
+const getWorkoutColor = (type = "") => {
   const t = type.toLowerCase();
   for (const [k, v] of Object.entries(WORKOUT_COLORS)) {
     if (t.includes(k)) return v;
   }
-  return '#7B61FF';
+  return "#7B61FF";
 };
 
 const getTodayIndex = () => {
@@ -43,8 +48,8 @@ export default function TodayScheduleWidget({ navigation }) {
   const today = schedule.days[todayIndex];
   if (!today) return null;
 
-  const color        = today.is_rest ? '#4A4268' : getWorkoutColor(today.workout_type);
-  const totalCals    = today.meals?.reduce((s, m) => s + (m.calories ?? 0), 0) ?? 0;
+  const color = today.is_rest ? "#4A4268" : getWorkoutColor(today.workout_type);
+  const totalCals = today.meals?.reduce((s, m) => s + (m.calories ?? 0), 0) ?? 0;
   const exerciseCount = today.exercises?.length ?? 0;
 
   return (
@@ -56,14 +61,14 @@ export default function TodayScheduleWidget({ navigation }) {
           <View style={styles.dayRow}>
             <View style={[styles.typeDot, { backgroundColor: color }]} />
             <Text style={styles.dayType}>
-              {today.is_rest ? 'Rest Day' : (today.workout_type || 'Workout')}
+              {today.is_rest ? "Rest Day" : today.workout_type || "Workout"}
             </Text>
             <Text style={styles.dayName}>{DAY_LABELS[todayIndex]}</Text>
           </View>
         </View>
         <Pressable
-          style={[styles.viewBtn, { borderColor: color + '66' }]}
-          onPress={() => navigation.navigate('Schedule')}
+          style={[styles.viewBtn, { borderColor: color + "66" }]}
+          onPress={() => navigation.navigate("Schedule")}
         >
           <Text style={[styles.viewBtnTxt, { color }]}>View →</Text>
         </Pressable>
@@ -103,8 +108,12 @@ export default function TodayScheduleWidget({ navigation }) {
           {today.exercises.slice(0, 3).map((ex, i) => (
             <View key={i} style={styles.exRow}>
               <View style={[styles.exDot, { backgroundColor: color }]} />
-              <Text style={styles.exName} numberOfLines={1}>{ex.name}</Text>
-              <Text style={styles.exMeta}>{ex.sets}×{ex.reps}</Text>
+              <Text style={styles.exName} numberOfLines={1}>
+                {ex.name}
+              </Text>
+              <Text style={styles.exMeta}>
+                {ex.sets}×{ex.reps}
+              </Text>
             </View>
           ))}
           {today.exercises.length > 3 && (
@@ -115,7 +124,7 @@ export default function TodayScheduleWidget({ navigation }) {
 
       {today.is_rest && (
         <Text style={styles.restNote}>
-          {today.rest_note || 'Focus on recovery — sleep, hydration, light movement.'}
+          {today.rest_note || "Focus on recovery — sleep, hydration, light movement."}
         </Text>
       )}
 
@@ -129,38 +138,56 @@ export default function TodayScheduleWidget({ navigation }) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#161230',
+    backgroundColor: "#161230",
     borderRadius: 24,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#1E1A35',
+    borderColor: "#1E1A35",
     marginBottom: 12,
     gap: 14,
   },
-  header:      { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  headerLeft:  { gap: 4 },
-  label:       { color: '#6B5F8A', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
-  dayRow:      { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  typeDot:     { width: 8, height: 8, borderRadius: 4 },
-  dayType:     { color: '#FFF', fontSize: 18, fontWeight: '900' },
-  dayName:     { color: '#6B5F8A', fontSize: 13, fontWeight: '600' },
-  viewBtn:     { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6 },
-  viewBtnTxt:  { fontSize: 12, fontWeight: '700' },
+  header: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
+  headerLeft: { gap: 4 },
+  label: { color: "#6B5F8A", fontSize: 10, fontWeight: "900", letterSpacing: 1 },
+  dayRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  typeDot: { width: 8, height: 8, borderRadius: 4 },
+  dayType: { color: "#FFF", fontSize: 18, fontWeight: "900" },
+  dayName: { color: "#6B5F8A", fontSize: 13, fontWeight: "600" },
+  viewBtn: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6 },
+  viewBtnTxt: { fontSize: 12, fontWeight: "700" },
 
-  statsRow:    { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  statChip:    { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#0F0B1E', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5, borderWidth: 1, borderColor: '#1E1A35' },
-  statEmoji:   { fontSize: 12 },
-  statTxt:     { color: '#8B82AD', fontSize: 11, fontWeight: '600' },
+  statsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  statChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#0F0B1E",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: "#1E1A35",
+  },
+  statEmoji: { fontSize: 12 },
+  statTxt: { color: "#8B82AD", fontSize: 11, fontWeight: "600" },
 
   exercisePreview: { gap: 8 },
-  exRow:       { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  exDot:       { width: 5, height: 5, borderRadius: 3 },
-  exName:      { color: '#C8BFEE', fontSize: 13, flex: 1 },
-  exMeta:      { color: '#4A4268', fontSize: 11 },
-  moreTxt:     { color: '#4A4268', fontSize: 11, marginTop: 2 },
+  exRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  exDot: { width: 5, height: 5, borderRadius: 3 },
+  exName: { color: "#C8BFEE", fontSize: 13, flex: 1 },
+  exMeta: { color: "#4A4268", fontSize: 11 },
+  moreTxt: { color: "#4A4268", fontSize: 11, marginTop: 2 },
 
-  restNote:    { color: '#8B82AD', fontSize: 13, lineHeight: 19 },
+  restNote: { color: "#8B82AD", fontSize: 13, lineHeight: 19 },
 
-  aiBadge:     { alignSelf: 'flex-start', backgroundColor: '#7B61FF18', borderRadius: 8, borderWidth: 1, borderColor: '#7B61FF33', paddingHorizontal: 8, paddingVertical: 3 },
-  aiBadgeTxt:  { color: '#7B61FF', fontSize: 10, fontWeight: '700' },
+  aiBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: "#7B61FF18",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#7B61FF33",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  aiBadgeTxt: { color: "#7B61FF", fontSize: 10, fontWeight: "700" },
 });

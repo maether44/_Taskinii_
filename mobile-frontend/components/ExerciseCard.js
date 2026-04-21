@@ -18,7 +18,7 @@ export default function ExerciseCard({ navigation, exercise, personalBest }) {
     <View style={s.card}>
       <View style={s.cardHeader}>
         <View style={{ flex: 1 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <Text style={s.name}>{exercise.name}</Text>
             {personalBest?.isNew && (
               <View style={s.pbBadge}>
@@ -28,7 +28,7 @@ export default function ExerciseCard({ navigation, exercise, personalBest }) {
             )}
             {personalBest && !personalBest.isNew && personalBest.score >= 85 && (
               <View style={[s.pbBadge, s.pbBadgeOld]}>
-                <Text style={[s.pbBadgeTxt, { color: '#C8F135' }]}>Best {personalBest.score}%</Text>
+                <Text style={[s.pbBadgeTxt, { color: "#C8F135" }]}>Best {personalBest.score}%</Text>
               </View>
             )}
           </View>
@@ -55,11 +55,7 @@ export default function ExerciseCard({ navigation, exercise, personalBest }) {
       <Text style={s.muscles}>Muscles: {primaryMuscles}</Text>
 
       {!!imagePath && (
-        <Image
-          source={{ uri: BASE_IMG + imagePath }}
-          style={s.image}
-          resizeMode="cover"
-        />
+        <Image source={{ uri: BASE_IMG + imagePath }} style={s.image} resizeMode="cover" />
       )}
     </View>
   );
@@ -90,10 +86,23 @@ const s = StyleSheet.create({
   description: { color: "#C9C2DF", fontSize: 14, lineHeight: 20, marginTop: 2 },
   seeMoreBtn: { alignSelf: "flex-start", marginTop: 6, paddingVertical: 4 },
   seeMoreText: { color: C.accent, fontSize: 13, fontWeight: "600" },
-  muscles:    { color: C.accent, fontSize: 12, marginTop: 8, marginBottom: 10 },
-  pbBadge:    { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#C8F135', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
-  pbBadgeOld: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#C8F135', borderRadius: 6 },
-  pbBadgeTxt: { fontSize: 10, fontWeight: '800', color: '#000' },
+  muscles: { color: C.accent, fontSize: 12, marginTop: 8, marginBottom: 10 },
+  pbBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#C8F135",
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+  },
+  pbBadgeOld: {
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: "#C8F135",
+    borderRadius: 6,
+  },
+  pbBadgeTxt: { fontSize: 10, fontWeight: "800", color: "#000" },
   image: {
     width: "100%",
     height: 170,

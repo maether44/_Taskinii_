@@ -1,13 +1,31 @@
-import { useEffect, useRef, useState } from 'react';
-import { supabase }                    from '../lib/supabase';
-import { getChatHistory, saveMessage } from '../services/chatService';
-import { useAuth }                     from '../context/AuthContext';
-import { error as logError }           from '../lib/logger';
-import { scheduleStore }               from '../store/scheduleStore';
+import { useEffect, useRef, useState } from "react";
+import { supabase } from "../lib/supabase";
+import { getChatHistory, saveMessage } from "../services/chatService";
+import { useAuth } from "../context/AuthContext";
+import { error as logError } from "../lib/logger";
+
+const SCHEDULE_SYSTEM_INJECTION =
+  "If the user is asking for a schedule/routine/plan, respond with a concise, structured schedule. " +
+  "Use bullet points and include timings when possible. Keep it actionable and personalized.";
+
+function isScheduleRequest(text: string) {
+  const t = (text || "").toLowerCase();
+  return (
+    t.includes("schedule") ||
+    t.includes("routine") ||
+    t.includes("plan") ||
+    t.includes("timetable") ||
+    t.includes("calendar") ||
+    t.includes("weekly") ||
+    t.includes("daily plan")
+  );
+}
 
 function fmtTime() {
-  return new Date().toLocaleTimeString('en-US', {
-    hour: 'numeric', minute: '2-digit', hour12: true,
+  return new Date().toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
   });
 }
 
@@ -20,7 +38,7 @@ function buildWelcome(profile) {
 function buildTodaySnapshot(profile) {
   if (!profile) return undefined;
   return {
-    date: new Date().toISOString().split('T')[0],
+    date: new Date().toISOString().split("T")[0],
     calorie_target: profile.daily_calories ?? profile.calTarget,
     protein_target: profile.protein_target ?? profile.protein,
     carbs_target: profile.carbs_target,
@@ -29,18 +47,21 @@ function buildTodaySnapshot(profile) {
 }
 
 export function useYaraChat(profile) {
-  const { user }                    = useAuth();
-  const [messages,  setMessages]    = useState([]);
-  const [input,     setInput]       = useState('');
-  const [typing,    setTyping]      = useState(false);
-  const [open,      setOpen]        = useState(false);
-  const apiHistory                  = useRef([]);
+  const { user } = useAuth();
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
+  const [typing, setTyping] = useState(false);
+  const [open, setOpen] = useState(false);
+  const apiHistory = useRef([]);
 
   useEffect(() => {
     const loadHistory = async () => {
-      const welcome = { from: 'yara', text: buildWelcome(profile), time: fmtTime() };
+      const welcome = { from: "yara", text: buildWelcome(profile), time: fmtTime() };
 
-      if (!user) { setMessages([welcome]); return; }
+      if (!user) {
+        setMessages([welcome]);
+        return;
+      }
 
       try {
         const history = await getChatHistory(user.id);
@@ -48,10 +69,10 @@ export function useYaraChat(profile) {
         if (safeHistory.length === 0) {
           setMessages([welcome]);
         } else {
-          const uiMessages = safeHistory.map(m => ({
-            from: m.role === 'assistant' ? 'yara' : 'user',
+          const uiMessages = safeHistory.map((m) => ({
+            from: m.role === "assistant" ? "yara" : "user",
             text: m.content,
-            time: '',
+            time: "",
           }));
           setMessages([welcome, ...uiMessages]);
           apiHistory.current = safeHistory;
@@ -68,26 +89,27 @@ export function useYaraChat(profile) {
     const msg = (text || input).trim();
     if (!msg || typing) return;
 
-    setInput('');
+    setInput("");
     setTyping(true);
-    setMessages(prev => [...prev, { from: 'user', text: msg, time: fmtTime() }]);
+    setMessages((prev) => [...prev, { from: "user", text: msg, time: fmtTime() }]);
 
     const isSchedule = isScheduleRequest(msg);
 
     // Inject schedule instructions into the history if needed
     const historyToSend = isSchedule
-      ? [...apiHistory.current, { role: 'user', content: msg + '\n\n' + SCHEDULE_SYSTEM_INJECTION }]
-      : [...apiHistory.current, { role: 'user', content: msg }];
+      ? [...apiHistory.current, { role: "user", content: msg + "\n\n" + SCHEDULE_SYSTEM_INJECTION }]
+      : [...apiHistory.current, { role: "user", content: msg }];
 
-    apiHistory.current = [...apiHistory.current, { role: 'user', content: msg }];
+    apiHistory.current = [...apiHistory.current, { role: "user", content: msg }];
 
-    if (user) await saveMessage(user.id, 'user', msg).catch(console.error);
+    if (user) await saveMessage(user.id, "user", msg).catch(console.error);
 
     try {
-      const { data, error } = await supabase.functions.invoke('ai-assistant', {
+      const { data, error } = await supabase.functions.invoke("ai-assistant", {
         body: {
           userId: user?.id,
           query: msg,
+          history: historyToSend,
           clientContext: {
             profile: profile ?? undefined,
             today: buildTodaySnapshot(profile),
@@ -98,19 +120,21 @@ export function useYaraChat(profile) {
       if (error) throw error;
 
       const reply = data?.response ?? "I'm having trouble connecting. Try again in a moment.";
-      apiHistory.current = [...apiHistory.current, { role: 'assistant', content: reply }];
+      apiHistory.current = [...apiHistory.current, { role: "assistant", content: reply }];
 
-      if (user) await saveMessage(user.id, 'assistant', reply).catch(console.error);
-      setMessages(prev => [...prev, { from: 'yara', text: reply, time: fmtTime() }]);
-
+      if (user) await saveMessage(user.id, "assistant", reply).catch(console.error);
+      setMessages((prev) => [...prev, { from: "yara", text: reply, time: fmtTime() }]);
     } catch (err) {
-      logError('Yara error:', err);
+      logError("Yara error:", err);
       apiHistory.current = apiHistory.current.slice(0, -1);
-      setMessages(prev => [...prev, {
-        from: 'yara',
-        text: 'Sorry, connection issue. Try again!',
-        time: fmtTime(),
-      }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          from: "yara",
+          text: "Sorry, connection issue. Try again!",
+          time: fmtTime(),
+        },
+      ]);
     } finally {
       setTyping(false);
     }

@@ -13,8 +13,8 @@
  *
  * OUTPUT per card: { icon, title, text, tag, color }
  */
-import { supabase } from '../lib/supabase';  // mobile-frontend uses lib/supabase
-import { log, warn, error as logError } from '../lib/logger';
+import { supabase } from "../lib/supabase"; // mobile-frontend uses lib/supabase
+import { log, warn, error as logError } from "../lib/logger";
 
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
@@ -23,28 +23,34 @@ const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 const inFlight = new Map();
 
 // Valid insight category tags — must match what the Edge Function returns
-const VALID_TAGS = ['Performance', 'Correlation', 'Optimization', 'Prediction', 'Recovery', 'Nutrition'];
+const VALID_TAGS = [
+  "Performance",
+  "Correlation",
+  "Optimization",
+  "Prediction",
+  "Recovery",
+  "Nutrition",
+];
 
 // Left border / tag text colours per category
 const INSIGHT_COLORS = {
-  Performance:  '#6F4BF2',
-  Correlation:  '#A38DF2',
-  Optimization: '#CDF27E',
-  Prediction:   '#6F4BF2',
-  Recovery:     '#A38DF2',
-  Nutrition:    '#CDF27E',
+  Performance: "#6F4BF2",
+  Correlation: "#A38DF2",
+  Optimization: "#CDF27E",
+  Prediction: "#6F4BF2",
+  Recovery: "#A38DF2",
+  Nutrition: "#CDF27E",
 };
 
 // One emoji per category — AI doesn't decide the icon
 const ICON_MAP = {
-  Performance:  '🧬',
-  Correlation:  '🌙',
-  Optimization: '⚡',
-  Prediction:   '🎯',
-  Recovery:     '💪',
-  Nutrition:    '🥗',
+  Performance: "🧬",
+  Correlation: "🌙",
+  Optimization: "⚡",
+  Prediction: "🎯",
+  Recovery: "💪",
+  Nutrition: "🥗",
 };
-
 
 // =============================================================================
 // normalizeTag(raw)
@@ -52,15 +58,14 @@ const ICON_MAP = {
 // Handles compound strings like "Performance|Recovery" or "Optimization, Nutrition".
 // =============================================================================
 function normalizeTag(raw) {
-  if (!raw) return 'Performance';
+  if (!raw) return "Performance";
   const parts = String(raw).split(/[|,/\s]+/);
   for (const part of parts) {
-    const match = VALID_TAGS.find(t => t.toLowerCase() === part.trim().toLowerCase());
+    const match = VALID_TAGS.find((t) => t.toLowerCase() === part.trim().toLowerCase());
     if (match) return match;
   }
-  return 'Performance';
+  return "Performance";
 }
-
 
 // =============================================================================
 // rowToInsight(row)
@@ -68,37 +73,39 @@ function normalizeTag(raw) {
 // message format: "Short title|Full body text" (split on first pipe only)
 // =============================================================================
 function rowToInsight(row) {
-  const pipeIdx = row.message.indexOf('|');
-  const title   = pipeIdx === -1 ? row.message         : row.message.slice(0, pipeIdx);
-  const text    = pipeIdx === -1 ? ''                  : row.message.slice(pipeIdx + 1);
-  const tag     = normalizeTag(row.insight_type);
+  const pipeIdx = row.message.indexOf("|");
+  const title = pipeIdx === -1 ? row.message : row.message.slice(0, pipeIdx);
+  const text = pipeIdx === -1 ? "" : row.message.slice(pipeIdx + 1);
+  const tag = normalizeTag(row.insight_type);
   return {
-    icon:  ICON_MAP[tag]         ?? '💡',
+    icon: ICON_MAP[tag] ?? "💡",
     title,
     text,
     tag,
-    color: INSIGHT_COLORS[tag]  ?? '#6F4BF2',
+    color: INSIGHT_COLORS[tag] ?? "#6F4BF2",
   };
 }
-
 
 // =============================================================================
 // callEdgeFunction(stats, period) — calls the yara-insights Edge Function.
 // The Groq API key lives in Supabase secrets; it never reaches the client.
 // =============================================================================
 async function callEdgeFunction(stats, period) {
-  log('[yaraInsightsService] Invoking yara-insights Edge Function for period:', period);
-  const { data, error } = await supabase.functions.invoke('yara-insights', {
+  log("[yaraInsightsService] Invoking yara-insights Edge Function for period:", period);
+  const { data, error } = await supabase.functions.invoke("yara-insights", {
     body: { period, stats },
   });
   if (error) {
-    logError('[yaraInsightsService] Edge Function error:', error);
+    logError("[yaraInsightsService] Edge Function error:", error);
     throw error;
   }
-  log('[yaraInsightsService] Edge Function returned', Array.isArray(data) ? data.length : 0, 'insights');
+  log(
+    "[yaraInsightsService] Edge Function returned",
+    Array.isArray(data) ? data.length : 0,
+    "insights",
+  );
   return Array.isArray(data) ? data : [];
 }
-
 
 // =============================================================================
 // generateAndCacheInsights(userId, rawStats, period) — exported
@@ -120,70 +127,81 @@ async function _generateAndCacheInsights(userId, rawStats, period) {
   try {
     // ── Step 1: Cache check ────────────────────────────────────────────────
     const since = new Date(Date.now() - CACHE_TTL_MS).toISOString();
-    log('[yaraInsightsService] Checking ai_insights cache — userId:', userId, 'period:', period, 'since:', since);
+    log(
+      "[yaraInsightsService] Checking ai_insights cache — userId:",
+      userId,
+      "period:",
+      period,
+      "since:",
+      since,
+    );
 
     const { data: cached, error: cacheErr } = await supabase
-      .from('ai_insights')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('period',  period)
-      .eq('source',  'yara')
-      .gte('created_at', since)
-      .order('created_at', { ascending: false })
+      .from("ai_insights")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("period", period)
+      .eq("source", "yara")
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
       .limit(4);
 
     if (cacheErr) {
-      logError('[yaraInsightsService] Cache read error:', cacheErr);
+      logError("[yaraInsightsService] Cache read error:", cacheErr);
     } else {
-      log('[yaraInsightsService] Cache returned', cached?.length ?? 0, 'rows');
+      log("[yaraInsightsService] Cache returned", cached?.length ?? 0, "rows");
     }
 
     if (cached?.length >= 4) {
-      log('[yaraInsightsService] Cache HIT — returning', cached.length, 'cached insights');
+      log("[yaraInsightsService] Cache HIT — returning", cached.length, "cached insights");
       return cached.slice(0, 4).map(rowToInsight);
     }
 
     // ── Step 2: Generate via Edge Function ────────────────────────────────
-    log('[yaraInsightsService] Cache MISS — calling Edge Function');
+    log("[yaraInsightsService] Cache MISS — calling Edge Function");
     const rawInsights = await callEdgeFunction(rawStats, period);
     if (!rawInsights?.length) {
-      warn('[yaraInsightsService] Edge Function returned 0 insights');
+      warn("[yaraInsightsService] Edge Function returned 0 insights");
       return [];
     }
 
     // ── Step 3: Persist to ai_insights ───────────────────────────────────
-    const rows = rawInsights.map(ins => ({
-      user_id:      userId,
+    const rows = rawInsights.map((ins) => ({
+      user_id: userId,
       insight_type: normalizeTag(ins.tag),
-      message:      `${ins.title}|${ins.text}`,
+      message: `${ins.title}|${ins.text}`,
       period,
-      source:       'yara',
+      source: "yara",
     }));
     // Delete previous rows for this user+period before inserting fresh ones
     // so the table doesn't grow unbounded across cache refreshes.
-    await supabase.from('ai_insights').delete().eq('user_id', userId).eq('period', period).eq('source', 'yara');
-    log('[yaraInsightsService] Inserting', rows.length, 'rows into ai_insights');
-    const { error: insertErr } = await supabase.from('ai_insights').insert(rows);
+    await supabase
+      .from("ai_insights")
+      .delete()
+      .eq("user_id", userId)
+      .eq("period", period)
+      .eq("source", "yara");
+    log("[yaraInsightsService] Inserting", rows.length, "rows into ai_insights");
+    const { error: insertErr } = await supabase.from("ai_insights").insert(rows);
     if (insertErr) {
-      logError('[yaraInsightsService] Insert error (non-fatal):', insertErr);
+      logError("[yaraInsightsService] Insert error (non-fatal):", insertErr);
     }
 
     // ── Step 4: Return formatted cards ───────────────────────────────────
-    const cards = rawInsights.map(ins => {
+    const cards = rawInsights.map((ins) => {
       const tag = normalizeTag(ins.tag);
       return {
-        icon:  ICON_MAP[tag]         ?? '💡',
+        icon: ICON_MAP[tag] ?? "💡",
         title: ins.title,
-        text:  ins.text,
+        text: ins.text,
         tag,
-        color: INSIGHT_COLORS[tag]  ?? '#6F4BF2',
+        color: INSIGHT_COLORS[tag] ?? "#6F4BF2",
       };
     });
-    log('[yaraInsightsService] Returning', cards.length, 'fresh insight cards');
+    log("[yaraInsightsService] Returning", cards.length, "fresh insight cards");
     return cards;
-
   } catch (e) {
-    logError('[yaraInsightsService] generateAndCacheInsights error:', e);
+    logError("[yaraInsightsService] generateAndCacheInsights error:", e);
     return [];
   }
 }

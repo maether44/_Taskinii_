@@ -45,17 +45,19 @@ export default function FoodDetail() {
   const handleAdd = async () => {
     const ok = await saveMealEntries({
       mealType,
-      items: [{
-        foodName: food.name,
-        brand: food.brand,
-        barcode: food.barcode,
-        quantity: qty,
-        calories: totals.calories,
-        protein: totals.protein,
-        carbs: totals.carbs,
-        fat: totals.fat,
-        fiber: Math.round(((Number(food?.fiber_per_100g) || 0) * (qty / 100)) * 10) / 10,
-      }],
+      items: [
+        {
+          foodName: food.name,
+          brand: food.brand,
+          barcode: food.barcode,
+          quantity: qty,
+          calories: totals.calories,
+          protein: totals.protein,
+          carbs: totals.carbs,
+          fat: totals.fat,
+          fiber: Math.round((Number(food?.fiber_per_100g) || 0) * (qty / 100) * 10) / 10,
+        },
+      ],
     });
     if (ok) navigation.goBack();
   };
@@ -87,7 +89,10 @@ export default function FoodDetail() {
           ))}
         </View>
         <View style={s.qtyRow}>
-          <TouchableOpacity style={s.qtyBtn} onPress={() => setQty((prev) => Math.max(25, prev - 25))}>
+          <TouchableOpacity
+            style={s.qtyBtn}
+            onPress={() => setQty((prev) => Math.max(25, prev - 25))}
+          >
             <Ionicons name="remove" size={18} color={C.accent} />
           </TouchableOpacity>
           <Text style={s.qtyText}>{qty}g</Text>
@@ -106,20 +111,72 @@ export default function FoodDetail() {
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
   centered: { alignItems: "center", justifyContent: "center" },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 54, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: C.border },
-  iconBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: C.card, alignItems: "center", justifyContent: "center" },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingTop: 54,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+  },
+  iconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: C.card,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   title: { color: C.text, fontSize: 18, fontWeight: "800" },
   scroll: { padding: 16 },
-  calCard: { backgroundColor: C.card, borderRadius: 20, padding: 24, alignItems: "center", marginBottom: 14, borderWidth: 1, borderColor: C.border },
+  calCard: {
+    backgroundColor: C.card,
+    borderRadius: 20,
+    padding: 24,
+    alignItems: "center",
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
   calNum: { color: C.text, fontSize: 52, fontWeight: "900" },
   calUnit: { color: C.sub, fontSize: 14, marginTop: 4 },
   row: { flexDirection: "row", gap: 10, marginBottom: 20 },
-  statCard: { flex: 1, backgroundColor: C.card, borderRadius: 16, padding: 16, alignItems: "center", borderWidth: 1, borderColor: C.border },
+  statCard: {
+    flex: 1,
+    backgroundColor: C.card,
+    borderRadius: 16,
+    padding: 16,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: C.border,
+  },
   statValue: { fontSize: 20, fontWeight: "900" },
   statLabel: { color: C.sub, fontSize: 12, marginTop: 4 },
-  qtyRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 20, marginBottom: 20 },
-  qtyBtn: { width: 44, height: 44, borderRadius: 14, backgroundColor: C.card, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border },
+  qtyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 20,
+    marginBottom: 20,
+  },
+  qtyBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: C.card,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: C.border,
+  },
   qtyText: { color: C.text, fontSize: 28, fontWeight: "900" },
-  addBtn: { backgroundColor: C.purple, borderRadius: 16, paddingVertical: 16, alignItems: "center" },
+  addBtn: {
+    backgroundColor: C.purple,
+    borderRadius: 16,
+    paddingVertical: 16,
+    alignItems: "center",
+  },
   addBtnTxt: { color: "#fff", fontSize: 15, fontWeight: "800" },
 });

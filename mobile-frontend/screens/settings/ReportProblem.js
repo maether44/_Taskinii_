@@ -1,38 +1,38 @@
-import React, { useMemo, useState } from 'react';
-import { FS } from '../../constants/typography';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
-import { supabase } from '../../lib/supabase';
-import { useAuth } from '../../context/AuthContext';
+import React, { useMemo, useState } from "react";
+import { FS } from "../../constants/typography";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
+import { supabase } from "../../lib/supabase";
+import { useAuth } from "../../context/AuthContext";
 
 const C = {
-  bg: '#0F0B1E',
-  card: '#161230',
-  border: '#1E1A35',
-  purple: '#7C5CFC',
-  lime: '#C8F135',
-  text: '#FFFFFF',
-  sub: '#9C91BE',
-  danger: '#FF6B6B',
+  bg: "#0F0B1E",
+  card: "#161230",
+  border: "#1E1A35",
+  purple: "#7C5CFC",
+  lime: "#C8F135",
+  text: "#FFFFFF",
+  sub: "#9C91BE",
+  danger: "#FF6B6B",
 };
 
 const ISSUE_TYPES = [
-  { id: 'bug', label: 'Bug' },
-  { id: 'ui', label: 'UI Problem' },
-  { id: 'performance', label: 'Performance' },
-  { id: 'payment', label: 'Payment' },
-  { id: 'other', label: 'Other' },
+  { id: "bug", label: "Bug" },
+  { id: "ui", label: "UI Problem" },
+  { id: "performance", label: "Performance" },
+  { id: "payment", label: "Payment" },
+  { id: "other", label: "Other" },
 ];
 
 export default function Report() {
   const navigation = useNavigation();
   const { user } = useAuth();
-  const [issueType, setIssueType] = useState('bug');
+  const [issueType, setIssueType] = useState("bug");
   const [issueTypeOpen, setIssueTypeOpen] = useState(false);
-  const [subject, setSubject] = useState('');
-  const [details, setDetails] = useState('');
-  const [email, setEmail] = useState('');
+  const [subject, setSubject] = useState("");
+  const [details, setDetails] = useState("");
+  const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const selectedIssueType = useMemo(() => {
@@ -49,17 +49,17 @@ export default function Report() {
     const trimmedEmail = email.trim();
 
     if (trimmedSubject.length < 4) {
-      Alert.alert('Subject too short', 'Please add a clear title (at least 4 characters).');
+      Alert.alert("Subject too short", "Please add a clear title (at least 4 characters).");
       return;
     }
 
     if (trimmedDetails.length < 12) {
-      Alert.alert('More details needed', 'Please describe the issue in more detail.');
+      Alert.alert("More details needed", "Please describe the issue in more detail.");
       return;
     }
 
     if (!user?.id) {
-      Alert.alert('Not signed in', 'Please sign in to submit a report.');
+      Alert.alert("Not signed in", "Please sign in to submit a report.");
       return;
     }
 
@@ -69,31 +69,31 @@ export default function Report() {
 
     try {
       setIsSubmitting(true);
-      const { error } = await supabase.from('reports').insert({
+      const { error } = await supabase.from("reports").insert({
         user_id: user.id,
         issue_type: issueType,
         subject: trimmedSubject,
         details: detailsToSave,
-        status: 'open',
+        status: "open",
       });
 
       if (error) {
         throw error;
       }
 
-      setSubject('');
-      setDetails('');
-      setEmail('');
-      setIssueType('bug');
+      setSubject("");
+      setDetails("");
+      setEmail("");
+      setIssueType("bug");
       setIssueTypeOpen(false);
-      Alert.alert('Report submitted', 'Thanks, your report has been saved.', [
+      Alert.alert("Report submitted", "Thanks, your report has been saved.", [
         {
-          text: 'OK',
-          onPress: () => navigation.navigate('Settings'),
+          text: "OK",
+          onPress: () => navigation.navigate("Settings"),
         },
       ]);
     } catch {
-      Alert.alert('Submission failed', 'We could not save your report. Please try again.');
+      Alert.alert("Submission failed", "We could not save your report. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -121,7 +121,7 @@ export default function Report() {
             >
               <Text style={styles.dropdownTriggerText}>{selectedIssueType.label}</Text>
               <Ionicons
-                name={issueTypeOpen ? 'chevron-up-outline' : 'chevron-down-outline'}
+                name={issueTypeOpen ? "chevron-up-outline" : "chevron-down-outline"}
                 size={18}
                 color={C.sub}
               />
@@ -193,7 +193,7 @@ export default function Report() {
           >
             <Ionicons name="send" size={16} color="#fff" />
             <Text style={styles.submitBtnText}>
-              {isSubmitting ? 'Submitting...' : 'Submit Report'}
+              {isSubmitting ? "Submitting..." : "Submit Report"}
             </Text>
           </Pressable>
 
@@ -209,7 +209,7 @@ export default function Report() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
   scroll: { paddingHorizontal: 16, paddingTop: 52, paddingBottom: 28, gap: 14 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
+  headerRow: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
   backBtn: {
     width: 38,
     height: 38,
@@ -217,12 +217,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: C.border,
     backgroundColor: C.card,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 10,
   },
   headerTextWrap: { flex: 1 },
-  title: { color: C.text, fontSize: FS.screenTitle, fontWeight: '800', letterSpacing: -0.4 },
+  title: { color: C.text, fontSize: FS.screenTitle, fontWeight: "800", letterSpacing: -0.4 },
   subtitle: { color: C.sub, fontSize: FS.sub, marginTop: 4 },
   sectionCard: {
     backgroundColor: C.card,
@@ -233,8 +233,8 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     paddingBottom: 14,
   },
-  sectionTitle: { color: C.text, fontSize: FS.btnSecondary, fontWeight: '800', marginBottom: 8 },
-  dropdownAnchor: { position: 'relative', zIndex: 20 },
+  sectionTitle: { color: C.text, fontSize: FS.btnSecondary, fontWeight: "800", marginBottom: 8 },
+  dropdownAnchor: { position: "relative", zIndex: 20 },
   dropdownTrigger: {
     borderWidth: 1,
     borderColor: C.border,
@@ -242,38 +242,38 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 11,
     backgroundColor: C.bg,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-  dropdownTriggerText: { color: C.text, fontSize: FS.sub, fontWeight: '700' },
+  dropdownTriggerText: { color: C.text, fontSize: FS.sub, fontWeight: "700" },
   dropdownMenu: {
-    position: 'absolute',
+    position: "absolute",
     top: 50,
     left: 0,
     right: 0,
     borderWidth: 1,
     borderColor: C.border,
     borderRadius: 12,
-    backgroundColor: '#1A1635',
-    overflow: 'hidden',
+    backgroundColor: "#1A1635",
+    overflow: "hidden",
     zIndex: 30,
     elevation: 6,
   },
   dropdownOption: {
     paddingHorizontal: 12,
     paddingVertical: 11,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#221D43',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#221D43",
     borderWidth: 1,
-    borderColor: '#3A2F69',
+    borderColor: "#3A2F69",
   },
-  dropdownOptionHover: { backgroundColor: '#3F3378' },
+  dropdownOptionHover: { backgroundColor: "#3F3378" },
   dropdownBorder: { borderBottomWidth: 1, borderBottomColor: C.border },
   dropdownOptionText: { color: C.text, fontSize: FS.sub },
-  dropdownOptionTextActive: { color: C.lime, fontWeight: '700' },
+  dropdownOptionTextActive: { color: C.lime, fontWeight: "700" },
   input: {
     borderWidth: 1,
     borderColor: C.border,
@@ -292,12 +292,12 @@ const styles = StyleSheet.create({
     backgroundColor: C.purple,
     borderRadius: 12,
     paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
     gap: 8,
   },
   submitBtnDisabled: { opacity: 0.5 },
-  submitBtnText: { color: '#fff', fontSize: FS.btnSecondary, fontWeight: '800' },
+  submitBtnText: { color: "#fff", fontSize: FS.btnSecondary, fontWeight: "800" },
   validation: { color: C.danger, fontSize: FS.badge, marginTop: 10 },
 });

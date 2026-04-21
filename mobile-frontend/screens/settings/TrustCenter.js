@@ -1,42 +1,42 @@
-import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import React from "react";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
 
 const C = {
-  bg: '#0F0B1E',
-  card: '#161230',
-  border: '#1E1A35',
-  purple: '#7C5CFC',
-  lime: '#C8F135',
-  text: '#FFFFFF',
-  sub: '#6B5F8A',
+  bg: "#0F0B1E",
+  card: "#161230",
+  border: "#1E1A35",
+  purple: "#7C5CFC",
+  lime: "#C8F135",
+  text: "#FFFFFF",
+  sub: "#6B5F8A",
 };
 
 const TRUST_ITEMS = [
   {
-    id: 'data',
-    title: 'Data Handling',
-    body: 'BodyQ stores account and activity data through Supabase and keeps local preferences on device when possible.',
-    icon: 'shield-checkmark-outline',
+    id: "data",
+    title: "Data Handling",
+    body: "BodyQ stores account and activity data through Supabase and keeps local preferences on device when possible.",
+    icon: "shield-checkmark-outline",
   },
   {
-    id: 'permissions',
-    title: 'Permissions',
-    body: 'The app only requests permissions it needs for health logging, media uploads, and notifications.',
-    icon: 'lock-closed-outline',
+    id: "permissions",
+    title: "Permissions",
+    body: "The app only requests permissions it needs for health logging, media uploads, and notifications.",
+    icon: "lock-closed-outline",
   },
   {
-    id: 'security',
-    title: 'Security',
-    body: 'Your information is transmitted securely. We recommend using a strong password and keeping your device updated.',
-    icon: 'key-outline',
+    id: "security",
+    title: "Security",
+    body: "Your information is transmitted securely. We recommend using a strong password and keeping your device updated.",
+    icon: "key-outline",
   },
   {
-    id: 'support',
-    title: 'Support & Reporting',
-    body: 'If you notice a privacy issue, use Help Center or Report to contact the team and document the problem.',
-    icon: 'chatbubbles-outline',
+    id: "support",
+    title: "Support & Reporting",
+    body: "If you notice a privacy issue, use Help Center or Report to contact the team and document the problem.",
+    icon: "chatbubbles-outline",
   },
 ];
 
@@ -97,13 +97,13 @@ export default function TrustCenter() {
           <View style={s.actionRow}>
             <Pressable
               style={[s.actionBtn, s.actionBtnGhost]}
-              onPress={() => navigation.navigate('HelpCenter')}
+              onPress={() => navigation.navigate("HelpCenter")}
             >
               <Text style={s.actionBtnGhostText}>Open Help Center</Text>
             </Pressable>
             <Pressable
               style={[s.actionBtn, s.actionBtnPrimary]}
-              onPress={() => navigation.navigate('TermsPolicies')}
+              onPress={() => navigation.navigate("TermsPolicies")}
             >
               <Text style={s.actionBtnPrimaryText}>Read Policies</Text>
             </Pressable>
@@ -117,7 +117,7 @@ export default function TrustCenter() {
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
   scroll: { paddingHorizontal: 16, paddingTop: 52, paddingBottom: 24, gap: 14 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
+  headerRow: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
   backBtn: {
     width: 38,
     height: 38,
@@ -125,25 +125,25 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: C.border,
     backgroundColor: C.card,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 10,
   },
   headerTextWrap: { flex: 1 },
-  title: { color: C.text, fontSize: 26, fontWeight: '800', letterSpacing: -0.4 },
+  title: { color: C.text, fontSize: 26, fontWeight: "800", letterSpacing: -0.4 },
   subtitle: { color: C.sub, fontSize: 13, marginTop: 4 },
   banner: {
     borderRadius: 18,
     borderWidth: 1,
     borderColor: C.border,
-    backgroundColor: '#1B1735',
+    backgroundColor: "#1B1735",
     padding: 16,
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
-    alignItems: 'flex-start',
+    alignItems: "flex-start",
   },
   bannerTextWrap: { flex: 1 },
-  bannerTitle: { color: C.text, fontSize: 15, fontWeight: '800' },
+  bannerTitle: { color: C.text, fontSize: 15, fontWeight: "800" },
   bannerBody: { color: C.sub, fontSize: 12, lineHeight: 18, marginTop: 4 },
   sectionCard: {
     backgroundColor: C.card,
@@ -154,12 +154,12 @@ const s = StyleSheet.create({
     paddingTop: 14,
     paddingBottom: 14,
   },
-  sectionTitle: { color: C.text, fontSize: 16, fontWeight: '800' },
+  sectionTitle: { color: C.text, fontSize: 16, fontWeight: "800" },
   sectionSubtitle: { color: C.sub, fontSize: 12, marginTop: 5 },
   sectionBody: { marginTop: 12, gap: 10 },
   cardItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     gap: 12,
     padding: 12,
     borderRadius: 14,
@@ -174,16 +174,16 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: C.border,
     backgroundColor: C.card,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   cardTextWrap: { flex: 1 },
-  cardTitle: { color: C.text, fontSize: 14, fontWeight: '800' },
+  cardTitle: { color: C.text, fontSize: 14, fontWeight: "800" },
   cardBody: { color: C.sub, fontSize: 12, lineHeight: 18, marginTop: 4 },
-  actionRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  actionBtn: { flex: 1, borderRadius: 14, paddingVertical: 13, alignItems: 'center' },
+  actionRow: { flexDirection: "row", gap: 10, marginTop: 12 },
+  actionBtn: { flex: 1, borderRadius: 14, paddingVertical: 13, alignItems: "center" },
   actionBtnGhost: { backgroundColor: C.bg, borderWidth: 1, borderColor: C.border },
   actionBtnPrimary: { backgroundColor: C.purple },
-  actionBtnGhostText: { color: C.text, fontSize: 14, fontWeight: '700' },
-  actionBtnPrimaryText: { color: '#fff', fontSize: 14, fontWeight: '800' },
+  actionBtnGhostText: { color: C.text, fontSize: 14, fontWeight: "700" },
+  actionBtnPrimaryText: { color: "#fff", fontSize: 14, fontWeight: "800" },
 });

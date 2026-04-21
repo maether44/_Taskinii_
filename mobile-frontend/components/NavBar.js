@@ -53,17 +53,17 @@ function TrainingStack() {
       <Stack.Screen
         name="WorkoutActive"
         component={WorkoutActive}
-        options={{ tabBarStyle: { display: 'none' } }}
+        options={{ tabBarStyle: { display: "none" } }}
       />
       <Stack.Screen
         name="WorkoutSummary"
         component={WorkoutSummary}
-        options={{ tabBarStyle: { display: 'none' } }}
+        options={{ tabBarStyle: { display: "none" } }}
       />
       <Stack.Screen
         name="FlappyBirdGame"
         component={FlappyBirdGame}
-        options={{ tabBarStyle: { display: 'none' } }}
+        options={{ tabBarStyle: { display: "none" } }}
       />
     </Stack.Navigator>
   );
@@ -86,20 +86,45 @@ export default function NavBar() {
           },
         }}
       >
-        <Tab.Screen name="Home" component={Home}
-          options={{ tabBarIcon: ({ color }) => <Ionicons name="flash" size={24} color={color} /> }} />
+        <Tab.Screen
+          name="Home"
+          component={Home}
+          options={{ tabBarIcon: ({ color }) => <Ionicons name="flash" size={24} color={color} /> }}
+        />
 
-        <Tab.Screen name="Fuel" component={Nutrition}
-          options={{ tabBarIcon: ({ color }) => <MaterialCommunityIcons name="food-apple" size={24} color={color} /> }} />
+        <Tab.Screen
+          name="Fuel"
+          component={Nutrition}
+          options={{
+            tabBarIcon: ({ color }) => (
+              <MaterialCommunityIcons name="food-apple" size={24} color={color} />
+            ),
+          }}
+        />
 
-        <Tab.Screen name="Train" component={TrainingStack}
-          options={{ tabBarIcon: ({ color }) => <Ionicons name="barbell" size={24} color={color} /> }} />
+        <Tab.Screen
+          name="Train"
+          component={TrainingStack}
+          options={{
+            tabBarIcon: ({ color }) => <Ionicons name="barbell" size={24} color={color} />,
+          }}
+        />
 
-        <Tab.Screen name="Insights" component={Insights}
-          options={{ tabBarIcon: ({ color }) => <Ionicons name="analytics" size={24} color={color} /> }} />
+        <Tab.Screen
+          name="Insights"
+          component={Insights}
+          options={{
+            tabBarIcon: ({ color }) => <Ionicons name="analytics" size={24} color={color} />,
+          }}
+        />
 
-        <Tab.Screen name="Profile" component={ProfileStack}
-          options={{ tabBarIcon: ({ color }) => <Ionicons name="person" size={24} color={color} /> }} />
+        <Tab.Screen
+          name="Profile"
+          component={ProfileStack}
+          options={{
+            tabBarIcon: ({ color }) => <Ionicons name="person" size={24} color={color} />,
+          }}
+        />
       </Tab.Navigator>
     </View>
   );

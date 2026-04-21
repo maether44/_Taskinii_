@@ -11,14 +11,7 @@ import { Animated, StyleSheet, Text, View } from "react-native";
  *   showGoal bool    — show "x / y g" (default true)
  *   trigger  any     — when this changes, animation replays
  */
-export default function MacroBar({
-  label,
-  eaten,
-  goal,
-  color,
-  showGoal = true,
-  trigger,
-}) {
+export default function MacroBar({ label, eaten, goal, color, showGoal = true, trigger }) {
   const anim = useRef(new Animated.Value(0)).current;
   const pct = Math.min(eaten / (goal || 1), 1);
 
@@ -50,10 +43,7 @@ export default function MacroBar({
       </View>
       <View style={styles.track}>
         <Animated.View
-          style={[
-            styles.fill,
-            { width, backgroundColor: over ? "#FF6B6B" : color },
-          ]}
+          style={[styles.fill, { width, backgroundColor: over ? "#FF6B6B" : color }]}
         />
       </View>
     </View>

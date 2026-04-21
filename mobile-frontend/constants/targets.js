@@ -11,10 +11,10 @@
 export const DEFAULT_TARGETS = Object.freeze({
   calorie_target: 2000,
   protein_target: 150,
-  carbs_target:   250,
-  fat_target:     65,
+  carbs_target: 250,
+  fat_target: 65,
   water_target_ml: 2500,
-  steps_target:   10000,
+  steps_target: 10000,
 });
 
 /**

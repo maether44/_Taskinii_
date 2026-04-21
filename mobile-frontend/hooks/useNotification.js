@@ -3,17 +3,6 @@ import * as Notifications from "expo-notifications";
 import { supabase } from "../lib/supabase";
 
 // expo-notifications weekday: 1=Sunday, 2=Monday, ..., 7=Saturday
-const WORKOUT_DAY_NAMES = ["", "sun", "mon", "tue", "wed", "thu", "fri", "sat"];
-
-// Spread workout days evenly across the week based on count
-const WORKOUT_DAYS_MAP = {
-  2: [2, 6], // Mon, Fri
-  3: [2, 4, 6], // Mon, Wed, Fri
-  4: [2, 3, 5, 6], // Mon, Tue, Thu, Fri
-  5: [2, 3, 4, 5, 6], // Mon–Fri
-  6: [2, 3, 4, 5, 6, 7], // Mon–Sat
-};
-
 const TIME_TO_HOUR = {
   morning: 7,
   afternoon: 13,
@@ -47,9 +36,7 @@ const useNotification = (ml, waterGoalMl = 2000, enabledNotifications = {}) => {
         }
 
         // Cancel any previous hydration reminder
-        await Notifications.cancelScheduledNotificationAsync(
-          HYDRATION_ID,
-        ).catch(() => {});
+        await Notifications.cancelScheduledNotificationAsync(HYDRATION_ID).catch(() => {});
 
         if (ml >= waterGoalMl) {
           // console.log(
@@ -66,9 +53,7 @@ const useNotification = (ml, waterGoalMl = 2000, enabledNotifications = {}) => {
           reminderTime.setDate(reminderTime.getDate() + 1);
         }
 
-        console.log(
-          `[HydrationReminder] Scheduling notification for ${reminderTime}`,
-        );
+        console.log(`[HydrationReminder] Scheduling notification for ${reminderTime}`);
         await Notifications.scheduleNotificationAsync({
           identifier: HYDRATION_ID,
           content: {
@@ -97,7 +82,9 @@ const useNotification = (ml, waterGoalMl = 2000, enabledNotifications = {}) => {
           const scheduled = await Notifications.getAllScheduledNotificationsAsync();
           const workoutScheduled = scheduled.filter((n) => n.identifier.startsWith("workout-"));
           await Promise.all(
-            workoutScheduled.map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier)),
+            workoutScheduled.map((n) =>
+              Notifications.cancelScheduledNotificationAsync(n.identifier),
+            ),
           );
           console.log(
             `[WorkoutReminder] Disabled in profile settings. Cancelled ${workoutScheduled.length} scheduled reminder(s).`,
@@ -123,7 +110,7 @@ const useNotification = (ml, waterGoalMl = 2000, enabledNotifications = {}) => {
           return;
         }
 
-        const { data: profile} = await supabase
+        const { data: profile } = await supabase
           .from("profiles")
           .select("preferred_workout_time")
           .eq("id", user.id)
@@ -135,8 +122,7 @@ const useNotification = (ml, waterGoalMl = 2000, enabledNotifications = {}) => {
         }
 
         // Cancel any previously scheduled workout reminders
-        const scheduled =
-          await Notifications.getAllScheduledNotificationsAsync();
+        const scheduled = await Notifications.getAllScheduledNotificationsAsync();
         // console.log(
         //   "[WorkoutReminder] Scheduled notifications before cancel:",
         //   scheduled,
@@ -144,9 +130,7 @@ const useNotification = (ml, waterGoalMl = 2000, enabledNotifications = {}) => {
         await Promise.all(
           scheduled
             .filter((n) => n.identifier.startsWith("workout-"))
-            .map((n) =>
-              Notifications.cancelScheduledNotificationAsync(n.identifier),
-            ),
+            .map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier)),
         );
 
         const hour = TIME_TO_HOUR[profile.preferred_workout_time] ?? 8;
@@ -156,10 +140,7 @@ const useNotification = (ml, waterGoalMl = 2000, enabledNotifications = {}) => {
         let reminderTime;
         if (TEST_WORKOUT_SEND_NOW) {
           reminderTime = new Date(Date.now() + 10000); // 10 seconds from now
-          console.log(
-            "[WorkoutReminder] TEST MODE: Scheduling in 10 seconds at",
-            reminderTime,
-          );
+          console.log("[WorkoutReminder] TEST MODE: Scheduling in 10 seconds at", reminderTime);
         } else {
           const now = new Date();
           reminderTime = new Date();

@@ -1,23 +1,13 @@
 import { useRef, useState } from "react";
 import { Animated } from "react-native";
 import { generateAIPlan } from "../lib/groqAPI";
-import {
-  calcBMR,
-  calcTDEE,
-  calcCalTarget,
-  calcProtein,
-  calcBMI,
-} from "../lib/calculations";
+import { calcBMR, calcTDEE, calcCalTarget, calcProtein, calcBMI } from "../lib/calculations";
 import { STEPS } from "../constants/onBoardingData";
 
-import {
-  getProfile,
-  saveOnboardingProfile,
-  saveCalorieTargets,
-} from "../services/profileService";
+import { saveOnboardingProfile, saveCalorieTargets } from "../services/profileService";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
-import { error as logError } from '../lib/logger';
+import { error as logError } from "../lib/logger";
 
 export function useOnboarding() {
   const { user: authUser } = useAuth();
@@ -70,13 +60,7 @@ export function useOnboarding() {
   };
 
   const toggleFocus = (id) => {
-    setFocus((p) =>
-      p.includes(id)
-        ? p.filter((x) => x !== id)
-        : p.length < 3
-          ? [...p, id]
-          : p,
-    );
+    setFocus((p) => (p.includes(id) ? p.filter((x) => x !== id) : p.length < 3 ? [...p, id] : p));
   };
 
   // Per-step validation
@@ -186,19 +170,17 @@ export function useOnboarding() {
       // Save AI plan to training_plans table if one was generated
       if (aiPlan?.days?.length) {
         await supabase
-          .from('training_plans')
+          .from("training_plans")
           .upsert(
             { user_id: user.id, plan_json: aiPlan, created_at: new Date().toISOString() },
-            { onConflict: 'user_id' },
+            { onConflict: "user_id" },
           );
       }
 
       onComplete?.();
     } catch (err) {
       logError("Failed to save onboarding:", err);
-      setLoadError(
-        err.message || "Failed to save your profile. Please try again.",
-      );
+      setLoadError(err.message || "Failed to save your profile. Please try again.");
     } finally {
       setSavingProfile(false);
     }

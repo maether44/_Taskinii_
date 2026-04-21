@@ -1,6 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { calcMacroTargets, dobToISO, normalizeGoal } from "../lib/calculations";
-import { refreshAfterProfileUpdate, refreshAll } from "./embeddingService";
+import { refreshAll } from "./embeddingService";
 
 export const getProfile = async (userId) => {
   const { data, error } = await supabase

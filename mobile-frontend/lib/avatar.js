@@ -1,19 +1,22 @@
-import * as FileSystem from 'expo-file-system';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase } from './supabase';
+import { documentDirectory } from "expo-file-system";
+import * as FileSystemLegacy from "expo-file-system/legacy";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { supabase } from "./supabase";
 
-const AVATAR_BUCKET = 'profile-images';
+const FileSystem = FileSystemLegacy;
+
+const AVATAR_BUCKET = "profile-images";
 const SIGNED_URL_TTL = 60 * 60 * 24 * 30;
-const AVATAR_CACHE_DIR = `${FileSystem.documentDirectory}avatars/`;
-const AVATAR_STORAGE_KEY = '@profile_avatar_local_map';
+const AVATAR_CACHE_DIR = `${documentDirectory}avatars/`;
+const AVATAR_STORAGE_KEY = "@profile_avatar_local_map";
 
 export function isRemoteAvatarUrl(value) {
-  return typeof value === 'string' && /^https?:\/\//i.test(value);
+  return typeof value === "string" && /^https?:\/\//i.test(value);
 }
 
 function getAvatarExtension(value) {
   const match = String(value).match(/\.([a-zA-Z0-9]+)(?:\?|$)/);
-  return match?.[1] || 'img';
+  return match?.[1] || "img";
 }
 
 function getAvatarCachePath(value) {
@@ -22,13 +25,21 @@ function getAvatarCachePath(value) {
 }
 
 async function ensureAvatarDir() {
-  await FileSystem.makeDirectoryAsync(AVATAR_CACHE_DIR, { intermediates: true });
+  try {
+    await FileSystem.makeDirectoryAsync(AVATAR_CACHE_DIR, { intermediates: true });
+  } catch {
+    // Directory may already exist
+  }
 }
 
 async function getExistingLocalAvatar(value) {
-  const localUri = getAvatarCachePath(value);
-  const info = await FileSystem.getInfoAsync(localUri);
-  return info.exists ? localUri : null;
+  try {
+    const localUri = getAvatarCachePath(value);
+    const info = await FileSystem.getInfoAsync(localUri);
+    return info.exists ? localUri : null;
+  } catch {
+    return null;
+  }
 }
 
 async function readAvatarMap() {
@@ -42,20 +53,16 @@ async function writeAvatarMap(map) {
 
 async function getRemoteAvatarUrl(value) {
   if (!value) return null;
-  if (String(value).startsWith('file://')) return value;
+  if (String(value).startsWith("file://")) return value;
   if (isRemoteAvatarUrl(value)) return value;
 
-  const { data: publicData } = supabase
-    .storage
-    .from(AVATAR_BUCKET)
-    .getPublicUrl(value);
+  const { data: publicData } = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(value);
 
   if (publicData?.publicUrl) {
-    return `${publicData.publicUrl}${publicData.publicUrl.includes('?') ? '&' : '?'}t=${Date.now()}`;
+    return `${publicData.publicUrl}${publicData.publicUrl.includes("?") ? "&" : "?"}t=${Date.now()}`;
   }
 
-  const { data, error } = await supabase
-    .storage
+  const { data, error } = await supabase.storage
     .from(AVATAR_BUCKET)
     .createSignedUrl(value, SIGNED_URL_TTL);
 
@@ -65,7 +72,7 @@ async function getRemoteAvatarUrl(value) {
 
 export async function resolveAvatarUrl(value) {
   if (!value) return null;
-  if (String(value).startsWith('file://')) return value;
+  if (String(value).startsWith("file://")) return value;
 
   try {
     await ensureAvatarDir();
@@ -87,7 +94,7 @@ export async function resolveAvatarUrl(value) {
   }
 }
 
-export function buildAvatarPath(userId, extension = 'jpg') {
+export function buildAvatarPath(userId, extension = "jpg") {
   return `${userId}/avatar-${Date.now()}.${extension}`;
 }
 
@@ -97,15 +104,24 @@ export async function cacheAvatarLocally(sourceUri, storagePath) {
   await ensureAvatarDir();
 
   const destination = getAvatarCachePath(storagePath);
-  const existing = await FileSystem.getInfoAsync(destination);
-  if (existing.exists) {
-    await FileSystem.deleteAsync(destination, { idempotent: true });
+  try {
+    const existing = await FileSystem.getInfoAsync(destination);
+    if (existing.exists) {
+      await FileSystem.deleteAsync(destination, { idempotent: true });
+    }
+  } catch {
+    // File doesn't exist, continue
   }
 
-  await FileSystem.copyAsync({
-    from: sourceUri,
-    to: destination,
-  });
+  try {
+    await FileSystem.copyAsync({
+      from: sourceUri,
+      to: destination,
+    });
+  } catch (err) {
+    console.warn("[Avatar] cacheAvatarLocally copy failed:", err?.message);
+    return sourceUri;
+  }
 
   return destination;
 }

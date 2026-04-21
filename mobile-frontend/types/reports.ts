@@ -1,6 +1,6 @@
-export type ReportType = 'weekly' | 'monthly' | 'quarterly' | 'biannual' | 'yearly';
+export type ReportType = "weekly" | "monthly" | "quarterly" | "biannual" | "yearly";
 
-export type ReportStatus = 'generating' | 'available' | 'failed' | 'expired';
+export type ReportStatus = "generating" | "available" | "failed" | "expired";
 
 export interface UserReport {
   id: string;
@@ -18,7 +18,7 @@ export interface UserReport {
   updated_at: string;
 }
 
-export type ReportCardState = 'not_available' | 'available' | 'expired';
+export type ReportCardState = "not_available" | "available" | "expired";
 
 export interface ReportCardProps {
   reportType: ReportType;

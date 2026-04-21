@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { searchFoodLibrary } from "../../services/foodScannerApi";
 import { useNutrition } from "../../hooks/useNutrition";
-import { error as logError } from '../../lib/logger';
+import { error as logError } from "../../lib/logger";
 
 const C = {
   bg: "#0F0B1E",
@@ -29,14 +29,17 @@ const C = {
 };
 
 function calcTotals(added) {
-  return added.reduce((acc, item) => {
-    return {
-      cal: acc.cal + (item.calories || 0),
-      p: Math.round((acc.p + (item.protein || 0)) * 10) / 10,
-      c: Math.round((acc.c + (item.carbs || 0)) * 10) / 10,
-      f: Math.round((acc.f + (item.fat || 0)) * 10) / 10,
-    };
-  }, { cal: 0, p: 0, c: 0, f: 0 });
+  return added.reduce(
+    (acc, item) => {
+      return {
+        cal: acc.cal + (item.calories || 0),
+        p: Math.round((acc.p + (item.protein || 0)) * 10) / 10,
+        c: Math.round((acc.c + (item.carbs || 0)) * 10) / 10,
+        f: Math.round((acc.f + (item.fat || 0)) * 10) / 10,
+      };
+    },
+    { cal: 0, p: 0, c: 0, f: 0 },
+  );
 }
 
 function scaleFood(food, quantity) {
@@ -112,9 +115,9 @@ export default function MealLogger() {
   }, [uniqueFoods, search]);
 
   const addFood = (food) => {
-    setAdded((prev) => prev.find((item) => item.foodId === food.id)
-      ? prev
-      : [...prev, scaleFood(food, 100)]);
+    setAdded((prev) =>
+      prev.find((item) => item.foodId === food.id) ? prev : [...prev, scaleFood(food, 100)],
+    );
     setTab("added");
   };
 
@@ -124,11 +127,13 @@ export default function MealLogger() {
 
   const updateQty = (foodId, quantity) => {
     const safeQty = Math.max(1, quantity);
-    setAdded((prev) => prev.map((item) => {
-      if (item.foodId !== foodId) return item;
-      const source = foods.find((food) => food.id === foodId);
-      return source ? scaleFood(source, safeQty) : item;
-    }));
+    setAdded((prev) =>
+      prev.map((item) => {
+        if (item.foodId !== foodId) return item;
+        const source = foods.find((food) => food.id === foodId);
+        return source ? scaleFood(source, safeQty) : item;
+      }),
+    );
   };
 
   const totals = calcTotals(added);
@@ -164,10 +169,16 @@ export default function MealLogger() {
           <Ionicons name="chevron-back" size={20} color={C.text} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={s.title}>{mealSlot.icon} {mealSlot.label}</Text>
+          <Text style={s.title}>
+            {mealSlot.icon} {mealSlot.label}
+          </Text>
           <Text style={s.subtitle}>Build this meal from the food library</Text>
         </View>
-        <TouchableOpacity style={[s.saveBtn, (!added.length || saving) && s.saveBtnOff]} onPress={handleSave} disabled={!added.length || saving}>
+        <TouchableOpacity
+          style={[s.saveBtn, (!added.length || saving) && s.saveBtnOff]}
+          onPress={handleSave}
+          disabled={!added.length || saving}
+        >
           <Text style={s.saveTxt}>{saving ? "Saving" : "Save"}</Text>
         </TouchableOpacity>
       </View>
@@ -191,7 +202,11 @@ export default function MealLogger() {
           { id: "search", label: "Food library" },
           { id: "added", label: `Added (${added.length})` },
         ].map((item) => (
-          <TouchableOpacity key={item.id} style={[s.tab, tab === item.id && s.tabActive]} onPress={() => setTab(item.id)}>
+          <TouchableOpacity
+            key={item.id}
+            style={[s.tab, tab === item.id && s.tabActive]}
+            onPress={() => setTab(item.id)}
+          >
             <Text style={[s.tabTxt, tab === item.id && s.tabTxtActive]}>{item.label}</Text>
           </TouchableOpacity>
         ))}
@@ -227,21 +242,31 @@ export default function MealLogger() {
               data={filtered}
               keyExtractor={(item) => String(item.id)}
               contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
-              ListEmptyComponent={(
+              ListEmptyComponent={
                 <View style={s.emptyState}>
-                  <Text style={s.emptyTitle}>{search ? "No matching foods" : "Search our food library"}</Text>
-                  <Text style={s.emptySub}>{search ? "Try a different food name or brand." : "Tap a suggestion or type a food to search OpenFoodFacts."}</Text>
+                  <Text style={s.emptyTitle}>
+                    {search ? "No matching foods" : "Search our food library"}
+                  </Text>
+                  <Text style={s.emptySub}>
+                    {search
+                      ? "Try a different food name or brand."
+                      : "Tap a suggestion or type a food to search OpenFoodFacts."}
+                  </Text>
                   {!search && (
                     <View style={s.suggestionRow}>
                       {["Banana", "Greek Yogurt", "Chicken Breast", "Oats", "Eggs"].map((term) => (
-                        <TouchableOpacity key={term} style={s.suggestionChip} onPress={() => setSearch(term)}>
+                        <TouchableOpacity
+                          key={term}
+                          style={s.suggestionChip}
+                          onPress={() => setSearch(term)}
+                        >
                           <Text style={s.suggestionTxt}>{term}</Text>
                         </TouchableOpacity>
                       ))}
                     </View>
                   )}
                 </View>
-              )}
+              }
               renderItem={({ item }) => {
                 const isAdded = added.some((addedItem) => addedItem.foodId === item.id);
                 return (
@@ -249,10 +274,16 @@ export default function MealLogger() {
                     <View style={{ flex: 1 }}>
                       <Text style={s.foodName}>{item.name}</Text>
                       <Text style={s.foodMeta}>
-                        {Math.round(item.calories_per_100g || 0)} kcal per 100g • {Math.round(item.protein_per_100g || 0)}g P • {Math.round(item.carbs_per_100g || 0)}g C • {Math.round(item.fat_per_100g || 0)}g F
+                        {Math.round(item.calories_per_100g || 0)} kcal per 100g •{" "}
+                        {Math.round(item.protein_per_100g || 0)}g P •{" "}
+                        {Math.round(item.carbs_per_100g || 0)}g C •{" "}
+                        {Math.round(item.fat_per_100g || 0)}g F
                       </Text>
                     </View>
-                    <TouchableOpacity style={[s.addBtn, isAdded && s.addBtnDone]} onPress={() => isAdded ? removeFood(item.id) : addFood(item)}>
+                    <TouchableOpacity
+                      style={[s.addBtn, isAdded && s.addBtnDone]}
+                      onPress={() => (isAdded ? removeFood(item.id) : addFood(item))}
+                    >
                       <Text style={s.addBtnTxt}>{isAdded ? "✓" : "+"}</Text>
                     </TouchableOpacity>
                   </View>
@@ -268,21 +299,31 @@ export default function MealLogger() {
           {!added.length ? (
             <View style={s.emptyState}>
               <Text style={s.emptyTitle}>No foods added yet</Text>
-              <Text style={s.emptySub}>Search your saved foods and build this meal piece by piece.</Text>
+              <Text style={s.emptySub}>
+                Search your saved foods and build this meal piece by piece.
+              </Text>
             </View>
           ) : (
             added.map((item) => (
               <View key={item.foodId} style={s.addedRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={s.foodName}>{item.foodName}</Text>
-                  <Text style={s.foodMeta}>{item.calories} kcal • {item.protein}g P • {item.carbs}g C • {item.fat}g F</Text>
+                  <Text style={s.foodMeta}>
+                    {item.calories} kcal • {item.protein}g P • {item.carbs}g C • {item.fat}g F
+                  </Text>
                 </View>
                 <View style={s.qtyControl}>
-                  <TouchableOpacity style={s.qtyBtn} onPress={() => updateQty(item.foodId, item.quantity - 25)}>
+                  <TouchableOpacity
+                    style={s.qtyBtn}
+                    onPress={() => updateQty(item.foodId, item.quantity - 25)}
+                  >
                     <Ionicons name="remove" size={14} color={C.accent} />
                   </TouchableOpacity>
                   <Text style={s.qtyVal}>{item.quantity}g</Text>
-                  <TouchableOpacity style={s.qtyBtn} onPress={() => updateQty(item.foodId, item.quantity + 25)}>
+                  <TouchableOpacity
+                    style={s.qtyBtn}
+                    onPress={() => updateQty(item.foodId, item.quantity + 25)}
+                  >
                     <Ionicons name="add" size={14} color={C.accent} />
                   </TouchableOpacity>
                 </View>
@@ -323,11 +364,29 @@ const s = StyleSheet.create({
   },
   title: { color: C.text, fontSize: 20, fontWeight: "800" },
   subtitle: { color: C.sub, fontSize: 12, marginTop: 3 },
-  saveBtn: { backgroundColor: C.purple, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10 },
+  saveBtn: {
+    backgroundColor: C.purple,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
   saveBtnOff: { opacity: 0.45 },
   saveTxt: { color: "#fff", fontSize: 13, fontWeight: "800" },
-  suggestionRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 12, paddingHorizontal: 8 },
-  suggestionChip: { backgroundColor: "#1B1637", borderRadius: 14, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: "#2D2850" },
+  suggestionRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 12,
+    paddingHorizontal: 8,
+  },
+  suggestionChip: {
+    backgroundColor: "#1B1637",
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: "#2D2850",
+  },
   suggestionTxt: { color: "#C8F135", fontSize: 12, fontWeight: "700" },
   totalsBar: {
     flexDirection: "row",

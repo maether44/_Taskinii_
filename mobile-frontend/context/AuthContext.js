@@ -48,9 +48,7 @@ export function AuthProvider({ children }) {
     // nothing about this call can influence the splash screen. Idempotent
     // per day — safe to call on every session resolve.
     setTimeout(() => {
-      Promise.resolve(
-        supabase.rpc("record_user_visit", { p_user_id: sessionUser.id }),
-      )
+      Promise.resolve(supabase.rpc("record_user_visit", { p_user_id: sessionUser.id }))
         .then((res) => {
           if (res?.error) {
             warn("[AuthContext] record_user_visit:", res.error.message);
@@ -58,15 +56,19 @@ export function AuthProvider({ children }) {
           }
           // Check if this visit unlocked a new milestone
           if (res?.data?.visit_counted) {
-            supabase.rpc("check_milestone_unlocks", { p_user_id: sessionUser.id })
+            supabase
+              .rpc("check_milestone_unlocks", { p_user_id: sessionUser.id })
               .then(({ data, error }) => {
-                if (error) { warn("[AuthContext] check_milestone_unlocks:", error.message); return; }
+                if (error) {
+                  warn("[AuthContext] check_milestone_unlocks:", error.message);
+                  return;
+                }
                 const newMilestones = data?.new_milestones ?? [];
                 if (newMilestones.length > 0) {
                   emit(AppEvents.STREAK_MILESTONE, newMilestones[0]);
                 }
               })
-              .catch(e => warn("[AuthContext] check_milestone_unlocks threw:", e?.message ?? e));
+              .catch((e) => warn("[AuthContext] check_milestone_unlocks threw:", e?.message ?? e));
           }
         })
         .catch((e) => {
@@ -84,9 +86,7 @@ export function AuthProvider({ children }) {
     // Listen for sign in / sign out events
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_, session) =>
-      resolveUser(session?.user ?? null),
-    );
+    } = supabase.auth.onAuthStateChange((_, session) => resolveUser(session?.user ?? null));
 
     return () => subscription.unsubscribe();
   }, []);

@@ -1,4 +1,4 @@
-import { error as logError } from './logger';
+import { error as logError } from "./logger";
 /**
  * AppEventBus — lightweight pub/sub for cross-screen communication.
  *
@@ -16,26 +16,26 @@ const listeners = {};
 
 export const AppEvents = Object.freeze({
   // Nutrition
-  MEAL_LOGGED:          'MEAL_LOGGED',
-  WATER_LOGGED:         'WATER_LOGGED',
+  MEAL_LOGGED: "MEAL_LOGGED",
+  WATER_LOGGED: "WATER_LOGGED",
 
   // Sleep & Activity
-  SLEEP_LOGGED:         'SLEEP_LOGGED',
+  SLEEP_LOGGED: "SLEEP_LOGGED",
 
   // Workout
-  WORKOUT_COMPLETED:    'WORKOUT_COMPLETED',
+  WORKOUT_COMPLETED: "WORKOUT_COMPLETED",
 
   // Gamification
-  ACHIEVEMENT_AWARDED:  'ACHIEVEMENT_AWARDED',
-  XP_AWARDED:           'XP_AWARDED',
-  STREAK_MILESTONE:     'STREAK_MILESTONE',
+  ACHIEVEMENT_AWARDED: "ACHIEVEMENT_AWARDED",
+  XP_AWARDED: "XP_AWARDED",
+  STREAK_MILESTONE: "STREAK_MILESTONE",
 
   // Profile
-  PROFILE_UPDATED:      'PROFILE_UPDATED',
-  TARGETS_UPDATED:      'TARGETS_UPDATED',
+  PROFILE_UPDATED: "PROFILE_UPDATED",
+  TARGETS_UPDATED: "TARGETS_UPDATED",
 
   // Generic refresh signal (e.g. after bulk changes)
-  REFRESH_TODAY:        'REFRESH_TODAY',
+  REFRESH_TODAY: "REFRESH_TODAY",
 });
 
 export function on(event, handler) {
@@ -55,6 +55,10 @@ export function emit(event, payload) {
   const list = listeners[event];
   if (!list?.length) return;
   for (const fn of list) {
-    try { fn(payload); } catch (e) { logError(`[EventBus] ${event}:`, e); }
+    try {
+      fn(payload);
+    } catch (e) {
+      logError(`[EventBus] ${event}:`, e);
+    }
   }
 }

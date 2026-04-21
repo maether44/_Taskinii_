@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -10,44 +10,44 @@ import {
   Pressable,
   Image,
   RefreshControl,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 import Reanimated, {
   FadeInDown,
   useSharedValue,
   useAnimatedStyle,
   withSpring,
   interpolate,
-} from 'react-native-reanimated';
-import { BlurView } from 'expo-blur';
-import Svg, { Ellipse, Rect, Circle, Path } from 'react-native-svg';
-import { useFocusEffect } from '@react-navigation/native';
-import { supabase } from '../lib/supabase';
-import { getMuscleFatigue } from '../services/workoutService';
-import { useAuth } from '../context/AuthContext';
-import { AppEvents, emit, on } from '../lib/eventBus';
-import { warn } from '../lib/logger';
-import { loadPlan, generatePlan } from '../services/aiPlanService';
+} from "react-native-reanimated";
+import { BlurView } from "expo-blur";
+import Svg, { Ellipse, Rect, Circle, Path } from "react-native-svg";
+import { useFocusEffect } from "@react-navigation/native";
+import { supabase } from "../lib/supabase";
+import { getMuscleFatigue } from "../services/workoutService";
+import { useAuth } from "../context/AuthContext";
+import { AppEvents, emit, on } from "../lib/eventBus";
+import { warn } from "../lib/logger";
+import { loadPlan, generatePlan } from "../services/aiPlanService";
 
 const STREAK_MILESTONES = [3, 7, 14, 30, 60, 100, 365];
 
-const { width } = Dimensions.get('window');
+const { width } = Dimensions.get("window");
 
 const C = {
-  bg: '#0F0B1E',
-  card: '#161230',
-  border: '#1E1A35',
-  purple: '#7C5CFC',
-  purpleD: '#4A2FC8',
-  lime: '#C8F135',
-  text: '#FFFFFF',
-  sub: '#6B5F8A',
-  accent: '#9D85F5',
+  bg: "#0F0B1E",
+  card: "#161230",
+  border: "#1E1A35",
+  purple: "#7C5CFC",
+  purpleD: "#4A2FC8",
+  lime: "#C8F135",
+  text: "#FFFFFF",
+  sub: "#6B5F8A",
+  accent: "#9D85F5",
 };
 
 const SHADOW = {
-  shadowColor: '#000',
+  shadowColor: "#000",
   shadowOffset: { width: 0, height: 4 },
   shadowOpacity: 0.35,
   shadowRadius: 12,
@@ -55,176 +55,176 @@ const SHADOW = {
 };
 
 // ── Static data ──────────────────────────────────────────────
-const WEEK = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+const WEEK = ["M", "T", "W", "T", "F", "S", "S"];
 
 // ── Machine Intelligence Hub Data ────────────────────────────
 const GYM_EQUIPMENT = [
   {
-    id: 'smithMachine',
-    name: 'Smith Machine',
-    icon: 'barbell-outline',
-    primaryMuscle: 'Quads · Glutes',
-    muscles: ['Quads', 'Glutes', 'Hamstrings'],
-    imageUrl: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&q=80',
-    exerciseKey: 'squat',
+    id: "smithMachine",
+    name: "Smith Machine",
+    icon: "barbell-outline",
+    primaryMuscle: "Quads · Glutes",
+    muscles: ["Quads", "Glutes", "Hamstrings"],
+    imageUrl: "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&q=80",
+    exerciseKey: "squat",
     setup: [
-      'Set the bar at mid-chest height when standing.',
-      'Step under the bar, feet shoulder-width, toes slightly out.',
-      'Unrack by rotating the bar forward.',
-      'Descend until thighs are parallel. Keep knees tracking over toes.',
+      "Set the bar at mid-chest height when standing.",
+      "Step under the bar, feet shoulder-width, toes slightly out.",
+      "Unrack by rotating the bar forward.",
+      "Descend until thighs are parallel. Keep knees tracking over toes.",
     ],
     activation:
-      'At the bottom, feel your glutes fully loaded. Drive through your heels — consciously squeeze your glutes hard at the top lockout for a 1-second pause.',
+      "At the bottom, feel your glutes fully loaded. Drive through your heels — consciously squeeze your glutes hard at the top lockout for a 1-second pause.",
     alternatives: [
-      { name: 'Goblet Squat', icon: 'fitness-outline' },
-      { name: 'DB Split Squat', icon: 'body-outline' },
+      { name: "Goblet Squat", icon: "fitness-outline" },
+      { name: "DB Split Squat", icon: "body-outline" },
     ],
   },
   {
-    id: 'legPress',
-    name: 'Leg Press',
-    icon: 'footsteps-outline',
-    primaryMuscle: 'Quads · Hamstrings',
-    muscles: ['Quads', 'Hamstrings', 'Glutes'],
-    imageUrl: 'https://images.unsplash.com/photo-1540497077202-7c8a3999166f?w=400&q=80',
-    exerciseKey: 'squat',
+    id: "legPress",
+    name: "Leg Press",
+    icon: "footsteps-outline",
+    primaryMuscle: "Quads · Hamstrings",
+    muscles: ["Quads", "Hamstrings", "Glutes"],
+    imageUrl: "https://images.unsplash.com/photo-1540497077202-7c8a3999166f?w=400&q=80",
+    exerciseKey: "squat",
     setup: [
-      'Adjust seat so knees are at 90° with feet on platform.',
-      'Place feet hip-width apart, mid-platform.',
-      'Keep lower back flat against the pad throughout.',
-      'Do NOT lock out knees at the top — keep slight tension.',
+      "Adjust seat so knees are at 90° with feet on platform.",
+      "Place feet hip-width apart, mid-platform.",
+      "Keep lower back flat against the pad throughout.",
+      "Do NOT lock out knees at the top — keep slight tension.",
     ],
     activation:
-      'Focus on the outer quad sweep. Push through the entire foot evenly. On the way back down, control the weight — that eccentric load is where the muscle grows.',
+      "Focus on the outer quad sweep. Push through the entire foot evenly. On the way back down, control the weight — that eccentric load is where the muscle grows.",
     alternatives: [
-      { name: 'DB Bulgarian Split Squat', icon: 'body-outline' },
-      { name: 'DB Step-Up', icon: 'fitness-outline' },
+      { name: "DB Bulgarian Split Squat", icon: "body-outline" },
+      { name: "DB Step-Up", icon: "fitness-outline" },
     ],
   },
   {
-    id: 'latPulldown',
-    name: 'Lat Pulldown',
-    icon: 'arrow-down-circle-outline',
-    primaryMuscle: 'Lats · Biceps',
-    muscles: ['Back', 'Biceps', 'Forearms'],
-    imageUrl: 'https://images.unsplash.com/photo-1581009137042-c552e485697a?w=400&q=80',
-    exerciseKey: 'bicepCurl',
+    id: "latPulldown",
+    name: "Lat Pulldown",
+    icon: "arrow-down-circle-outline",
+    primaryMuscle: "Lats · Biceps",
+    muscles: ["Back", "Biceps", "Forearms"],
+    imageUrl: "https://images.unsplash.com/photo-1581009137042-c552e485697a?w=400&q=80",
+    exerciseKey: "bicepCurl",
     setup: [
-      'Adjust thigh pad to lock hips firmly in place.',
-      'Grip bar slightly wider than shoulder-width, overhand.',
-      'Lean back 10–15° — this is your fixed position throughout.',
-      'Depress your shoulder blades before each pull.',
+      "Adjust thigh pad to lock hips firmly in place.",
+      "Grip bar slightly wider than shoulder-width, overhand.",
+      "Lean back 10–15° — this is your fixed position throughout.",
+      "Depress your shoulder blades before each pull.",
     ],
     activation:
       'Initiate every rep by pulling your elbows DOWN and BACK — not your hands. Think "elbows to hip pockets." You should feel a deep stretch in your lats at full extension.',
     alternatives: [
-      { name: 'DB Single-Arm Row', icon: 'barbell-outline' },
-      { name: 'DB Pullover', icon: 'fitness-outline' },
+      { name: "DB Single-Arm Row", icon: "barbell-outline" },
+      { name: "DB Pullover", icon: "fitness-outline" },
     ],
   },
   {
-    id: 'chestPress',
-    name: 'Chest Press',
-    icon: 'expand-outline',
-    primaryMuscle: 'Chest · Triceps',
-    muscles: ['Chest', 'Triceps', 'Shoulders'],
-    imageUrl: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=400&q=80',
-    exerciseKey: 'pushup',
+    id: "chestPress",
+    name: "Chest Press",
+    icon: "expand-outline",
+    primaryMuscle: "Chest · Triceps",
+    muscles: ["Chest", "Triceps", "Shoulders"],
+    imageUrl: "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=400&q=80",
+    exerciseKey: "pushup",
     setup: [
-      'Adjust seat so handles are at mid-chest height.',
-      'Sit tall — lower back lightly against the pad.',
-      'Grip handles with wrists straight, elbows at 75° (not flared to 90°).',
-      'Keep shoulder blades pinched together for the entire set.',
+      "Adjust seat so handles are at mid-chest height.",
+      "Sit tall — lower back lightly against the pad.",
+      "Grip handles with wrists straight, elbows at 75° (not flared to 90°).",
+      "Keep shoulder blades pinched together for the entire set.",
     ],
     activation:
-      'As you press, imagine trying to bring your elbows together. Squeeze your pecs hard at full extension — hold 1 second. Feel the inner chest fibers contract.',
+      "As you press, imagine trying to bring your elbows together. Squeeze your pecs hard at full extension — hold 1 second. Feel the inner chest fibers contract.",
     alternatives: [
-      { name: 'DB Bench Press', icon: 'barbell-outline' },
-      { name: 'DB Chest Fly', icon: 'expand-outline' },
+      { name: "DB Bench Press", icon: "barbell-outline" },
+      { name: "DB Chest Fly", icon: "expand-outline" },
     ],
   },
   {
-    id: 'cableRow',
-    name: 'Cable Row',
-    icon: 'swap-horizontal-outline',
-    primaryMuscle: 'Back · Rear Delts',
-    muscles: ['Back', 'Shoulders', 'Biceps'],
-    imageUrl: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=400&q=80',
-    exerciseKey: 'bicepCurl',
+    id: "cableRow",
+    name: "Cable Row",
+    icon: "swap-horizontal-outline",
+    primaryMuscle: "Back · Rear Delts",
+    muscles: ["Back", "Shoulders", "Biceps"],
+    imageUrl: "https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=400&q=80",
+    exerciseKey: "bicepCurl",
     setup: [
-      'Set pulley to hip height. Use a close-grip V-bar attachment.',
-      'Sit upright, knees slightly bent, feet on platforms.',
-      'Start with arms extended — feel a full lat stretch.',
-      'Do NOT lean back more than 10° to initiate the pull.',
+      "Set pulley to hip height. Use a close-grip V-bar attachment.",
+      "Sit upright, knees slightly bent, feet on platforms.",
+      "Start with arms extended — feel a full lat stretch.",
+      "Do NOT lean back more than 10° to initiate the pull.",
     ],
     activation:
-      'Drive elbows back past your torso. At the peak contraction, squeeze your shoulder blades hard together for 2 seconds. Your mid-back should feel on fire.',
+      "Drive elbows back past your torso. At the peak contraction, squeeze your shoulder blades hard together for 2 seconds. Your mid-back should feel on fire.",
     alternatives: [
-      { name: 'DB Bent-Over Row', icon: 'barbell-outline' },
-      { name: 'DB Pendlay Row', icon: 'fitness-outline' },
+      { name: "DB Bent-Over Row", icon: "barbell-outline" },
+      { name: "DB Pendlay Row", icon: "fitness-outline" },
     ],
   },
   {
-    id: 'shoulderPress',
-    name: 'Shoulder Press',
-    icon: 'arrow-up-circle-outline',
-    primaryMuscle: 'Shoulders · Triceps',
-    muscles: ['Shoulders', 'Triceps'],
-    imageUrl: 'https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=400&q=80',
-    exerciseKey: 'shoulderPress',
+    id: "shoulderPress",
+    name: "Shoulder Press",
+    icon: "arrow-up-circle-outline",
+    primaryMuscle: "Shoulders · Triceps",
+    muscles: ["Shoulders", "Triceps"],
+    imageUrl: "https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=400&q=80",
+    exerciseKey: "shoulderPress",
     setup: [
-      'Adjust seat so handles are at ear/jaw height.',
-      'Sit with lower back flush against the pad.',
-      'Grip handles with palms facing forward, wrists neutral.',
-      'Keep core tight — avoid arching your lower back at the top.',
+      "Adjust seat so handles are at ear/jaw height.",
+      "Sit with lower back flush against the pad.",
+      "Grip handles with palms facing forward, wrists neutral.",
+      "Keep core tight — avoid arching your lower back at the top.",
     ],
     activation:
-      'Press through the heel of your palm. At the top, shrug slightly — feel the lateral head of the shoulder squeeze. Lower slowly over 3 counts to maximise deltoid activation.',
+      "Press through the heel of your palm. At the top, shrug slightly — feel the lateral head of the shoulder squeeze. Lower slowly over 3 counts to maximise deltoid activation.",
     alternatives: [
-      { name: 'DB Arnold Press', icon: 'fitness-outline' },
-      { name: 'DB Lateral Raise', icon: 'body-outline' },
+      { name: "DB Arnold Press", icon: "fitness-outline" },
+      { name: "DB Lateral Raise", icon: "body-outline" },
     ],
   },
   {
-    id: 'legCurl',
-    name: 'Leg Curl',
-    icon: 'walk-outline',
-    primaryMuscle: 'Hamstrings',
-    muscles: ['Hamstrings', 'Glutes'],
-    imageUrl: 'https://images.unsplash.com/photo-1516567832786-d171bef2e97e?w=400&q=80',
-    exerciseKey: 'deadlift',
+    id: "legCurl",
+    name: "Leg Curl",
+    icon: "walk-outline",
+    primaryMuscle: "Hamstrings",
+    muscles: ["Hamstrings", "Glutes"],
+    imageUrl: "https://images.unsplash.com/photo-1516567832786-d171bef2e97e?w=400&q=80",
+    exerciseKey: "deadlift",
     setup: [
-      'Adjust pad so it rests just above the heel, not on the ankle.',
-      'Lie face-down, hips pressed into the bench.',
-      'Hold handles to stabilise — do not lift your hips.',
-      'Keep toes pointed slightly inward to target bicep femoris.',
+      "Adjust pad so it rests just above the heel, not on the ankle.",
+      "Lie face-down, hips pressed into the bench.",
+      "Hold handles to stabilise — do not lift your hips.",
+      "Keep toes pointed slightly inward to target bicep femoris.",
     ],
     activation:
-      'Curl through a full range — bring heels toward your glutes. At peak, squeeze hamstrings for a hard 1-second hold. Lower over 3 counts — the eccentric is where the strength gains live.',
+      "Curl through a full range — bring heels toward your glutes. At peak, squeeze hamstrings for a hard 1-second hold. Lower over 3 counts — the eccentric is where the strength gains live.",
     alternatives: [
-      { name: 'DB Romanian Deadlift', icon: 'barbell-outline' },
-      { name: 'DB Nordic Curl (assisted)', icon: 'body-outline' },
+      { name: "DB Romanian Deadlift", icon: "barbell-outline" },
+      { name: "DB Nordic Curl (assisted)", icon: "body-outline" },
     ],
   },
   {
-    id: 'cableBicepCurl',
-    name: 'Cable Curl',
-    icon: 'hand-right-outline',
-    primaryMuscle: 'Biceps · Forearms',
-    muscles: ['Biceps', 'Forearms'],
-    imageUrl: 'https://images.unsplash.com/photo-1597452485675-8c2a65a7253c?w=400&q=80',
-    exerciseKey: 'bicepCurl',
+    id: "cableBicepCurl",
+    name: "Cable Curl",
+    icon: "hand-right-outline",
+    primaryMuscle: "Biceps · Forearms",
+    muscles: ["Biceps", "Forearms"],
+    imageUrl: "https://images.unsplash.com/photo-1597452485675-8c2a65a7253c?w=400&q=80",
+    exerciseKey: "bicepCurl",
     setup: [
-      'Set pulley to lowest pin. Use a straight or EZ bar attachment.',
-      'Stand one step back from the machine, arms fully extended.',
-      'Pin your elbows to your sides — they must NOT move.',
-      'Supinate your wrists at the top (rotate pinky up).',
+      "Set pulley to lowest pin. Use a straight or EZ bar attachment.",
+      "Stand one step back from the machine, arms fully extended.",
+      "Pin your elbows to your sides — they must NOT move.",
+      "Supinate your wrists at the top (rotate pinky up).",
     ],
     activation:
-      'At full contraction, your wrists should be supinated with knuckles facing the ceiling. Squeeze the peak of your bicep hard for 1 second. The constant cable tension keeps the muscle under load even at the bottom.',
+      "At full contraction, your wrists should be supinated with knuckles facing the ceiling. Squeeze the peak of your bicep hard for 1 second. The constant cable tension keeps the muscle under load even at the bottom.",
     alternatives: [
-      { name: 'DB Alternating Curl', icon: 'fitness-outline' },
-      { name: 'DB Hammer Curl', icon: 'barbell-outline' },
+      { name: "DB Alternating Curl", icon: "fitness-outline" },
+      { name: "DB Hammer Curl", icon: "barbell-outline" },
     ],
   },
 ];
@@ -232,123 +232,123 @@ const GYM_EQUIPMENT = [
 // ── Home bodyweight exercises ────────────────────────────────
 const HOME_EXERCISES = [
   {
-    id: 'pushup',
-    name: 'Push-Up',
-    icon: 'body-outline',
-    primaryMuscle: 'Chest · Triceps',
-    muscles: ['Chest', 'Triceps', 'Shoulders', 'Core'],
-    exerciseKey: 'pushup',
-    sets: '4 × 15',
-    imageUrl: 'https://images.unsplash.com/photo-1598971639058-fab3c3109a00?w=400&q=80',
+    id: "pushup",
+    name: "Push-Up",
+    icon: "body-outline",
+    primaryMuscle: "Chest · Triceps",
+    muscles: ["Chest", "Triceps", "Shoulders", "Core"],
+    exerciseKey: "pushup",
+    sets: "4 × 15",
+    imageUrl: "https://images.unsplash.com/photo-1598971639058-fab3c3109a00?w=400&q=80",
     isHome: true,
     setup: [
-      'Place hands slightly wider than shoulder-width, fingers forward.',
-      'Keep your body in a straight line from head to heels.',
-      'Engage your core — do not let your hips sag or pike up.',
-      'Lower until your chest is 2–3 inches from the floor.',
+      "Place hands slightly wider than shoulder-width, fingers forward.",
+      "Keep your body in a straight line from head to heels.",
+      "Engage your core — do not let your hips sag or pike up.",
+      "Lower until your chest is 2–3 inches from the floor.",
     ],
     activation:
-      'Press through your palms and squeeze your chest at the top. Control the descent over 2–3 seconds — the eccentric builds strength faster than dropping down.',
+      "Press through your palms and squeeze your chest at the top. Control the descent over 2–3 seconds — the eccentric builds strength faster than dropping down.",
     alternatives: [],
   },
   {
-    id: 'airsquat',
-    name: 'Air Squat',
-    icon: 'walk-outline',
-    primaryMuscle: 'Quads · Glutes',
-    muscles: ['Quads', 'Glutes', 'Hamstrings', 'Core'],
-    exerciseKey: 'squat',
-    sets: '4 × 20',
-    imageUrl: 'https://images.unsplash.com/photo-1536922246289-88c42f957773?w=400&q=80',
+    id: "airsquat",
+    name: "Air Squat",
+    icon: "walk-outline",
+    primaryMuscle: "Quads · Glutes",
+    muscles: ["Quads", "Glutes", "Hamstrings", "Core"],
+    exerciseKey: "squat",
+    sets: "4 × 20",
+    imageUrl: "https://images.unsplash.com/photo-1536922246289-88c42f957773?w=400&q=80",
     isHome: true,
     setup: [
-      'Stand with feet shoulder-width apart, toes slightly out.',
-      'Arms forward for balance or hands behind your head.',
-      'Sit back and down — keep weight in your heels.',
-      'Descend until hip crease is below knee level.',
+      "Stand with feet shoulder-width apart, toes slightly out.",
+      "Arms forward for balance or hands behind your head.",
+      "Sit back and down — keep weight in your heels.",
+      "Descend until hip crease is below knee level.",
     ],
     activation:
-      'Drive through your heels and squeeze your glutes hard at the top. Keep your chest up and knees tracking over toes throughout the movement.',
+      "Drive through your heels and squeeze your glutes hard at the top. Keep your chest up and knees tracking over toes throughout the movement.",
     alternatives: [],
   },
   {
-    id: 'lunge',
-    name: 'Reverse Lunge',
-    icon: 'footsteps-outline',
-    primaryMuscle: 'Glutes · Quads',
-    muscles: ['Glutes', 'Quads', 'Hamstrings', 'Core'],
-    exerciseKey: 'lunge',
-    sets: '3 × 12',
-    imageUrl: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&q=80',
+    id: "lunge",
+    name: "Reverse Lunge",
+    icon: "footsteps-outline",
+    primaryMuscle: "Glutes · Quads",
+    muscles: ["Glutes", "Quads", "Hamstrings", "Core"],
+    exerciseKey: "lunge",
+    sets: "3 × 12",
+    imageUrl: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&q=80",
     isHome: true,
     setup: [
-      'Stand tall with feet hip-width apart.',
-      'Step one foot back, lowering until both knees are at 90°.',
-      'Keep your front knee over your ankle — not past your toes.',
-      'Push through the front heel to return to standing.',
+      "Stand tall with feet hip-width apart.",
+      "Step one foot back, lowering until both knees are at 90°.",
+      "Keep your front knee over your ankle — not past your toes.",
+      "Push through the front heel to return to standing.",
     ],
     activation:
-      'Focus on the front leg doing the work. Squeeze your glute at the top of each rep. Alternate legs or complete one side first for extra burn.',
+      "Focus on the front leg doing the work. Squeeze your glute at the top of each rep. Alternate legs or complete one side first for extra burn.",
     alternatives: [],
   },
   {
-    id: 'plank',
-    name: 'Plank Hold',
-    icon: 'fitness-outline',
-    primaryMuscle: 'Core',
-    muscles: ['Core', 'Shoulders'],
-    exerciseKey: 'plank',
-    sets: '3 × 45s',
-    imageUrl: 'https://images.unsplash.com/photo-1601422407692-ec4eeec1d9b3?w=400&q=80',
+    id: "plank",
+    name: "Plank Hold",
+    icon: "fitness-outline",
+    primaryMuscle: "Core",
+    muscles: ["Core", "Shoulders"],
+    exerciseKey: "plank",
+    sets: "3 × 45s",
+    imageUrl: "https://images.unsplash.com/photo-1601422407692-ec4eeec1d9b3?w=400&q=80",
     isHome: true,
     setup: [
-      'Forearms on the ground, elbows directly under shoulders.',
-      'Toes on the floor, body in a straight line.',
-      'Squeeze your glutes and brace your core like bracing for a punch.',
-      'Look at a spot between your hands — keep neck neutral.',
+      "Forearms on the ground, elbows directly under shoulders.",
+      "Toes on the floor, body in a straight line.",
+      "Squeeze your glutes and brace your core like bracing for a punch.",
+      "Look at a spot between your hands — keep neck neutral.",
     ],
     activation:
-      'Think about pulling your elbows toward your toes and your toes toward your elbows — this maximises core engagement without moving.',
+      "Think about pulling your elbows toward your toes and your toes toward your elbows — this maximises core engagement without moving.",
     alternatives: [],
   },
   {
-    id: 'glute',
-    name: 'Glute Bridge',
-    icon: 'arrow-up-outline',
-    primaryMuscle: 'Glutes · Hamstrings',
-    muscles: ['Glutes', 'Hamstrings', 'Core'],
-    exerciseKey: 'squat',
-    sets: '4 × 20',
-    imageUrl: 'https://images.unsplash.com/photo-1518611012118-696072aa579a?w=400&q=80',
+    id: "glute",
+    name: "Glute Bridge",
+    icon: "arrow-up-outline",
+    primaryMuscle: "Glutes · Hamstrings",
+    muscles: ["Glutes", "Hamstrings", "Core"],
+    exerciseKey: "squat",
+    sets: "4 × 20",
+    imageUrl: "https://images.unsplash.com/photo-1518611012118-696072aa579a?w=400&q=80",
     isHome: true,
     setup: [
-      'Lie on your back, knees bent, feet flat and hip-width apart.',
-      'Arms by your sides, palms down for stability.',
-      'Feet close enough that you can touch your heels with fingertips.',
-      'Keep your chin slightly tucked — avoid arching your neck.',
+      "Lie on your back, knees bent, feet flat and hip-width apart.",
+      "Arms by your sides, palms down for stability.",
+      "Feet close enough that you can touch your heels with fingertips.",
+      "Keep your chin slightly tucked — avoid arching your neck.",
     ],
     activation:
-      'Drive through your heels and lift hips until your body forms a straight line from knees to shoulders. Squeeze your glutes hard at the top for 2 seconds.',
+      "Drive through your heels and lift hips until your body forms a straight line from knees to shoulders. Squeeze your glutes hard at the top for 2 seconds.",
     alternatives: [],
   },
   {
-    id: 'dipchest',
-    name: 'Tricep Dip',
-    icon: 'arrow-down-outline',
-    primaryMuscle: 'Triceps · Chest',
-    muscles: ['Triceps', 'Chest', 'Shoulders'],
-    exerciseKey: 'pushup',
-    sets: '3 × 12',
-    imageUrl: 'https://images.unsplash.com/photo-1530822847156-5df684ec5933?w=400&q=80',
+    id: "dipchest",
+    name: "Tricep Dip",
+    icon: "arrow-down-outline",
+    primaryMuscle: "Triceps · Chest",
+    muscles: ["Triceps", "Chest", "Shoulders"],
+    exerciseKey: "pushup",
+    sets: "3 × 12",
+    imageUrl: "https://images.unsplash.com/photo-1530822847156-5df684ec5933?w=400&q=80",
     isHome: true,
     setup: [
-      'Place hands on a chair or bench behind you, fingers forward.',
-      'Legs extended or bent at 90° for easier variation.',
-      'Keep your back close to the bench throughout.',
-      'Lower until elbows are at 90° — do not go deeper to protect shoulders.',
+      "Place hands on a chair or bench behind you, fingers forward.",
+      "Legs extended or bent at 90° for easier variation.",
+      "Keep your back close to the bench throughout.",
+      "Lower until elbows are at 90° — do not go deeper to protect shoulders.",
     ],
     activation:
-      'Press through your palms and lock out at the top. Keep your elbows pointing straight back, not flaring out. Control the descent for maximum tricep engagement.',
+      "Press through your palms and lock out at the top. Keep your elbows pointing straight back, not flaring out. Control the descent for maximum tricep engagement.",
     alternatives: [],
   },
 ];
@@ -363,76 +363,76 @@ const COMBINED_EQUIPMENT = [
 const PLAN_CIRCUITS = {
   strength: [
     {
-      name: 'Barbell Squat',
-      icon: 'barbell-outline',
-      key: 'squat',
-      sets: '4×8',
-      target: 'Quads · Glutes',
+      name: "Barbell Squat",
+      icon: "barbell-outline",
+      key: "squat",
+      sets: "4×8",
+      target: "Quads · Glutes",
     },
     {
-      name: 'Chest Press',
-      icon: 'expand-outline',
-      key: 'pushup',
-      sets: '3×10',
-      target: 'Chest · Triceps',
+      name: "Chest Press",
+      icon: "expand-outline",
+      key: "pushup",
+      sets: "3×10",
+      target: "Chest · Triceps",
     },
     {
-      name: 'Cable Row',
-      icon: 'swap-horizontal-outline',
-      key: 'bicepCurl',
-      sets: '3×12',
-      target: 'Back · Rear Delts',
+      name: "Cable Row",
+      icon: "swap-horizontal-outline",
+      key: "bicepCurl",
+      sets: "3×12",
+      target: "Back · Rear Delts",
     },
   ],
   upper: [
     {
-      name: 'Shoulder Press',
-      icon: 'arrow-up-circle-outline',
-      key: 'shoulderPress',
-      sets: '4×10',
-      target: 'Shoulders · Triceps',
+      name: "Shoulder Press",
+      icon: "arrow-up-circle-outline",
+      key: "shoulderPress",
+      sets: "4×10",
+      target: "Shoulders · Triceps",
     },
     {
-      name: 'Lat Pulldown',
-      icon: 'arrow-down-circle-outline',
-      key: 'bicepCurl',
-      sets: '3×12',
-      target: 'Lats · Biceps',
+      name: "Lat Pulldown",
+      icon: "arrow-down-circle-outline",
+      key: "bicepCurl",
+      sets: "3×12",
+      target: "Lats · Biceps",
     },
     {
-      name: 'Cable Curl',
-      icon: 'hand-right-outline',
-      key: 'bicepCurl',
-      sets: '3×15',
-      target: 'Biceps',
+      name: "Cable Curl",
+      icon: "hand-right-outline",
+      key: "bicepCurl",
+      sets: "3×15",
+      target: "Biceps",
     },
   ],
   lower: [
     {
-      name: 'Leg Press',
-      icon: 'footsteps-outline',
-      key: 'squat',
-      sets: '4×10',
-      target: 'Quads · Hamstrings',
+      name: "Leg Press",
+      icon: "footsteps-outline",
+      key: "squat",
+      sets: "4×10",
+      target: "Quads · Hamstrings",
     },
-    { name: 'Leg Curl', icon: 'walk-outline', key: 'deadlift', sets: '3×12', target: 'Hamstrings' },
+    { name: "Leg Curl", icon: "walk-outline", key: "deadlift", sets: "3×12", target: "Hamstrings" },
     {
-      name: 'Smith Machine',
-      icon: 'barbell-outline',
-      key: 'squat',
-      sets: '3×10',
-      target: 'Quads · Glutes',
+      name: "Smith Machine",
+      icon: "barbell-outline",
+      key: "squat",
+      sets: "3×10",
+      target: "Quads · Glutes",
     },
   ],
   recovery: [
-    { name: 'Plank Hold', icon: 'fitness-outline', key: 'plank', sets: '3×45s', target: 'Core' },
-    { name: 'Air Squat', icon: 'walk-outline', key: 'squat', sets: '3×20', target: 'Full Body' },
+    { name: "Plank Hold", icon: "fitness-outline", key: "plank", sets: "3×45s", target: "Core" },
+    { name: "Air Squat", icon: "walk-outline", key: "squat", sets: "3×20", target: "Full Body" },
     {
-      name: 'Glute Bridge',
-      icon: 'arrow-up-outline',
-      key: 'squat',
-      sets: '3×20',
-      target: 'Glutes',
+      name: "Glute Bridge",
+      icon: "arrow-up-outline",
+      key: "squat",
+      sets: "3×20",
+      target: "Glutes",
     },
   ],
 };
@@ -441,7 +441,7 @@ const PLAN_CIRCUITS = {
 function estimateCircuit(exercises) {
   let totalSets = 0;
   exercises.forEach((ex) => {
-    const setsStr = ex.sets || '';
+    const setsStr = ex.sets || "";
     const m = setsStr.match(/^(\d+)/);
     totalSets += m ? parseInt(m[1]) : 3;
   });
@@ -452,42 +452,42 @@ function estimateCircuit(exercises) {
 
 // ── Fatigue → color / label ──────────────────────────────────
 function fatigueColor(pct) {
-  if (pct >= 70) return '#7C5CFC';
-  if (pct >= 30) return '#FF9500';
-  return '#C8F135';
+  if (pct >= 70) return "#7C5CFC";
+  if (pct >= 30) return "#FF9500";
+  return "#C8F135";
 }
 function fatigueLabel(pct) {
-  if (pct >= 70) return 'FATIGUED';
-  if (pct >= 30) return 'SORE';
-  return 'FRESH';
+  if (pct >= 70) return "FATIGUED";
+  if (pct >= 30) return "SORE";
+  return "FRESH";
 }
-const UNTRAINED = 'rgba(255,255,255,0.07)';
+const UNTRAINED = "rgba(255,255,255,0.07)";
 
 // ── SVG body muscle spots ────────────────────────────────────
 const BODY_SPOTS = [
-  { id: 'Shoulders', cx: 17, cy: 52, rx: 11, ry: 9 },
-  { id: 'Shoulders', cx: 103, cy: 52, rx: 11, ry: 9 },
-  { id: 'Chest', cx: 60, cy: 64, rx: 22, ry: 16 },
-  { id: 'Biceps', cx: 15, cy: 80, rx: 8, ry: 14 },
-  { id: 'Biceps', cx: 105, cy: 80, rx: 8, ry: 14 },
-  { id: 'Triceps', cx: 13, cy: 93, rx: 7, ry: 10 },
-  { id: 'Triceps', cx: 107, cy: 93, rx: 7, ry: 10 },
-  { id: 'Forearms', cx: 14, cy: 118, rx: 6, ry: 12 },
-  { id: 'Forearms', cx: 106, cy: 118, rx: 6, ry: 12 },
-  { id: 'Core', cx: 60, cy: 98, rx: 17, ry: 22 },
-  { id: 'Glutes', cx: 42, cy: 137, rx: 13, ry: 10 },
-  { id: 'Glutes', cx: 78, cy: 137, rx: 13, ry: 10 },
-  { id: 'Quads', cx: 42, cy: 162, rx: 12, ry: 22 },
-  { id: 'Quads', cx: 78, cy: 162, rx: 12, ry: 22 },
-  { id: 'Hamstrings', cx: 42, cy: 185, rx: 11, ry: 12 },
-  { id: 'Hamstrings', cx: 78, cy: 185, rx: 11, ry: 12 },
-  { id: 'Back', cx: 60, cy: 78, rx: 20, ry: 20 },
+  { id: "Shoulders", cx: 17, cy: 52, rx: 11, ry: 9 },
+  { id: "Shoulders", cx: 103, cy: 52, rx: 11, ry: 9 },
+  { id: "Chest", cx: 60, cy: 64, rx: 22, ry: 16 },
+  { id: "Biceps", cx: 15, cy: 80, rx: 8, ry: 14 },
+  { id: "Biceps", cx: 105, cy: 80, rx: 8, ry: 14 },
+  { id: "Triceps", cx: 13, cy: 93, rx: 7, ry: 10 },
+  { id: "Triceps", cx: 107, cy: 93, rx: 7, ry: 10 },
+  { id: "Forearms", cx: 14, cy: 118, rx: 6, ry: 12 },
+  { id: "Forearms", cx: 106, cy: 118, rx: 6, ry: 12 },
+  { id: "Core", cx: 60, cy: 98, rx: 17, ry: 22 },
+  { id: "Glutes", cx: 42, cy: 137, rx: 13, ry: 10 },
+  { id: "Glutes", cx: 78, cy: 137, rx: 13, ry: 10 },
+  { id: "Quads", cx: 42, cy: 162, rx: 12, ry: 22 },
+  { id: "Quads", cx: 78, cy: 162, rx: 12, ry: 22 },
+  { id: "Hamstrings", cx: 42, cy: 185, rx: 11, ry: 12 },
+  { id: "Hamstrings", cx: 78, cy: 185, rx: 11, ry: 12 },
+  { id: "Back", cx: 60, cy: 78, rx: 20, ry: 20 },
 ];
 
 // ── Body Silhouette SVG ──────────────────────────────────────
 function BodySilhouette({ fatigueMap, selectedMuscle, onMusclePress }) {
   const colorOf = (muscleId) => {
-    if (selectedMuscle && muscleId !== selectedMuscle) return 'rgba(255,255,255,0.04)';
+    if (selectedMuscle && muscleId !== selectedMuscle) return "rgba(255,255,255,0.04)";
     const entry = fatigueMap[muscleId];
     if (!entry) return selectedMuscle === muscleId ? C.lime : UNTRAINED;
     return fatigueColor(entry.fatigue_pct);
@@ -617,21 +617,21 @@ function MachineCard({ machine, onPress }) {
       {machine.imageUrl ? (
         <Image source={{ uri: machine.imageUrl }} style={s.machineCardBg} resizeMode="cover" />
       ) : (
-        <LinearGradient colors={['#1A1535', '#0F0B1E']} style={s.machineCardBg} />
+        <LinearGradient colors={["#1A1535", "#0F0B1E"]} style={s.machineCardBg} />
       )}
       {/* Scrim */}
       <LinearGradient
-        colors={['rgba(0,0,0,0.05)', 'rgba(8,4,24,0.92)']}
-        style={[s.machineCardBg, { position: 'absolute' }]}
+        colors={["rgba(0,0,0,0.05)", "rgba(8,4,24,0.92)"]}
+        style={[s.machineCardBg, { position: "absolute" }]}
       />
       {/* Gym / Home badge */}
       <View style={[s.floorBadge, machine.isHome ? s.floorBadgeHome : s.floorBadgeGym]}>
         <Ionicons
-          name={machine.isHome ? 'home-outline' : 'barbell-outline'}
+          name={machine.isHome ? "home-outline" : "barbell-outline"}
           size={9}
           color="#fff"
         />
-        <Text style={s.floorBadgeTxt}>{machine.isHome ? 'HOME' : 'GYM'}</Text>
+        <Text style={s.floorBadgeTxt}>{machine.isHome ? "HOME" : "GYM"}</Text>
       </View>
       {/* Icon center */}
       <View style={s.machineIconWrap}>
@@ -758,7 +758,7 @@ function MachineModal({ machine, visible, onClose, onAnalyze }) {
                       color={showAlts ? C.bg : C.lime}
                     />
                     <Text style={[s.pivotBtnTxt, showAlts && { color: C.bg }]}>
-                      {showAlts ? 'Hide Alternatives' : 'Machine Busy?'}
+                      {showAlts ? "Hide Alternatives" : "Machine Busy?"}
                     </Text>
                   </TouchableOpacity>
 
@@ -788,7 +788,7 @@ function MachineModal({ machine, visible, onClose, onAnalyze }) {
                 activeOpacity={0.85}
               >
                 <LinearGradient
-                  colors={[C.lime, '#A8D020']}
+                  colors={[C.lime, "#A8D020"]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={s.analyzeBtnGradient}
@@ -814,7 +814,7 @@ export default function Training({ navigation }) {
   const { user: authUser } = useAuth();
   const authUserId = authUser?.id ?? null;
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good Morning' : hour < 18 ? 'Good Afternoon' : 'Good Evening';
+  const greeting = hour < 12 ? "Good Morning" : hour < 18 ? "Good Afternoon" : "Good Evening";
 
   const [fatigueMap, setFatigueMap] = useState({});
   const [fatigueList, setFatigueList] = useState([]);
@@ -828,15 +828,15 @@ export default function Training({ navigation }) {
   const [overloadTip, setOverloadTip] = useState(null);
   const [nutritionTip, setNutritionTip] = useState(null);
   const [selectedMuscle, setSelectedMuscle] = useState(null);
-  const [environment, setEnvironment] = useState('gym'); // 'gym' | 'home'
+  const [environment, setEnvironment] = useState("gym"); // 'gym' | 'home'
   const [todayPlan, setTodayPlan] = useState([]);
   const machineScrollRef = useRef(null);
   const [recommendation, setRecommendation] = useState({
-    title: 'Full Body\nStrength',
-    duration: '25 min',
-    kcal: '280 kcal',
-    focus: 'Strength Focus',
-    exerciseKey: 'squat',
+    title: "Full Body\nStrength",
+    duration: "25 min",
+    kcal: "280 kcal",
+    focus: "Strength Focus",
+    exerciseKey: "squat",
     reason: '"Based on your current fitness status — let\'s push today."',
   });
   const [aiPlan, setAiPlan] = useState(null); // full AI plan object
@@ -851,9 +851,9 @@ export default function Training({ navigation }) {
     try {
       // ── 0. Environment preference from profiles ───────────
       const { data: profile } = await supabase
-        .from('profiles')
-        .select('environment')
-        .eq('id', authUserId)
+        .from("profiles")
+        .select("environment")
+        .eq("id", authUserId)
         .maybeSingle();
       if (profile?.environment) setEnvironment(profile.environment);
 
@@ -879,12 +879,12 @@ export default function Training({ navigation }) {
       setRecoveryPct(recPct);
 
       // ── 2. Sleep today ─────────────────────────────────────
-      const TODAY_STR = new Date().toISOString().split('T')[0];
+      const TODAY_STR = new Date().toISOString().split("T")[0];
       const { data: activityRow } = await supabase
-        .from('daily_activity')
-        .select('sleep_hours')
-        .eq('user_id', authUserId)
-        .eq('date', TODAY_STR)
+        .from("daily_activity")
+        .select("sleep_hours")
+        .eq("user_id", authUserId)
+        .eq("date", TODAY_STR)
         .maybeSingle();
       const sleepHours = activityRow?.sleep_hours ?? null;
 
@@ -901,15 +901,15 @@ export default function Training({ navigation }) {
         const aiDay = currentSaved.days[adjustedDow % currentSaved.days.length];
         circuit = (aiDay.exercises || []).slice(0, 5).map((ex) => ({
           name: ex.name,
-          icon: 'barbell-outline',
-          key: ex.name.toLowerCase().replace(/\s+/g, '_'),
-          sets: typeof ex.sets === 'number' ? `${ex.sets}×${ex.reps}` : `${ex.sets}`,
-          target: aiDay.focus || '',
+          icon: "barbell-outline",
+          key: ex.name.toLowerCase().replace(/\s+/g, "_"),
+          sets: typeof ex.sets === "number" ? `${ex.sets}×${ex.reps}` : `${ex.sets}`,
+          target: aiDay.focus || "",
         }));
         const est = estimateCircuit(circuit);
         setRecommendation((prev) => ({
           ...prev,
-          title: aiDay.name?.replace(/\s+/g, '\n') || prev.title,
+          title: aiDay.name?.replace(/\s+/g, "\n") || prev.title,
           focus: aiDay.focus || prev.focus,
           duration: est.duration,
           kcal: est.kcal,
@@ -917,42 +917,42 @@ export default function Training({ navigation }) {
         }));
       } else {
         const planKey = lowSleep
-          ? 'recovery'
+          ? "recovery"
           : topFatigued
-            ? ['Quads', 'Hamstrings', 'Glutes', 'Calves'].includes(topFatigued.muscle_name)
-              ? 'upper'
-              : 'lower'
-            : 'strength';
+            ? ["Quads", "Hamstrings", "Glutes", "Calves"].includes(topFatigued.muscle_name)
+              ? "upper"
+              : "lower"
+            : "strength";
         circuit = PLAN_CIRCUITS[planKey] || PLAN_CIRCUITS.strength;
         const est = estimateCircuit(circuit);
 
         if (lowSleep) {
           setRecommendation({
-            title: 'Recovery &\nMobility',
+            title: "Recovery &\nMobility",
             duration: est.duration,
             kcal: est.kcal,
-            focus: 'Active Recovery',
-            exerciseKey: 'plank',
+            focus: "Active Recovery",
+            exerciseKey: "plank",
             reason: `"Only ${sleepHours}h of sleep detected. Low-intensity mobility will help you recover faster."`,
           });
         } else if (topFatigued) {
           const muscle = topFatigued.muscle_name;
-          const isLower = ['Quads', 'Hamstrings', 'Glutes', 'Calves'].includes(muscle);
+          const isLower = ["Quads", "Hamstrings", "Glutes", "Calves"].includes(muscle);
           setRecommendation({
-            title: isLower ? 'Upper Body\nFocus' : 'Lower Body\nFocus',
+            title: isLower ? "Upper Body\nFocus" : "Lower Body\nFocus",
             duration: est.duration,
             kcal: est.kcal,
-            focus: isLower ? 'Upper Body' : 'Lower Body',
-            exerciseKey: isLower ? 'shoulderPress' : 'squat',
-            reason: `"Your ${muscle} are at ${topFatigued.fatigue_pct}% fatigue. Switching to ${isLower ? 'upper body' : 'lower body'} today is the smart move."`,
+            focus: isLower ? "Upper Body" : "Lower Body",
+            exerciseKey: isLower ? "shoulderPress" : "squat",
+            reason: `"Your ${muscle} are at ${topFatigued.fatigue_pct}% fatigue. Switching to ${isLower ? "upper body" : "lower body"} today is the smart move."`,
           });
         } else {
           setRecommendation({
-            title: 'Full Body\nStrength',
+            title: "Full Body\nStrength",
             duration: est.duration,
             kcal: est.kcal,
-            focus: 'Strength Focus',
-            exerciseKey: 'squat',
+            focus: "Strength Focus",
+            exerciseKey: "squat",
             reason: '"All muscles are fresh and recovery is strong — push hard today."',
           });
         }
@@ -960,20 +960,20 @@ export default function Training({ navigation }) {
 
       // Fetch previous bests for all circuit exercises in a single query
       const circuitKeys = circuit.map((ex) => ex.key);
-      const orFilter = circuitKeys.map((k) => `notes.ilike.%${k}%`).join(',');
+      const orFilter = circuitKeys.map((k) => `notes.ilike.%${k}%`).join(",");
       const { data: prevSessions } = await supabase
-        .from('workout_sessions')
-        .select('notes, created_at')
-        .eq('user_id', authUserId)
+        .from("workout_sessions")
+        .select("notes, created_at")
+        .eq("user_id", authUserId)
         .or(orFilter)
-        .order('created_at', { ascending: false })
+        .order("created_at", { ascending: false })
         .limit(circuitKeys.length * 3);
 
       const planWithBests = circuit.map((ex) => {
         const match = (prevSessions ?? []).find((s) =>
-          (s.notes || '').toLowerCase().includes(ex.key.toLowerCase()),
+          (s.notes || "").toLowerCase().includes(ex.key.toLowerCase()),
         );
-        const note = match?.notes || '';
+        const note = match?.notes || "";
         const repM = note.match(/(\d+)\s*reps/i);
         const formM = note.match(/(\d+)%\s*form/i);
         return {
@@ -985,21 +985,21 @@ export default function Training({ navigation }) {
       setTodayPlan(planWithBests);
 
       // ── 4. Progressive overload: last 2 sessions for recommended exercise ──
-      let chosenKey = 'squat';
-      if (lowSleep) chosenKey = 'plank';
+      let chosenKey = "squat";
+      if (lowSleep) chosenKey = "plank";
       else if (topFatigued) {
-        const isLower = ['Quads', 'Hamstrings', 'Glutes', 'Calves'].includes(
+        const isLower = ["Quads", "Hamstrings", "Glutes", "Calves"].includes(
           topFatigued.muscle_name,
         );
-        chosenKey = isLower ? 'shoulderPress' : 'squat';
+        chosenKey = isLower ? "shoulderPress" : "squat";
       }
 
       const { data: pastSessions } = await supabase
-        .from('workout_sessions')
-        .select('notes, created_at')
-        .eq('user_id', authUserId)
-        .ilike('notes', `%${chosenKey}%`)
-        .order('created_at', { ascending: false })
+        .from("workout_sessions")
+        .select("notes, created_at")
+        .eq("user_id", authUserId)
+        .ilike("notes", `%${chosenKey}%`)
+        .order("created_at", { ascending: false })
         .limit(2);
 
       if (pastSessions && pastSessions.length > 0) {
@@ -1011,7 +1011,7 @@ export default function Training({ navigation }) {
 
         if (lastForm !== null && lastForm >= 85) {
           setOverloadTip(
-            `Form was ${lastForm}%${lastReps ? ` for ${lastReps} reps` : ''} last time — add 2.5kg today for progressive overload!`,
+            `Form was ${lastForm}%${lastReps ? ` for ${lastReps} reps` : ""} last time — add 2.5kg today for progressive overload!`,
           );
         } else if (lastForm !== null && lastForm < 60) {
           setOverloadTip(
@@ -1034,16 +1034,16 @@ export default function Training({ navigation }) {
       sunday.setDate(monday.getDate() + 7);
 
       const { data: sessions } = await supabase
-        .from('workout_sessions')
-        .select('created_at')
-        .eq('user_id', authUserId)
-        .gte('created_at', monday.toISOString())
-        .lt('created_at', sunday.toISOString());
+        .from("workout_sessions")
+        .select("created_at")
+        .eq("user_id", authUserId)
+        .gte("created_at", monday.toISOString())
+        .lt("created_at", sunday.toISOString());
 
       // Use local date string to avoid UTC off-by-one when user is ahead of UTC
       const toLocal = (d) => {
         const dt = new Date(d);
-        return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+        return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
       };
 
       const weekDoneSet = new Set((sessions ?? []).map((s) => toLocal(s.created_at)));
@@ -1056,10 +1056,10 @@ export default function Training({ navigation }) {
 
       // ── 5. True consecutive streak ─────────────────────────
       const { data: allSessions } = await supabase
-        .from('workout_sessions')
-        .select('created_at')
-        .eq('user_id', authUserId)
-        .order('created_at', { ascending: false });
+        .from("workout_sessions")
+        .select("created_at")
+        .eq("user_id", authUserId)
+        .order("created_at", { ascending: false });
 
       const allDates = new Set((allSessions ?? []).map((s) => toLocal(s.created_at)));
 
@@ -1088,11 +1088,11 @@ export default function Training({ navigation }) {
 
       // ── 7. High-protein meal tip from today's food logs ────
       const { data: foodLogs } = await supabase
-        .from('food_logs')
-        .select('quantity_grams, foods(protein_per_100g, name)')
-        .eq('user_id', authUserId)
-        .gte('consumed_at', `${TODAY_STR}T00:00:00.000Z`)
-        .lte('consumed_at', `${TODAY_STR}T23:59:59.999Z`);
+        .from("food_logs")
+        .select("quantity_grams, foods(protein_per_100g, name)")
+        .eq("user_id", authUserId)
+        .gte("consumed_at", `${TODAY_STR}T00:00:00.000Z`)
+        .lte("consumed_at", `${TODAY_STR}T23:59:59.999Z`);
 
       if (foodLogs && foodLogs.length > 0) {
         const totalProtein = foodLogs.reduce((sum, log) => {
@@ -1117,15 +1117,15 @@ export default function Training({ navigation }) {
 
       // ── 8. Today's completed exercises ────────────────────
       const { data: todaySessions } = await supabase
-        .from('workout_sessions')
-        .select('notes')
-        .eq('user_id', authUserId)
-        .gte('created_at', `${TODAY_STR}T00:00:00.000Z`)
-        .lte('created_at', `${TODAY_STR}T23:59:59.999Z`);
+        .from("workout_sessions")
+        .select("notes")
+        .eq("user_id", authUserId)
+        .gte("created_at", `${TODAY_STR}T00:00:00.000Z`)
+        .lte("created_at", `${TODAY_STR}T23:59:59.999Z`);
 
       const doneKeys = new Set();
       (todaySessions ?? []).forEach((sess) => {
-        const raw = (sess.notes || '').toLowerCase();
+        const raw = (sess.notes || "").toLowerCase();
         COMBINED_EQUIPMENT.forEach((eq) => {
           if (raw.includes(eq.exerciseKey)) doneKeys.add(eq.exerciseKey);
         });
@@ -1135,7 +1135,7 @@ export default function Training({ navigation }) {
       });
       setCompletedKeys(doneKeys);
     } catch (e) {
-      warn('[BodyQ] Training fetch:', e);
+      warn("[BodyQ] Training fetch:", e);
     } finally {
       setFatigueLoading(false);
     }
@@ -1158,7 +1158,7 @@ export default function Training({ navigation }) {
       setEnvironment(env);
       if (!authUserId) return;
       try {
-        await supabase.from('profiles').update({ environment: env }).eq('id', authUserId);
+        await supabase.from("profiles").update({ environment: env }).eq("id", authUserId);
       } catch (e) {
         /* non-critical */
       }
@@ -1190,7 +1190,7 @@ export default function Training({ navigation }) {
       setModalVisible(false);
       // eslint-disable-next-line no-undef
       setTimeout(() => {
-        navigation.navigate('WorkoutActive', { exerciseName: machine.exerciseKey });
+        navigation.navigate("WorkoutActive", { exerciseName: machine.exerciseKey });
       }, 300);
     },
     [navigation],
@@ -1212,8 +1212,8 @@ export default function Training({ navigation }) {
       setAiPlanDate(new Date().toISOString());
       loadData();
     } catch (e) {
-      warn('[Training] AI plan generation failed:', e?.message ?? e);
-      setAiPlanError('Failed to generate plan. Check your connection and try again.');
+      warn("[Training] AI plan generation failed:", e?.message ?? e);
+      setAiPlanError("Failed to generate plan. Check your connection and try again.");
     } finally {
       setAiPlanLoading(false);
     }
@@ -1243,12 +1243,12 @@ export default function Training({ navigation }) {
           <View style={s.headerChips}>
             <View style={s.liveChip}>
               <Ionicons name="flame" size={11} color={C.lime} />
-              <Text style={s.liveChipTxt}>{streakCount > 0 ? `${streakCount}d` : '—'}</Text>
+              <Text style={s.liveChipTxt}>{streakCount > 0 ? `${streakCount}d` : "—"}</Text>
             </View>
             <View
               style={[
                 s.liveChip,
-                { borderColor: 'rgba(124,92,252,0.35)', backgroundColor: 'rgba(124,92,252,0.1)' },
+                { borderColor: "rgba(124,92,252,0.35)", backgroundColor: "rgba(124,92,252,0.1)" },
               ]}
             >
               <Ionicons name="battery-charging-outline" size={11} color={C.accent} />
@@ -1265,7 +1265,7 @@ export default function Training({ navigation }) {
 
           {/* Blueprint Card — AI reason + circuit in one connected card */}
           <LinearGradient
-            colors={[C.purple, C.purpleD, '#1A0E4F']}
+            colors={[C.purple, C.purpleD, "#1A0E4F"]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={[s.heroCard, SHADOW]}
@@ -1275,33 +1275,33 @@ export default function Training({ navigation }) {
             {/* Environment badge — top right */}
             <TouchableOpacity
               style={s.envBadge}
-              onPress={() => toggleEnvironment(environment === 'gym' ? 'home' : 'gym')}
+              onPress={() => toggleEnvironment(environment === "gym" ? "home" : "gym")}
               activeOpacity={0.75}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               <Ionicons
-                name={environment === 'gym' ? 'barbell-outline' : 'home-outline'}
+                name={environment === "gym" ? "barbell-outline" : "home-outline"}
                 size={11}
                 color={C.lime}
               />
-              <Text style={s.envBadgeTxt}>{environment === 'gym' ? 'Full Gym' : 'Home'}</Text>
+              <Text style={s.envBadgeTxt}>{environment === "gym" ? "Full Gym" : "Home"}</Text>
             </TouchableOpacity>
 
             {/* AI header */}
             <View style={s.heroBadge}>
               <Ionicons name="sparkles" size={10} color={C.lime} />
               <Text style={s.heroBadgeTxt}>
-                {' '}
-                {aiPlan ? 'AI PERSONALISED PLAN' : 'AI RECOMMENDED'}
+                {" "}
+                {aiPlan ? "AI PERSONALISED PLAN" : "AI RECOMMENDED"}
               </Text>
             </View>
             <Text style={s.heroLabel}>DAILY BLUEPRINT</Text>
             <Text style={s.heroTitle}>{recommendation.title}</Text>
             <View style={s.heroMeta}>
               {[
-                { icon: 'time-outline', val: recommendation.duration },
-                { icon: 'flame-outline', val: recommendation.kcal },
-                { icon: 'body-outline', val: recommendation.focus },
+                { icon: "time-outline", val: recommendation.duration },
+                { icon: "flame-outline", val: recommendation.kcal },
+                { icon: "body-outline", val: recommendation.focus },
               ].map((m, i) => (
                 <View key={i} style={s.metaChip}>
                   <Ionicons name={m.icon} size={11} color="rgba(255,255,255,0.6)" />
@@ -1332,7 +1332,7 @@ export default function Training({ navigation }) {
                     done && s.circuitRowDone,
                   ]}
                   onPress={() =>
-                    navigation.navigate('WorkoutActive', {
+                    navigation.navigate("WorkoutActive", {
                       exerciseName: ex.key,
                       circuit: todayPlan,
                       circuitIndex: i,
@@ -1349,15 +1349,15 @@ export default function Training({ navigation }) {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={[s.circuitName, done && s.circuitNameDone]}>{ex.name}</Text>
-                    <Text style={s.circuitTarget}>{done ? 'Completed' : ex.target}</Text>
+                    <Text style={s.circuitTarget}>{done ? "Completed" : ex.target}</Text>
                   </View>
-                  <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={[s.circuitSets, done && { color: 'rgba(255,255,255,0.3)' }]}>
+                  <View style={{ alignItems: "flex-end" }}>
+                    <Text style={[s.circuitSets, done && { color: "rgba(255,255,255,0.3)" }]}>
                       {ex.sets}
                     </Text>
                     {ex.prevReps !== null && !done && (
                       <Text style={s.circuitPrev}>
-                        Last: {ex.prevReps}r{ex.prevForm ? ` · ${ex.prevForm}%` : ''}
+                        Last: {ex.prevReps}r{ex.prevForm ? ` · ${ex.prevForm}%` : ""}
                       </Text>
                     )}
                   </View>
@@ -1375,7 +1375,7 @@ export default function Training({ navigation }) {
                   style={[s.startBtn, allDone && s.startBtnDone]}
                   onPress={() => {
                     const startIdx = nextEx ? todayPlan.indexOf(nextEx) : 0;
-                    navigation.navigate('WorkoutActive', {
+                    navigation.navigate("WorkoutActive", {
                       exerciseName: nextEx?.key ?? todayPlan[0]?.key ?? recommendation.exerciseKey,
                       circuit: todayPlan,
                       circuitIndex: startIdx >= 0 ? startIdx : 0,
@@ -1385,13 +1385,13 @@ export default function Training({ navigation }) {
                 >
                   <Text style={s.startBtnTxt}>
                     {allDone
-                      ? 'All Done!'
+                      ? "All Done!"
                       : doneCount > 0
                         ? `Continue (${doneCount}/${todayPlan.length})`
-                        : 'Start Workout'}
+                        : "Start Workout"}
                   </Text>
                   <Ionicons
-                    name={allDone ? 'checkmark-circle' : 'arrow-forward'}
+                    name={allDone ? "checkmark-circle" : "arrow-forward"}
                     size={16}
                     color="#000"
                   />
@@ -1432,8 +1432,8 @@ export default function Training({ navigation }) {
                   <Text style={s.heatmapLoading}>Syncing...</Text>
                 ) : fatigueList.length === 0 ? (
                   <>
-                    <Text style={s.heatmapEmpty}>No workout{'\n'}data yet.</Text>
-                    <Text style={s.heatmapEmptySub}>All muscles{'\n'}are fresh!</Text>
+                    <Text style={s.heatmapEmpty}>No workout{"\n"}data yet.</Text>
+                    <Text style={s.heatmapEmptySub}>All muscles{"\n"}are fresh!</Text>
                   </>
                 ) : (
                   fatigueList.slice(0, 6).map((m) => {
@@ -1469,9 +1469,9 @@ export default function Training({ navigation }) {
                 )}
                 <View style={s.legend}>
                   {[
-                    { color: C.lime, label: 'Fresh' },
-                    { color: '#FF9500', label: 'Sore' },
-                    { color: C.purple, label: 'Fatigued' },
+                    { color: C.lime, label: "Fresh" },
+                    { color: "#FF9500", label: "Sore" },
+                    { color: C.purple, label: "Fatigued" },
                   ].map((l) => (
                     <View key={l.label} style={s.legendItem}>
                       <View style={[s.legendDot, { backgroundColor: l.color }]} />
@@ -1488,7 +1488,7 @@ export default function Training({ navigation }) {
             <View style={[s.glassCard, s.yaraGlass, SHADOW]}>
               <BlurView intensity={22} tint="dark" style={StyleSheet.absoluteFillObject} />
               <LinearGradient
-                colors={['rgba(124,92,252,0.18)', 'rgba(74,47,200,0.08)']}
+                colors={["rgba(124,92,252,0.18)", "rgba(74,47,200,0.08)"]}
                 style={StyleSheet.absoluteFillObject}
               />
               <View style={s.glassCardBorder} pointerEvents="none" />
@@ -1522,7 +1522,7 @@ export default function Training({ navigation }) {
               <Ionicons name="flame" size={15} color={C.lime} />
               <Text style={s.streakTitle}>Workout Streak</Text>
               <Text style={s.streakSub}>
-                {streakCount} day{streakCount !== 1 ? 's' : ''}
+                {streakCount} day{streakCount !== 1 ? "s" : ""}
               </Text>
             </View>
             <View style={s.weekRow}>
@@ -1547,7 +1547,7 @@ export default function Training({ navigation }) {
         <Reanimated.View entering={FadeInDown.delay(190).springify()}>
           <SectionHeader
             title="THE EQUIPMENT FLOOR"
-            sub={selectedMuscle ? `Filtered: ${selectedMuscle}` : 'Gym + Home · Tap to explore'}
+            sub={selectedMuscle ? `Filtered: ${selectedMuscle}` : "Gym + Home · Tap to explore"}
           />
           <ScrollView
             ref={(r) => {
@@ -1581,8 +1581,8 @@ export default function Training({ navigation }) {
             title="AI WEEKLY PLAN"
             sub={
               aiPlan
-                ? `Generated ${aiPlanDate ? new Date(aiPlanDate).toLocaleDateString() : ''}`
-                : 'Personalised to your profile'
+                ? `Generated ${aiPlanDate ? new Date(aiPlanDate).toLocaleDateString() : ""}`
+                : "Personalised to your profile"
             }
           />
 
@@ -1594,7 +1594,7 @@ export default function Training({ navigation }) {
               {aiPlan.intro ? (
                 <Text
                   style={{
-                    color: 'rgba(255,255,255,0.6)',
+                    color: "rgba(255,255,255,0.6)",
                     fontSize: 12,
                     lineHeight: 17,
                     marginBottom: 14,
@@ -1604,7 +1604,7 @@ export default function Training({ navigation }) {
                 </Text>
               ) : null}
               {/* Day pills */}
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
                 {aiPlan.days.map((day, i) => {
                   const dow = new Date().getDay();
                   const adjustedDow = dow === 0 ? 6 : dow - 1;
@@ -1613,26 +1613,26 @@ export default function Training({ navigation }) {
                     <View
                       key={i}
                       style={{
-                        backgroundColor: isToday ? C.lime : 'rgba(255,255,255,0.06)',
+                        backgroundColor: isToday ? C.lime : "rgba(255,255,255,0.06)",
                         paddingHorizontal: 12,
                         paddingVertical: 8,
                         borderRadius: 12,
                         borderWidth: 1,
-                        borderColor: isToday ? C.lime : 'rgba(255,255,255,0.08)',
+                        borderColor: isToday ? C.lime : "rgba(255,255,255,0.08)",
                       }}
                     >
                       <Text
                         style={{
-                          color: isToday ? '#000' : C.text,
+                          color: isToday ? "#000" : C.text,
                           fontSize: 11,
-                          fontWeight: '800',
+                          fontWeight: "800",
                         }}
                       >
                         Day {i + 1}
                       </Text>
                       <Text
                         style={{
-                          color: isToday ? 'rgba(0,0,0,0.7)' : C.sub,
+                          color: isToday ? "rgba(0,0,0,0.7)" : C.sub,
                           fontSize: 10,
                           marginTop: 2,
                         }}
@@ -1647,7 +1647,7 @@ export default function Training({ navigation }) {
               {(aiPlan.nutritionNote || aiPlan.recoveryNote) && (
                 <View style={{ gap: 6, marginBottom: 14 }}>
                   {aiPlan.nutritionNote ? (
-                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6 }}>
+                    <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 6 }}>
                       <Ionicons
                         name="nutrition-outline"
                         size={12}
@@ -1656,7 +1656,7 @@ export default function Training({ navigation }) {
                       />
                       <Text
                         style={{
-                          color: 'rgba(255,255,255,0.5)',
+                          color: "rgba(255,255,255,0.5)",
                           fontSize: 11,
                           flex: 1,
                           lineHeight: 16,
@@ -1667,7 +1667,7 @@ export default function Training({ navigation }) {
                     </View>
                   ) : null}
                   {aiPlan.recoveryNote ? (
-                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6 }}>
+                    <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 6 }}>
                       <Ionicons
                         name="bed-outline"
                         size={12}
@@ -1676,7 +1676,7 @@ export default function Training({ navigation }) {
                       />
                       <Text
                         style={{
-                          color: 'rgba(255,255,255,0.5)',
+                          color: "rgba(255,255,255,0.5)",
                           fontSize: 11,
                           flex: 1,
                           lineHeight: 16,
@@ -1691,16 +1691,16 @@ export default function Training({ navigation }) {
               {/* Regenerate button */}
               <TouchableOpacity
                 style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  alignSelf: 'flex-start',
+                  flexDirection: "row",
+                  alignItems: "center",
+                  alignSelf: "flex-start",
                   gap: 6,
-                  backgroundColor: 'rgba(124,92,252,0.15)',
+                  backgroundColor: "rgba(124,92,252,0.15)",
                   paddingHorizontal: 14,
                   paddingVertical: 8,
                   borderRadius: 10,
                   borderWidth: 1,
-                  borderColor: 'rgba(124,92,252,0.3)',
+                  borderColor: "rgba(124,92,252,0.3)",
                   opacity: aiPlanLoading ? 0.5 : 1,
                 }}
                 onPress={handleGeneratePlan}
@@ -1708,8 +1708,8 @@ export default function Training({ navigation }) {
                 activeOpacity={0.7}
               >
                 <Ionicons name="refresh-outline" size={14} color={C.accent} />
-                <Text style={{ color: C.accent, fontSize: 12, fontWeight: '700' }}>
-                  {aiPlanLoading ? 'Generating...' : 'Regenerate Plan'}
+                <Text style={{ color: C.accent, fontSize: 12, fontWeight: "700" }}>
+                  {aiPlanLoading ? "Generating..." : "Regenerate Plan"}
                 </Text>
               </TouchableOpacity>
               {aiPlanError && (
@@ -1721,7 +1721,7 @@ export default function Training({ navigation }) {
             </View>
           ) : (
             <TouchableOpacity
-              style={[s.glassCard, SHADOW, { padding: 24, alignItems: 'center' }]}
+              style={[s.glassCard, SHADOW, { padding: 24, alignItems: "center" }]}
               onPress={handleGeneratePlan}
               disabled={aiPlanLoading}
               activeOpacity={0.8}
@@ -1729,7 +1729,7 @@ export default function Training({ navigation }) {
               <BlurView intensity={22} tint="dark" style={StyleSheet.absoluteFillObject} />
               <View style={s.glassCardBorder} pointerEvents="none" />
               <LinearGradient
-                colors={['rgba(124,92,252,0.18)', 'rgba(74,47,200,0.08)']}
+                colors={["rgba(124,92,252,0.18)", "rgba(74,47,200,0.08)"]}
                 style={StyleSheet.absoluteFillObject}
               />
               <Ionicons name="sparkles" size={32} color={C.accent} style={{ marginBottom: 10 }} />
@@ -1737,18 +1737,18 @@ export default function Training({ navigation }) {
                 style={{
                   color: C.text,
                   fontSize: 16,
-                  fontWeight: '800',
-                  textAlign: 'center',
+                  fontWeight: "800",
+                  textAlign: "center",
                   marginBottom: 6,
                 }}
               >
-                {aiPlanLoading ? 'Generating your plan...' : 'Generate AI Weekly Plan'}
+                {aiPlanLoading ? "Generating your plan..." : "Generate AI Weekly Plan"}
               </Text>
               <Text
                 style={{
                   color: C.sub,
                   fontSize: 12,
-                  textAlign: 'center',
+                  textAlign: "center",
                   lineHeight: 18,
                   marginBottom: 16,
                 }}
@@ -1765,8 +1765,8 @@ export default function Training({ navigation }) {
                   opacity: aiPlanLoading ? 0.5 : 1,
                 }}
               >
-                <Text style={{ color: '#000', fontWeight: '800', fontSize: 13 }}>
-                  {aiPlanLoading ? 'Please wait...' : 'Generate Plan'}
+                <Text style={{ color: "#000", fontWeight: "800", fontSize: 13 }}>
+                  {aiPlanLoading ? "Please wait..." : "Generate Plan"}
                 </Text>
               </View>
               {aiPlanError && (
@@ -1788,20 +1788,20 @@ export default function Training({ navigation }) {
             {/* Exercise Library */}
             <TouchableOpacity
               style={[s.labCard, s.labCardWide]}
-              onPress={() => navigation.navigate('ExerciseList')}
+              onPress={() => navigation.navigate("ExerciseList")}
               activeOpacity={0.82}
             >
               <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
               <View style={s.glassCardBorder} pointerEvents="none" />
               <LinearGradient
-                colors={['rgba(200,241,53,0.12)', 'transparent']}
+                colors={["rgba(200,241,53,0.12)", "transparent"]}
                 style={StyleSheet.absoluteFillObject}
               />
               <View style={s.labWideInner}>
                 <View
                   style={[
                     s.labIconWrap,
-                    { borderColor: 'rgba(200,241,53,0.25)', marginBottom: 0, marginRight: 14 },
+                    { borderColor: "rgba(200,241,53,0.25)", marginBottom: 0, marginRight: 14 },
                   ]}
                 >
                   <Ionicons name="barbell-outline" size={26} color={C.lime} />
@@ -1814,7 +1814,7 @@ export default function Training({ navigation }) {
               <View
                 style={[
                   s.labArrow,
-                  { backgroundColor: C.lime, position: 'absolute', top: 16, right: 16 },
+                  { backgroundColor: C.lime, position: "absolute", top: 16, right: 16 },
                 ]}
               >
                 <Ionicons name="arrow-forward" size={13} color="#000" />
@@ -1824,20 +1824,20 @@ export default function Training({ navigation }) {
             {/* Strength Analytics */}
             <TouchableOpacity
               style={[s.labCard, s.labCardWide]}
-              onPress={() => navigation.navigate('Insights')}
+              onPress={() => navigation.navigate("Insights")}
               activeOpacity={0.82}
             >
               <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
               <View style={s.glassCardBorder} pointerEvents="none" />
               <LinearGradient
-                colors={['rgba(157,133,245,0.15)', 'transparent']}
+                colors={["rgba(157,133,245,0.15)", "transparent"]}
                 style={StyleSheet.absoluteFillObject}
               />
               <View style={s.labWideInner}>
                 <View
                   style={[
                     s.labIconWrap,
-                    { borderColor: 'rgba(157,133,245,0.3)', marginBottom: 0, marginRight: 14 },
+                    { borderColor: "rgba(157,133,245,0.3)", marginBottom: 0, marginRight: 14 },
                   ]}
                 >
                   <Ionicons name="analytics-outline" size={26} color={C.accent} />
@@ -1850,7 +1850,7 @@ export default function Training({ navigation }) {
               <View
                 style={[
                   s.labArrow,
-                  { backgroundColor: C.accent, position: 'absolute', top: 16, right: 16 },
+                  { backgroundColor: C.accent, position: "absolute", top: 16, right: 16 },
                 ]}
               >
                 <Ionicons name="arrow-forward" size={13} color="#000" />
@@ -1867,12 +1867,9 @@ export default function Training({ navigation }) {
 
           <TouchableOpacity
             activeOpacity={0.85}
-            onPress={() => navigation.navigate('FlappyBirdGame')}
+            onPress={() => navigation.navigate("FlappyBirdGame")}
           >
-            <LinearGradient
-              colors={['#1A1040', '#0F0B1E']}
-              style={[s.gameCard, SHADOW]}
-            >
+            <LinearGradient colors={["#1A1040", "#0F0B1E"]} style={[s.gameCard, SHADOW]}>
               {/* Lime top accent */}
               <View style={s.gameAccent} />
 
@@ -1886,23 +1883,29 @@ export default function Training({ navigation }) {
                   <View style={s.gameBadgeRow}>
                     <View style={s.gameBadge}>
                       <Ionicons name="sparkles" size={9} color={C.lime} />
-                      <Text style={s.gameBadgeTxt}>  AI POSE CONTROL</Text>
+                      <Text style={s.gameBadgeTxt}> AI POSE CONTROL</Text>
                     </View>
-                    <View style={[s.gameBadge, { borderColor: 'rgba(124,92,252,0.4)', backgroundColor: 'rgba(124,92,252,0.1)' }]}>
+                    <View
+                      style={[
+                        s.gameBadge,
+                        {
+                          borderColor: "rgba(124,92,252,0.4)",
+                          backgroundColor: "rgba(124,92,252,0.1)",
+                        },
+                      ]}
+                    >
                       <Text style={[s.gameBadgeTxt, { color: C.accent }]}>NEW</Text>
                     </View>
                   </View>
 
                   <Text style={s.gameTitle}>BodyQ Flap</Text>
-                  <Text style={s.gameSub}>
-                    Raise your arm to flap · Beat your high score
-                  </Text>
+                  <Text style={s.gameSub}>Raise your arm to flap · Beat your high score</Text>
 
                   <View style={s.gameMetaRow}>
                     {[
-                      { icon: 'body-outline',      label: 'Arm Raises' },
-                      { icon: 'camera-outline',    label: 'Pose AI' },
-                      { icon: 'trophy-outline',    label: 'High Score' },
+                      { icon: "body-outline", label: "Arm Raises" },
+                      { icon: "camera-outline", label: "Pose AI" },
+                      { icon: "trophy-outline", label: "High Score" },
                     ].map((m, i) => (
                       <View key={i} style={s.gameMeta}>
                         <Ionicons name={m.icon} size={10} color="rgba(255,255,255,0.5)" />
@@ -1944,29 +1947,29 @@ const s = StyleSheet.create({
 
   // Header
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
     marginBottom: 8,
   },
-  greeting: { color: C.text, fontSize: 26, fontWeight: '900', letterSpacing: -0.5 },
+  greeting: { color: C.text, fontSize: 26, fontWeight: "900", letterSpacing: -0.5 },
   subGreeting: { color: C.sub, fontSize: 14, marginTop: 2 },
   recoveryBadge: {
     backgroundColor: C.card,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 14,
-    alignItems: 'center',
+    alignItems: "center",
     borderWidth: 1.5,
     borderColor: C.lime,
   },
-  recoveryNum: { color: C.lime, fontSize: 20, fontWeight: '900', lineHeight: 22 },
-  recoveryLabel: { color: C.sub, fontSize: 8, fontWeight: '800', letterSpacing: 1, marginTop: 2 },
+  recoveryNum: { color: C.lime, fontSize: 20, fontWeight: "900", lineHeight: 22 },
+  recoveryLabel: { color: C.sub, fontSize: 8, fontWeight: "800", letterSpacing: 1, marginTop: 2 },
 
   // Hero
-  heroCard: { borderRadius: 28, padding: 26, marginBottom: 16, overflow: 'hidden' },
+  heroCard: { borderRadius: 28, padding: 26, marginBottom: 16, overflow: "hidden" },
   heroAccentLine: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 26,
     right: 26,
@@ -1976,91 +1979,91 @@ const s = StyleSheet.create({
     borderRadius: 1,
   },
   heroBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(200,241,53,0.12)',
-    alignSelf: 'flex-start',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(200,241,53,0.12)",
+    alignSelf: "flex-start",
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 8,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: 'rgba(200,241,53,0.25)',
+    borderColor: "rgba(200,241,53,0.25)",
   },
-  heroBadgeTxt: { color: C.lime, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
+  heroBadgeTxt: { color: C.lime, fontSize: 10, fontWeight: "900", letterSpacing: 1.2 },
   heroLabel: {
-    color: 'rgba(255,255,255,0.4)',
+    color: "rgba(255,255,255,0.4)",
     fontSize: 10,
-    fontWeight: '800',
+    fontWeight: "800",
     letterSpacing: 2,
     marginBottom: 6,
   },
   heroTitle: {
     color: C.text,
     fontSize: 30,
-    fontWeight: '900',
+    fontWeight: "900",
     letterSpacing: -0.5,
     lineHeight: 34,
     marginBottom: 16,
   },
-  heroMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 24 },
+  heroMeta: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 24 },
   metaChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.08)",
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 20,
   },
-  metaChipTxt: { color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: '600' },
+  metaChipTxt: { color: "rgba(255,255,255,0.6)", fontSize: 11, fontWeight: "600" },
   heroLogic: {
-    color: 'rgba(255,255,255,0.55)',
-    fontStyle: 'italic',
+    color: "rgba(255,255,255,0.55)",
+    fontStyle: "italic",
     fontSize: 12,
     lineHeight: 18,
     marginBottom: 0,
   },
   overloadBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 5,
-    backgroundColor: '#C8F135',
+    backgroundColor: "#C8F135",
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 6,
     marginBottom: 10,
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
   },
-  overloadBadgeTxt: { color: '#000', fontSize: 11, fontWeight: '800', flex: 1, flexShrink: 1 },
+  overloadBadgeTxt: { color: "#000", fontSize: 11, fontWeight: "800", flex: 1, flexShrink: 1 },
   nutritionTipRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     marginBottom: 8,
-    backgroundColor: 'rgba(200,241,53,0.07)',
+    backgroundColor: "rgba(200,241,53,0.07)",
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
-  nutritionTipTxt: { color: C.lime, fontSize: 11, fontWeight: '600', flex: 1 },
+  nutritionTipTxt: { color: C.lime, fontSize: 11, fontWeight: "600", flex: 1 },
   playCircle: {
     width: 52,
     height: 52,
     backgroundColor: C.lime,
     borderRadius: 26,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   // Section row
   sectionRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 12,
   },
-  sectionTitle: { color: C.text, fontSize: 16, fontWeight: '800' },
-  sectionLink: { color: C.lime, fontSize: 12, fontWeight: '700' },
+  sectionTitle: { color: C.text, fontSize: 16, fontWeight: "800" },
+  sectionLink: { color: C.lime, fontSize: 12, fontWeight: "700" },
   sectionSub: { color: C.sub, fontSize: 12 },
 
   // Heatmap
@@ -2069,59 +2072,59 @@ const s = StyleSheet.create({
     borderRadius: 22,
     borderWidth: 1,
     borderColor: C.border,
-    flexDirection: 'row',
+    flexDirection: "row",
     padding: 16,
     marginBottom: 10,
   },
-  heatmapBody: { alignItems: 'center', justifyContent: 'center', marginRight: 14 },
-  heatmapList: { flex: 1, justifyContent: 'center', gap: 6 },
-  heatmapLoading: { color: C.sub, fontSize: 12, fontStyle: 'italic' },
-  heatmapEmpty: { color: C.text, fontSize: 13, fontWeight: '700', lineHeight: 18 },
+  heatmapBody: { alignItems: "center", justifyContent: "center", marginRight: 14 },
+  heatmapList: { flex: 1, justifyContent: "center", gap: 6 },
+  heatmapLoading: { color: C.sub, fontSize: 12, fontStyle: "italic" },
+  heatmapEmpty: { color: C.text, fontSize: 13, fontWeight: "700", lineHeight: 18 },
   heatmapEmptySub: { color: C.lime, fontSize: 11, marginTop: 4, lineHeight: 16 },
   muscleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 7,
     paddingVertical: 3,
     paddingHorizontal: 4,
     borderRadius: 8,
   },
-  muscleRowActive: { backgroundColor: 'rgba(200,241,53,0.08)', borderRadius: 8 },
+  muscleRowActive: { backgroundColor: "rgba(200,241,53,0.08)", borderRadius: 8 },
   muscleDot: { width: 8, height: 8, borderRadius: 4 },
-  muscleName: { color: C.text, fontSize: 11, fontWeight: '700', marginBottom: 3 },
-  muscleBarBg: { height: 4, backgroundColor: C.border, borderRadius: 2, overflow: 'hidden' },
+  muscleName: { color: C.text, fontSize: 11, fontWeight: "700", marginBottom: 3 },
+  muscleBarBg: { height: 4, backgroundColor: C.border, borderRadius: 2, overflow: "hidden" },
   muscleBarFill: { height: 4, borderRadius: 2 },
   muscleTag: {
     fontSize: 8,
-    fontWeight: '900',
+    fontWeight: "900",
     letterSpacing: 0.5,
     minWidth: 52,
-    textAlign: 'right',
+    textAlign: "right",
   },
-  legend: { flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  legend: { flexDirection: "row", gap: 8, marginTop: 8, flexWrap: "wrap" },
+  legendItem: { flexDirection: "row", alignItems: "center", gap: 4 },
   legendDot: { width: 7, height: 7, borderRadius: 3.5 },
-  legendTxt: { color: C.sub, fontSize: 9, fontWeight: '700' },
+  legendTxt: { color: C.sub, fontSize: 9, fontWeight: "700" },
 
   // Yara
   yaraCard: { borderRadius: 18, padding: 16, marginBottom: 4 },
   yaraHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 8,
   },
-  yaraTitle: { color: 'rgba(255,255,255,0.6)', fontSize: 9, fontWeight: '900', letterSpacing: 1.5 },
+  yaraTitle: { color: "rgba(255,255,255,0.6)", fontSize: 9, fontWeight: "900", letterSpacing: 1.5 },
   yaraLiveDot: {
     width: 7,
     height: 7,
     borderRadius: 3.5,
-    backgroundColor: '#C8F135',
-    shadowColor: '#C8F135',
+    backgroundColor: "#C8F135",
+    shadowColor: "#C8F135",
     shadowRadius: 8,
     shadowOpacity: 1,
   },
-  yaraText: { color: '#FFF', fontSize: 13, lineHeight: 20, fontWeight: '500' },
+  yaraText: { color: "#FFF", fontSize: 13, lineHeight: 20, fontWeight: "500" },
 
   // Streak
   streakCard: {
@@ -2133,20 +2136,20 @@ const s = StyleSheet.create({
     borderColor: C.border,
     marginTop: 16,
   },
-  streakHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 16 },
-  streakTitle: { color: C.text, fontSize: 14, fontWeight: '800', flex: 1 },
-  streakSub: { color: C.lime, fontSize: 12, fontWeight: '700' },
-  weekRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  dayCol: { alignItems: 'center', gap: 6 },
+  streakHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 16 },
+  streakTitle: { color: C.text, fontSize: 14, fontWeight: "800", flex: 1 },
+  streakSub: { color: C.lime, fontSize: 12, fontWeight: "700" },
+  weekRow: { flexDirection: "row", justifyContent: "space-between" },
+  dayCol: { alignItems: "center", gap: 6 },
   dayDot: {
     width: 34,
     height: 34,
     borderRadius: 17,
     backgroundColor: C.border,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
-    borderColor: '#2A2548',
+    borderColor: "#2A2548",
   },
   dayDotDone: {
     backgroundColor: C.lime,
@@ -2156,17 +2159,17 @@ const s = StyleSheet.create({
     shadowRadius: 8,
     elevation: 6,
   },
-  dayLabel: { color: C.sub, fontSize: 11, fontWeight: '600' },
+  dayLabel: { color: C.sub, fontSize: 11, fontWeight: "600" },
   dayLabelDone: { color: C.lime },
 
   // Quick Actions
-  actionRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 24 },
+  actionRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 24 },
   actionBtn: {
     width: (width - 56) / 3,
     backgroundColor: C.card,
     paddingVertical: 16,
     borderRadius: 20,
-    alignItems: 'center',
+    alignItems: "center",
     borderWidth: 1,
     borderColor: C.border,
   },
@@ -2174,31 +2177,31 @@ const s = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(200,241,53,0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(200,241,53,0.08)",
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: 'rgba(200,241,53,0.2)',
+    borderColor: "rgba(200,241,53,0.2)",
   },
-  actionTxt: { color: C.text, fontSize: 11, fontWeight: '700' },
+  actionTxt: { color: C.text, fontSize: 11, fontWeight: "700" },
 
   // ── Machine Intelligence Hub ─────────────────────────────
   hubBadge: {
-    backgroundColor: 'rgba(200,241,53,0.12)',
+    backgroundColor: "rgba(200,241,53,0.12)",
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: 'rgba(200,241,53,0.3)',
+    borderColor: "rgba(200,241,53,0.3)",
   },
-  hubBadgeTxt: { color: C.lime, fontSize: 9, fontWeight: '900', letterSpacing: 1.2 },
+  hubBadgeTxt: { color: C.lime, fontSize: 9, fontWeight: "900", letterSpacing: 1.2 },
   machineScroll: {
     paddingHorizontal: 0,
     paddingBottom: 8,
     paddingRight: 20,
     gap: 12,
-    flexDirection: 'row',
+    flexDirection: "row",
     marginBottom: 28,
   },
 
@@ -2207,7 +2210,7 @@ const s = StyleSheet.create({
     height: 180,
     backgroundColor: C.bg,
     borderRadius: 22,
-    overflow: 'hidden',
+    overflow: "hidden",
     borderWidth: 1,
     borderColor: C.lime,
     ...SHADOW,
@@ -2216,43 +2219,43 @@ const s = StyleSheet.create({
     shadowRadius: 12,
   },
   machineIconWrap: {
-    position: 'absolute',
+    position: "absolute",
     top: 40,
-    alignSelf: 'center',
+    alignSelf: "center",
     left: 0,
     right: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
-  machineName: { color: C.text, fontSize: 12, fontWeight: '800', marginBottom: 2 },
-  machineMuscle: { color: 'rgba(255,255,255,0.55)', fontSize: 9 },
+  machineName: { color: C.text, fontSize: 12, fontWeight: "800", marginBottom: 2 },
+  machineMuscle: { color: "rgba(255,255,255,0.55)", fontSize: 9 },
   machineAiBadge: {
-    position: 'absolute',
+    position: "absolute",
     top: 10,
     right: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(200,241,53,0.18)',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(200,241,53,0.18)",
     paddingHorizontal: 6,
     paddingVertical: 3,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: 'rgba(200,241,53,0.4)',
+    borderColor: "rgba(200,241,53,0.4)",
   },
-  machineAiTxt: { color: C.lime, fontSize: 8, fontWeight: '900', letterSpacing: 0.8 },
+  machineAiTxt: { color: C.lime, fontSize: 8, fontWeight: "900", letterSpacing: 0.8 },
 
   // ── Modal ────────────────────────────────────────────────
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.72)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0,0,0,0.72)",
+    justifyContent: "flex-end",
     paddingHorizontal: 16,
     paddingBottom: 32,
   },
   modalCard: {
     borderRadius: 28,
-    overflow: 'hidden',
-    maxHeight: '88%',
+    overflow: "hidden",
+    maxHeight: "88%",
     ...SHADOW,
     shadowColor: C.lime,
     shadowOpacity: 0.15,
@@ -2270,11 +2273,11 @@ const s = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     borderRadius: 28,
     borderWidth: 1.5,
-    borderColor: 'rgba(200,241,53,0.4)',
+    borderColor: "rgba(200,241,53,0.4)",
   },
   modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 14,
     padding: 20,
     paddingBottom: 16,
@@ -2283,128 +2286,128 @@ const s = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 15,
-    backgroundColor: 'rgba(200,241,53,0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(200,241,53,0.08)",
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
-    borderColor: 'rgba(200,241,53,0.25)',
+    borderColor: "rgba(200,241,53,0.25)",
   },
-  modalTitle: { color: C.text, fontSize: 18, fontWeight: '900' },
-  modalMuscle: { color: C.lime, fontSize: 11, fontWeight: '700', marginTop: 2 },
+  modalTitle: { color: C.text, fontSize: 18, fontWeight: "900" },
+  modalMuscle: { color: C.lime, fontSize: 11, fontWeight: "700", marginTop: 2 },
   modalClose: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.07)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(255,255,255,0.07)",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   modalSection: { paddingHorizontal: 20, paddingBottom: 20 },
-  modalSectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
-  modalSectionTitle: { color: C.lime, fontSize: 10, fontWeight: '900', letterSpacing: 1.4 },
+  modalSectionHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 12 },
+  modalSectionTitle: { color: C.lime, fontSize: 10, fontWeight: "900", letterSpacing: 1.4 },
 
   // Setup steps
-  setupRow: { flexDirection: 'row', gap: 12, marginBottom: 10, alignItems: 'flex-start' },
+  setupRow: { flexDirection: "row", gap: 12, marginBottom: 10, alignItems: "flex-start" },
   setupNum: {
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: 'rgba(200,241,53,0.12)',
+    backgroundColor: "rgba(200,241,53,0.12)",
     borderWidth: 1,
-    borderColor: 'rgba(200,241,53,0.35)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderColor: "rgba(200,241,53,0.35)",
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: 1,
   },
-  setupNumTxt: { color: C.lime, fontSize: 10, fontWeight: '900' },
-  setupTxt: { color: 'rgba(255,255,255,0.82)', fontSize: 13, lineHeight: 19, flex: 1 },
+  setupNumTxt: { color: C.lime, fontSize: 10, fontWeight: "900" },
+  setupTxt: { color: "rgba(255,255,255,0.82)", fontSize: 13, lineHeight: 19, flex: 1 },
 
   // Activation box
   activationBox: {
-    backgroundColor: 'rgba(124,92,252,0.1)',
+    backgroundColor: "rgba(124,92,252,0.1)",
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: 'rgba(124,92,252,0.3)',
+    borderColor: "rgba(124,92,252,0.3)",
   },
-  activationTxt: { color: C.accent, fontSize: 13, lineHeight: 20, fontStyle: 'italic' },
+  activationTxt: { color: C.accent, fontSize: 13, lineHeight: 20, fontStyle: "italic" },
 
   // Smart Pivot
   pivotBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
     borderWidth: 1.5,
     borderColor: C.lime,
     borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
   },
   pivotBtnActive: { backgroundColor: C.lime },
-  pivotBtnTxt: { color: C.lime, fontSize: 13, fontWeight: '800' },
+  pivotBtnTxt: { color: C.lime, fontSize: 13, fontWeight: "800" },
   altHeading: {
     color: C.sub,
     fontSize: 10,
-    fontWeight: '800',
+    fontWeight: "800",
     letterSpacing: 1,
     marginTop: 14,
     marginBottom: 8,
   },
   altRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.05)',
+    borderBottomColor: "rgba(255,255,255,0.05)",
   },
   altIcon: {
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: 'rgba(200,241,53,0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(200,241,53,0.08)",
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
-    borderColor: 'rgba(200,241,53,0.2)',
+    borderColor: "rgba(200,241,53,0.2)",
   },
-  altName: { color: C.text, fontSize: 13, fontWeight: '700', flex: 1 },
+  altName: { color: C.text, fontSize: 13, fontWeight: "700", flex: 1 },
   altBadge: {
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: "rgba(255,255,255,0.07)",
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
   },
-  altBadgeTxt: { color: C.sub, fontSize: 8, fontWeight: '800', letterSpacing: 0.8 },
+  altBadgeTxt: { color: C.sub, fontSize: 8, fontWeight: "800", letterSpacing: 0.8 },
 
   // Analyze CTA
-  analyzeBtn: { marginHorizontal: 20, marginTop: 4, borderRadius: 18, overflow: 'hidden' },
+  analyzeBtn: { marginHorizontal: 20, marginTop: 4, borderRadius: 18, overflow: "hidden" },
   analyzeBtnGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 10,
     paddingVertical: 16,
   },
-  analyzeBtnTxt: { color: '#000', fontSize: 16, fontWeight: '900', letterSpacing: 0.3 },
+  analyzeBtnTxt: { color: "#000", fontSize: 16, fontWeight: "900", letterSpacing: 0.3 },
 
   // Library
-  libCard: { borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: C.border },
-  libGradient: { flexDirection: 'row', alignItems: 'center', padding: 18, gap: 14 },
+  libCard: { borderRadius: 24, overflow: "hidden", borderWidth: 1, borderColor: C.border },
+  libGradient: { flexDirection: "row", alignItems: "center", padding: 18, gap: 14 },
   libIconBox: {
     width: 50,
     height: 50,
     borderRadius: 16,
-    backgroundColor: 'rgba(200,241,53,0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(200,241,53,0.08)",
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
-    borderColor: 'rgba(200,241,53,0.2)',
+    borderColor: "rgba(200,241,53,0.2)",
   },
   libInfo: { flex: 1 },
-  libMain: { color: C.text, fontSize: 15, fontWeight: '700' },
+  libMain: { color: C.text, fontSize: 15, fontWeight: "700" },
   libSub: { color: C.sub, fontSize: 11, marginTop: 3 },
 
   // Posture AI
@@ -2412,287 +2415,287 @@ const s = StyleSheet.create({
     backgroundColor: C.card,
     borderRadius: 20,
     padding: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     borderWidth: 1,
     borderColor: C.border,
   },
-  postureLeft: { flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 },
+  postureLeft: { flexDirection: "row", alignItems: "center", gap: 14, flex: 1 },
   postureIconBox: {
     width: 48,
     height: 48,
     borderRadius: 14,
-    backgroundColor: 'rgba(124,92,252,0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(124,92,252,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
-    borderColor: 'rgba(124,92,252,0.3)',
+    borderColor: "rgba(124,92,252,0.3)",
   },
-  postureTitle: { color: C.text, fontSize: 15, fontWeight: '700' },
+  postureTitle: { color: C.text, fontSize: 15, fontWeight: "700" },
   postureSub: { color: C.sub, fontSize: 11, marginTop: 2 },
   postureArrow: {
     width: 32,
     height: 32,
     borderRadius: 16,
     backgroundColor: C.lime,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   liveChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
-    backgroundColor: 'rgba(200,241,53,0.1)',
+    backgroundColor: "rgba(200,241,53,0.1)",
     borderWidth: 1,
-    borderColor: 'rgba(200,241,53,0.25)',
+    borderColor: "rgba(200,241,53,0.25)",
     borderRadius: 20,
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
-  liveChipTxt: { color: C.lime, fontSize: 10, fontWeight: '800' },
+  liveChipTxt: { color: C.lime, fontSize: 10, fontWeight: "800" },
 
   // Environment Toggle
   envToggleWrap: {
-    flexDirection: 'row',
+    flexDirection: "row",
     backgroundColor: C.card,
     borderRadius: 14,
     padding: 4,
     marginBottom: 20,
     borderWidth: 1,
     borderColor: C.border,
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
     gap: 2,
   },
   envBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     paddingHorizontal: 18,
     paddingVertical: 9,
     borderRadius: 10,
   },
   envBtnActive: { backgroundColor: C.lime },
-  envBtnTxt: { color: C.sub, fontSize: 13, fontWeight: '700' },
-  envBtnTxtActive: { color: '#000', fontWeight: '800' },
+  envBtnTxt: { color: C.sub, fontSize: 13, fontWeight: "700" },
+  envBtnTxtActive: { color: "#000", fontWeight: "800" },
 
   // Today's Plan
   planCircuitBadge: {
-    backgroundColor: 'rgba(124,92,252,0.15)',
+    backgroundColor: "rgba(124,92,252,0.15)",
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderWidth: 1,
-    borderColor: 'rgba(124,92,252,0.3)',
+    borderColor: "rgba(124,92,252,0.3)",
   },
-  planCircuitTxt: { color: C.accent, fontSize: 9, fontWeight: '900', letterSpacing: 1.2 },
+  planCircuitTxt: { color: C.accent, fontSize: 9, fontWeight: "900", letterSpacing: 1.2 },
   planScroll: {
     paddingBottom: 8,
     paddingRight: 20,
     gap: 10,
-    flexDirection: 'row',
+    flexDirection: "row",
     marginBottom: 8,
   },
   planCardNum: {
-    position: 'absolute',
+    position: "absolute",
     top: 10,
     right: 12,
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(255,255,255,0.1)",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  planCardNumTxt: { color: 'rgba(255,255,255,0.7)', fontSize: 10, fontWeight: '900' },
+  planCardNumTxt: { color: "rgba(255,255,255,0.7)", fontSize: 10, fontWeight: "900" },
   planIconCircle: {
     width: 44,
     height: 44,
     borderRadius: 13,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(255,255,255,0.1)",
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 10,
   },
-  planExName: { color: C.text, fontSize: 13, fontWeight: '800', marginBottom: 2 },
-  planTarget: { color: 'rgba(255,255,255,0.45)', fontSize: 9, marginBottom: 8 },
-  planSetsRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 8 },
-  planSets: { color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: '600' },
+  planExName: { color: C.text, fontSize: 13, fontWeight: "800", marginBottom: 2 },
+  planTarget: { color: "rgba(255,255,255,0.45)", fontSize: 9, marginBottom: 8 },
+  planSetsRow: { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 8 },
+  planSets: { color: "rgba(255,255,255,0.55)", fontSize: 11, fontWeight: "600" },
   planPrevBest: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
-    backgroundColor: 'rgba(200,241,53,0.1)',
+    backgroundColor: "rgba(200,241,53,0.1)",
     borderRadius: 6,
     paddingHorizontal: 7,
     paddingVertical: 3,
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
   },
-  planPrevBestTxt: { color: C.lime, fontSize: 9, fontWeight: '800' },
+  planPrevBestTxt: { color: C.lime, fontSize: 9, fontWeight: "800" },
 
   // Muscle filter
   clearMuscleBtn: {
     marginTop: 6,
-    alignSelf: 'center',
-    backgroundColor: 'rgba(200,241,53,0.12)',
+    alignSelf: "center",
+    backgroundColor: "rgba(200,241,53,0.12)",
     borderRadius: 10,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderWidth: 1,
-    borderColor: 'rgba(200,241,53,0.3)',
+    borderColor: "rgba(200,241,53,0.3)",
   },
-  clearMuscleTxt: { color: C.lime, fontSize: 10, fontWeight: '800' },
+  clearMuscleTxt: { color: C.lime, fontSize: 10, fontWeight: "800" },
 
   // Netflix machine card
   machineCardBg: { ...StyleSheet.absoluteFillObject, borderRadius: 22 },
-  machineCardBottom: { position: 'absolute', bottom: 14, left: 12, right: 12 },
+  machineCardBottom: { position: "absolute", bottom: 14, left: 12, right: 12 },
 
   // ── Section Headers (unified) ────────────────────────────
   sectionHeader: {
     marginTop: 32,
     marginBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(200,241,53,0.13)',
+    borderBottomColor: "rgba(200,241,53,0.13)",
     paddingBottom: 10,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
   },
-  sectionHeaderTxt: { color: C.lime, fontSize: 11, fontWeight: '900', letterSpacing: 2.2 },
-  sectionHeaderSub: { color: C.sub, fontSize: 10, fontWeight: '600' },
+  sectionHeaderTxt: { color: C.lime, fontSize: 11, fontWeight: "900", letterSpacing: 2.2 },
+  sectionHeaderSub: { color: C.sub, fontSize: 10, fontWeight: "600" },
 
   // ── Header chips ─────────────────────────────────────────
-  headerChips: { flexDirection: 'row', gap: 6 },
+  headerChips: { flexDirection: "row", gap: 6 },
 
   // ── Glassmorphism base card ───────────────────────────────
   glassCard: {
     borderRadius: 22,
-    overflow: 'hidden',
+    overflow: "hidden",
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.07)',
-    backgroundColor: 'rgba(22,18,48,0.85)', // fallback for Android BlurView
+    borderColor: "rgba(255,255,255,0.07)",
+    backgroundColor: "rgba(22,18,48,0.85)", // fallback for Android BlurView
   },
   glassCardBorder: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: "rgba(255,255,255,0.08)",
   },
-  heatmapInner: { flexDirection: 'row', padding: 16 },
+  heatmapInner: { flexDirection: "row", padding: 16 },
   yaraGlass: { marginTop: 2 },
   streakGlass: { marginTop: 2, padding: 18 },
 
   // ── Environment badge (inside hero card) ─────────────────
   envBadge: {
-    position: 'absolute',
+    position: "absolute",
     top: 16,
     right: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 5,
-    backgroundColor: 'rgba(200,241,53,0.14)',
+    backgroundColor: "rgba(200,241,53,0.14)",
     borderWidth: 1,
-    borderColor: 'rgba(200,241,53,0.35)',
+    borderColor: "rgba(200,241,53,0.35)",
     borderRadius: 20,
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
-  envBadgeTxt: { color: C.lime, fontSize: 10, fontWeight: '800' },
+  envBadgeTxt: { color: C.lime, fontSize: 10, fontWeight: "800" },
 
   // ── Blueprint Circuit (embedded in hero card) ─────────────
   circuitDivider: {
     height: 1,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: "rgba(255,255,255,0.1)",
     marginTop: 16,
     marginBottom: 14,
   },
   circuitLabel: {
-    color: 'rgba(255,255,255,0.4)',
+    color: "rgba(255,255,255,0.4)",
     fontSize: 9,
-    fontWeight: '900',
+    fontWeight: "900",
     letterSpacing: 1.8,
     marginBottom: 10,
   },
   circuitRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
     paddingVertical: 11,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
+    borderBottomColor: "rgba(255,255,255,0.08)",
   },
   circuitNumCircle: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: 'rgba(200,241,53,0.12)',
+    backgroundColor: "rgba(200,241,53,0.12)",
     borderWidth: 1,
-    borderColor: 'rgba(200,241,53,0.3)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderColor: "rgba(200,241,53,0.3)",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  circuitNumTxt: { color: C.lime, fontSize: 10, fontWeight: '900' },
-  circuitName: { color: C.text, fontSize: 13, fontWeight: '800' },
-  circuitTarget: { color: 'rgba(255,255,255,0.45)', fontSize: 10, marginTop: 1 },
-  circuitSets: { color: C.lime, fontSize: 12, fontWeight: '800' },
-  circuitPrev: { color: 'rgba(255,255,255,0.35)', fontSize: 9, marginTop: 2 },
+  circuitNumTxt: { color: C.lime, fontSize: 10, fontWeight: "900" },
+  circuitName: { color: C.text, fontSize: 13, fontWeight: "800" },
+  circuitTarget: { color: "rgba(255,255,255,0.45)", fontSize: 10, marginTop: 1 },
+  circuitSets: { color: C.lime, fontSize: 12, fontWeight: "800" },
+  circuitPrev: { color: "rgba(255,255,255,0.35)", fontSize: 9, marginTop: 2 },
   circuitRowDone: { opacity: 0.55 },
   circuitNumDone: { backgroundColor: C.lime, borderColor: C.lime },
-  circuitNameDone: { textDecorationLine: 'line-through', color: 'rgba(255,255,255,0.5)' },
+  circuitNameDone: { textDecorationLine: "line-through", color: "rgba(255,255,255,0.5)" },
   startBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 8,
     backgroundColor: C.lime,
     borderRadius: 14,
     paddingVertical: 14,
     marginTop: 16,
   },
-  startBtnDone: { backgroundColor: 'rgba(200,241,53,0.3)' },
-  startBtnTxt: { color: '#000', fontSize: 15, fontWeight: '900' },
+  startBtnDone: { backgroundColor: "rgba(200,241,53,0.3)" },
+  startBtnTxt: { color: "#000", fontSize: 15, fontWeight: "900" },
   aiPlanError: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     marginTop: 10,
-    backgroundColor: 'rgba(255,107,107,0.1)',
+    backgroundColor: "rgba(255,107,107,0.1)",
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 7,
     borderWidth: 1,
-    borderColor: 'rgba(255,107,107,0.2)',
+    borderColor: "rgba(255,107,107,0.2)",
   },
-  aiPlanErrorTxt: { color: '#FF6B6B', fontSize: 11, fontWeight: '600', flex: 1 },
+  aiPlanErrorTxt: { color: "#FF6B6B", fontSize: 11, fontWeight: "600", flex: 1 },
 
   // ── Equipment Floor badge ─────────────────────────────────
   floorBadge: {
-    position: 'absolute',
+    position: "absolute",
     top: 10,
     left: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
     paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 6,
   },
-  floorBadgeGym: { backgroundColor: 'rgba(124,92,252,0.55)' },
-  floorBadgeHome: { backgroundColor: 'rgba(200,241,53,0.45)' },
-  floorBadgeTxt: { color: '#fff', fontSize: 8, fontWeight: '900', letterSpacing: 0.8 },
+  floorBadgeGym: { backgroundColor: "rgba(124,92,252,0.55)" },
+  floorBadgeHome: { backgroundColor: "rgba(200,241,53,0.45)" },
+  floorBadgeTxt: { color: "#fff", fontSize: 8, fontWeight: "900", letterSpacing: 0.8 },
 
   // ── Performance Lab ───────────────────────────────────────
-  labGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 8 },
+  labGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 8 },
   labCard: {
     width: (width - 50) / 2,
     minHeight: 150,
     borderRadius: 22,
-    overflow: 'hidden',
+    overflow: "hidden",
     padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.07)',
+    borderColor: "rgba(255,255,255,0.07)",
     ...SHADOW,
   },
   labCardWide: { width: width - 40, minHeight: 72 },
@@ -2700,37 +2703,37 @@ const s = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 14,
-    backgroundColor: 'rgba(124,92,252,0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(124,92,252,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
-    borderColor: 'rgba(124,92,252,0.3)',
+    borderColor: "rgba(124,92,252,0.3)",
     marginBottom: 12,
   },
-  labCardTitle: { color: C.text, fontSize: 14, fontWeight: '800', marginBottom: 4 },
+  labCardTitle: { color: C.text, fontSize: 14, fontWeight: "800", marginBottom: 4 },
   labCardSub: { color: C.sub, fontSize: 11, lineHeight: 16 },
   labArrow: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 14,
     right: 14,
     width: 28,
     height: 28,
     borderRadius: 14,
     backgroundColor: C.purple,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
-  labWideInner: { flexDirection: 'row', alignItems: 'center' },
+  labWideInner: { flexDirection: "row", alignItems: "center" },
 
   // ── Active Games ──────────────────────────────────────────
   gameCard: {
     borderRadius: 24,
-    overflow: 'hidden',
+    overflow: "hidden",
     marginBottom: 16,
   },
   gameAccent: {
     height: 2,
-    backgroundColor: '#C8F135',
+    backgroundColor: "#C8F135",
     marginHorizontal: 32,
     borderBottomLeftRadius: 2,
     borderBottomRightRadius: 2,
@@ -2738,8 +2741,8 @@ const s = StyleSheet.create({
     opacity: 0.6,
   },
   gameInner: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     gap: 16,
     padding: 20,
     paddingTop: 18,
@@ -2748,49 +2751,55 @@ const s = StyleSheet.create({
     width: 58,
     height: 58,
     borderRadius: 16,
-    backgroundColor: 'rgba(200,241,53,0.09)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(200,241,53,0.09)",
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
-    borderColor: 'rgba(200,241,53,0.25)',
+    borderColor: "rgba(200,241,53,0.25)",
     marginTop: 2,
   },
-  gameBadgeRow: { flexDirection: 'row', gap: 6, marginBottom: 10 },
+  gameBadgeRow: { flexDirection: "row", gap: 6, marginBottom: 10 },
   gameBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(200,241,53,0.1)',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(200,241,53,0.1)",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: 'rgba(200,241,53,0.28)',
+    borderColor: "rgba(200,241,53,0.28)",
   },
-  gameBadgeTxt: { color: '#C8F135', fontSize: 9, fontWeight: '900', letterSpacing: 1 },
-  gameTitle:    { color: '#FFFFFF', fontSize: 22, fontWeight: '900', letterSpacing: -0.3, marginBottom: 4 },
-  gameSub:      { color: 'rgba(255,255,255,0.5)', fontSize: 12, lineHeight: 17, marginBottom: 12 },
-  gameMetaRow:  { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  gameBadgeTxt: { color: "#C8F135", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
+  gameTitle: {
+    color: "#FFFFFF",
+    fontSize: 22,
+    fontWeight: "900",
+    letterSpacing: -0.3,
+    marginBottom: 4,
+  },
+  gameSub: { color: "rgba(255,255,255,0.5)", fontSize: 12, lineHeight: 17, marginBottom: 12 },
+  gameMetaRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   gameMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: "rgba(255,255,255,0.06)",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 10,
   },
-  gameMetaTxt:  { color: 'rgba(255,255,255,0.45)', fontSize: 10, fontWeight: '600' },
+  gameMetaTxt: { color: "rgba(255,255,255,0.45)", fontSize: 10, fontWeight: "600" },
   gamePlayBtn: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 20,
     right: 20,
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#C8F135',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#C8F135',
+    backgroundColor: "#C8F135",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#C8F135",
     shadowOpacity: 0.5,
     shadowRadius: 10,
     elevation: 6,
@@ -2799,6 +2808,6 @@ const s = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: 'rgba(200,241,53,0.18)',
+    borderColor: "rgba(200,241,53,0.18)",
   },
 });

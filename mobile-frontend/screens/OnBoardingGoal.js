@@ -50,10 +50,7 @@ export default function OnBoardingGoal({ onComplete }) {
       <View style={s.topBar}>
         <View style={[s.progressTrack, { backgroundColor: T.border }]}>
           <Animated.View
-            style={[
-              s.progressFill,
-              { width: progressWidth, backgroundColor: T.purple },
-            ]}
+            style={[s.progressFill, { width: progressWidth, backgroundColor: T.purple }]}
           />
         </View>
         {ob.step < 6 && (
@@ -65,10 +62,7 @@ export default function OnBoardingGoal({ onComplete }) {
           </TouchableOpacity>
         )}
         <TouchableOpacity
-          style={[
-            s.themeBtn,
-            { backgroundColor: T.card, borderColor: T.border },
-          ]}
+          style={[s.themeBtn, { backgroundColor: T.card, borderColor: T.border }]}
           onPress={() => setIsDark((d) => !d)}
         >
           <Text style={{ fontSize: 14 }}>{isDark ? "☀️" : "🌙"}</Text>
@@ -78,10 +72,7 @@ export default function OnBoardingGoal({ onComplete }) {
       {/* Step pill */}
       <View style={s.stepPillRow}>
         <View
-          style={[
-            s.stepPill,
-            { backgroundColor: T.purple + "18", borderColor: T.purple + "30" },
-          ]}
+          style={[s.stepPill, { backgroundColor: T.purple + "18", borderColor: T.purple + "30" }]}
         >
           <Text style={s.stepPillEmoji}>{STEPS[ob.step].emoji}</Text>
           <Text style={[s.stepPillTxt, { color: T.purple }]}>
@@ -104,8 +95,7 @@ export default function OnBoardingGoal({ onComplete }) {
               {"\n"}main goal?
             </Text>
             <Text style={[s.bodyTxt, { color: T.sub }]}>
-              This shapes everything — your workouts, nutrition and how Yara
-              coaches you.
+              This shapes everything — your workouts, nutrition and how Yara coaches you.
             </Text>
             <View style={s.cardList}>
               {GOALS.map((g) => (
@@ -126,9 +116,7 @@ export default function OnBoardingGoal({ onComplete }) {
         {/* ── STEP 1: BODY ── */}
         {ob.step === 1 && (
           <>
-            <Text style={[s.h1, { color: T.text }]}>
-              A bit about{"\n"}yourself
-            </Text>
+            <Text style={[s.h1, { color: T.text }]}>A bit about{"\n"}yourself</Text>
             <Text style={[s.bodyTxt, { color: T.sub }]}>
               This lets Yara calculate your exact calorie and macro targets.
             </Text>
@@ -141,8 +129,7 @@ export default function OnBoardingGoal({ onComplete }) {
                     s.genderBtn,
                     {
                       backgroundColor: T.card,
-                      borderColor:
-                        ob.gender === g.toLowerCase() ? T.purple : T.border,
+                      borderColor: ob.gender === g.toLowerCase() ? T.purple : T.border,
                     },
                     ob.gender === g.toLowerCase() && {
                       backgroundColor: T.purple + "14",
@@ -210,36 +197,26 @@ export default function OnBoardingGoal({ onComplete }) {
               </View>
             </View>
             {ob.bmi && (
-              <View
-                style={[
-                  s.bmiRow,
-                  { backgroundColor: T.card, borderColor: T.border },
-                ]}
-              >
+              <View style={[s.bmiRow, { backgroundColor: T.card, borderColor: T.border }]}>
                 <View>
                   <Text style={[s.bmiLabel, { color: T.sub }]}>Your BMI</Text>
                   <Text
                     style={[
                       s.bmiVal,
                       {
-                        color:
-                          ob.bmi < 25 && ob.bmi >= 18.5 ? T.green : T.orange,
+                        color: ob.bmi < 25 && ob.bmi >= 18.5 ? T.green : T.orange,
                       },
                     ]}
                   >
                     {ob.bmi}
                   </Text>
                 </View>
-                <Text style={[s.bmiStatus, { color: T.sub }]}>
-                  {bmiStatus(ob.bmi)}
-                </Text>
+                <Text style={[s.bmiStatus, { color: T.sub }]}>{bmiStatus(ob.bmi)}</Text>
               </View>
             )}
             <Text style={[s.label, { color: T.sub, marginTop: 20 }]}>
               Daily activity level{" "}
-              <Text style={{ color: T.muted, fontWeight: "400" }}>
-                (outside gym)
-              </Text>
+              <Text style={{ color: T.muted, fontWeight: "400" }}>(outside gym)</Text>
             </Text>
             <View style={s.cardList}>
               {ACTIVITY.map((a) => (
@@ -258,12 +235,9 @@ export default function OnBoardingGoal({ onComplete }) {
         {/* ── STEP 2: EXPERIENCE ── */}
         {ob.step === 2 && (
           <>
-            <Text style={[s.h1, { color: T.text }]}>
-              Training{"\n"}experience
-            </Text>
+            <Text style={[s.h1, { color: T.text }]}>Training{"\n"}experience</Text>
             <Text style={[s.bodyTxt, { color: T.sub }]}>
-              Yara adjusts exercise complexity, volume and progression based on
-              where you are.
+              Yara adjusts exercise complexity, volume and progression based on where you are.
             </Text>
             <View style={s.cardList}>
               {EXPERIENCE.map((e) => (
@@ -321,20 +295,12 @@ export default function OnBoardingGoal({ onComplete }) {
                   ]}
                   onPress={() => ob.setDays(d)}
                 >
-                  <Text
-                    style={[
-                      s.dayNum,
-                      { color: ob.days === d ? "#fff" : T.sub },
-                    ]}
-                  >
-                    {d}
-                  </Text>
+                  <Text style={[s.dayNum, { color: ob.days === d ? "#fff" : T.sub }]}>{d}</Text>
                   <Text
                     style={[
                       s.dayLbl,
                       {
-                        color:
-                          ob.days === d ? "rgba(255,255,255,0.7)" : T.muted,
+                        color: ob.days === d ? "rgba(255,255,255,0.7)" : T.muted,
                       },
                     ]}
                   >
@@ -343,9 +309,7 @@ export default function OnBoardingGoal({ onComplete }) {
                 </TouchableOpacity>
               ))}
             </View>
-            <Text style={[s.label, { color: T.sub, marginTop: 22 }]}>
-              Session length
-            </Text>
+            <Text style={[s.label, { color: T.sub, marginTop: 22 }]}>Session length</Text>
             <View style={s.pillWrap}>
               {DURATIONS.map((d) => (
                 <PillButton
@@ -357,9 +321,7 @@ export default function OnBoardingGoal({ onComplete }) {
                 />
               ))}
             </View>
-            <Text style={[s.label, { color: T.sub, marginTop: 22 }]}>
-              Preferred workout time
-            </Text>
+            <Text style={[s.label, { color: T.sub, marginTop: 22 }]}>Preferred workout time</Text>
             <View style={s.timeRow}>
               {TIMES.map((t) => (
                 <TouchableOpacity
@@ -378,12 +340,7 @@ export default function OnBoardingGoal({ onComplete }) {
                   onPress={() => ob.setTimeOfDay(t.id)}
                 >
                   <Text style={s.timeEmoji}>{t.emoji}</Text>
-                  <Text
-                    style={[
-                      s.timeTxt,
-                      { color: ob.timeOfDay === t.id ? T.purple : T.sub },
-                    ]}
-                  >
+                  <Text style={[s.timeTxt, { color: ob.timeOfDay === t.id ? T.purple : T.sub }]}>
                     {t.label}
                   </Text>
                 </TouchableOpacity>
@@ -395,12 +352,9 @@ export default function OnBoardingGoal({ onComplete }) {
         {/* ── STEP 4: EQUIPMENT ── */}
         {ob.step === 4 && (
           <>
-            <Text style={[s.h1, { color: T.text }]}>
-              Equipment{"\n"}& focus
-            </Text>
+            <Text style={[s.h1, { color: T.text }]}>Equipment{"\n"}& focus</Text>
             <Text style={[s.bodyTxt, { color: T.sub }]}>
-              Yara will only give you exercises you can actually do with what
-              you have.
+              Yara will only give you exercises you can actually do with what you have.
             </Text>
             <View style={s.cardList}>
               {EQUIPMENT.map((e) => (
@@ -417,9 +371,7 @@ export default function OnBoardingGoal({ onComplete }) {
             </View>
             <Text style={[s.label, { color: T.sub, marginTop: 28 }]}>
               Priority muscle groups{" "}
-              <Text style={{ color: T.muted, fontWeight: "400" }}>
-                (pick up to 3)
-              </Text>
+              <Text style={{ color: T.muted, fontWeight: "400" }}>(pick up to 3)</Text>
             </Text>
             <Text style={[s.hint, { color: T.sub }]}>
               Yara will give these areas extra attention each week.
@@ -446,12 +398,9 @@ export default function OnBoardingGoal({ onComplete }) {
               {"\n"}lifestyle
             </Text>
             <Text style={[s.bodyTxt, { color: T.sub }]}>
-              Recovery is where progress actually happens. Yara takes this
-              seriously.
+              Recovery is where progress actually happens. Yara takes this seriously.
             </Text>
-            <Text style={[s.label, { color: T.sub }]}>
-              How much do you sleep?
-            </Text>
+            <Text style={[s.label, { color: T.sub }]}>How much do you sleep?</Text>
             <View style={s.pillWrap}>
               {SLEEP.map((sl) => (
                 <PillButton
@@ -464,9 +413,7 @@ export default function OnBoardingGoal({ onComplete }) {
                 />
               ))}
             </View>
-            <Text style={[s.label, { color: T.sub, marginTop: 22 }]}>
-              Stress level day-to-day
-            </Text>
+            <Text style={[s.label, { color: T.sub, marginTop: 22 }]}>Stress level day-to-day</Text>
             <View style={s.stressRow}>
               {STRESS.map((st) => (
                 <TouchableOpacity
@@ -485,20 +432,13 @@ export default function OnBoardingGoal({ onComplete }) {
                   onPress={() => ob.setStress(st.id)}
                 >
                   <Text style={s.stressEmoji}>{st.emoji}</Text>
-                  <Text
-                    style={[
-                      s.stressTxt,
-                      { color: ob.stress === st.id ? T.purple : T.sub },
-                    ]}
-                  >
+                  <Text style={[s.stressTxt, { color: ob.stress === st.id ? T.purple : T.sub }]}>
                     {st.label}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
-            <Text style={[s.label, { color: T.sub, marginTop: 22 }]}>
-              Diet preference
-            </Text>
+            <Text style={[s.label, { color: T.sub, marginTop: 22 }]}>Diet preference</Text>
             <View style={s.pillWrap}>
               {DIET.map((d) => (
                 <PillButton
@@ -553,12 +493,7 @@ export default function OnBoardingGoal({ onComplete }) {
                 ]}
               >
                 <ActivityIndicator size="large" color={T.purple} />
-                <Text
-                  style={[
-                    s.bodyTxt,
-                    { color: T.sub, textAlign: "center", marginTop: 16 },
-                  ]}
-                >
+                <Text style={[s.bodyTxt, { color: T.sub, textAlign: "center", marginTop: 16 }]}>
                   Yara is building your plan{"\n"}based on your answers...
                 </Text>
               </View>
@@ -576,15 +511,8 @@ export default function OnBoardingGoal({ onComplete }) {
             {ob.aiPlan && !ob.loading && (
               <>
                 {ob.calTarget > 0 && (
-                  <View
-                    style={[
-                      s.card,
-                      { backgroundColor: T.card, borderColor: T.border },
-                    ]}
-                  >
-                    <Text style={[s.sectionLabel, { color: T.sub }]}>
-                      Daily Nutrition Targets
-                    </Text>
+                  <View style={[s.card, { backgroundColor: T.card, borderColor: T.border }]}>
+                    <Text style={[s.sectionLabel, { color: T.sub }]}>Daily Nutrition Targets</Text>
                     <View style={s.targetsRow}>
                       <View
                         style={[
@@ -595,15 +523,9 @@ export default function OnBoardingGoal({ onComplete }) {
                           },
                         ]}
                       >
-                        <Text style={[s.targetBig, { color: T.purple }]}>
-                          {ob.calTarget}
-                        </Text>
-                        <Text style={[s.targetUnit, { color: T.sub }]}>
-                          kcal / day
-                        </Text>
-                        <Text style={[s.targetLbl, { color: T.muted }]}>
-                          Calorie Target
-                        </Text>
+                        <Text style={[s.targetBig, { color: T.purple }]}>{ob.calTarget}</Text>
+                        <Text style={[s.targetUnit, { color: T.sub }]}>kcal / day</Text>
+                        <Text style={[s.targetLbl, { color: T.muted }]}>Calorie Target</Text>
                       </View>
                       <View
                         style={[
@@ -614,22 +536,13 @@ export default function OnBoardingGoal({ onComplete }) {
                           },
                         ]}
                       >
-                        <Text style={[s.targetBig, { color: T.green }]}>
-                          {ob.protein}g
-                        </Text>
-                        <Text style={[s.targetUnit, { color: T.sub }]}>
-                          protein / day
-                        </Text>
-                        <Text style={[s.targetLbl, { color: T.muted }]}>
-                          Protein Goal
-                        </Text>
+                        <Text style={[s.targetBig, { color: T.green }]}>{ob.protein}g</Text>
+                        <Text style={[s.targetUnit, { color: T.sub }]}>protein / day</Text>
+                        <Text style={[s.targetLbl, { color: T.muted }]}>Protein Goal</Text>
                       </View>
                     </View>
                     <View
-                      style={[
-                        s.calNoteBox,
-                        { backgroundColor: T.pill, borderColor: T.border },
-                      ]}
+                      style={[s.calNoteBox, { backgroundColor: T.pill, borderColor: T.border }]}
                     >
                       <Text style={[s.calNoteTxt, { color: T.sub }]}>
                         {ob.aiPlan.nutritionNote}
@@ -638,12 +551,7 @@ export default function OnBoardingGoal({ onComplete }) {
                   </View>
                 )}
 
-                <View
-                  style={[
-                    s.card,
-                    { backgroundColor: T.card, borderColor: T.border },
-                  ]}
-                >
+                <View style={[s.card, { backgroundColor: T.card, borderColor: T.border }]}>
                   <Text style={[s.sectionLabel, { color: T.sub }]}>
                     Your {ob.days}-Day AI Training Split
                   </Text>
@@ -659,15 +567,11 @@ export default function OnBoardingGoal({ onComplete }) {
                       ]}
                     >
                       <View style={s.planDayRow}>
-                        <View
-                          style={[s.planDayNum, { backgroundColor: T.purple }]}
-                        >
+                        <View style={[s.planDayNum, { backgroundColor: T.purple }]}>
                           <Text style={s.planDayNumTxt}>Day {i + 1}</Text>
                         </View>
                         <View style={{ flex: 1 }}>
-                          <Text style={[s.planDayName, { color: T.text }]}>
-                            {day.name}
-                          </Text>
+                          <Text style={[s.planDayName, { color: T.text }]}>{day.name}</Text>
                           <Text style={[s.planDayMeta, { color: T.sub }]}>
                             {day.focus} · {ob.duration} min
                           </Text>
@@ -675,21 +579,12 @@ export default function OnBoardingGoal({ onComplete }) {
                       </View>
                       {day.exercises?.map((ex, j) => (
                         <View key={j} style={s.exRow}>
-                          <View
-                            style={[
-                              s.exDot,
-                              { backgroundColor: T.purple + "40" },
-                            ]}
-                          />
-                          <Text style={[s.exName, { color: T.text }]}>
-                            {ex.name}
-                          </Text>
+                          <View style={[s.exDot, { backgroundColor: T.purple + "40" }]} />
+                          <Text style={[s.exName, { color: T.text }]}>{ex.name}</Text>
                           <Text style={[s.exSets, { color: T.purple }]}>
                             {ex.sets}×{ex.reps}
                           </Text>
-                          <Text style={[s.exRest, { color: T.muted }]}>
-                            {ex.rest}
-                          </Text>
+                          <Text style={[s.exRest, { color: T.muted }]}>{ex.rest}</Text>
                         </View>
                       ))}
                       <View
@@ -709,15 +604,8 @@ export default function OnBoardingGoal({ onComplete }) {
                   ))}
                 </View>
 
-                <View
-                  style={[
-                    s.card,
-                    { backgroundColor: T.card, borderColor: T.border },
-                  ]}
-                >
-                  <Text style={[s.sectionLabel, { color: T.sub }]}>
-                    Yara's Notes for You
-                  </Text>
+                <View style={[s.card, { backgroundColor: T.card, borderColor: T.border }]}>
+                  <Text style={[s.sectionLabel, { color: T.sub }]}>Yara's Notes for You</Text>
                   {[
                     { icon: "🌙", note: ob.aiPlan.recoveryNote },
                     { icon: "🔥", note: ob.aiPlan.motivationNote },
@@ -733,9 +621,7 @@ export default function OnBoardingGoal({ onComplete }) {
                       ]}
                     >
                       <Text style={s.noteIcon}>{n.icon}</Text>
-                      <Text style={[s.noteTxt, { color: T.text }]}>
-                        {n.note}
-                      </Text>
+                      <Text style={[s.noteTxt, { color: T.text }]}>{n.note}</Text>
                     </View>
                   ))}
                 </View>
@@ -751,15 +637,11 @@ export default function OnBoardingGoal({ onComplete }) {
               s.cta,
               {
                 backgroundColor:
-                  ob.canGo && !(ob.step === 6 && !ob.aiPlan && !ob.loadError)
-                    ? T.purple
-                    : T.muted,
+                  ob.canGo && !(ob.step === 6 && !ob.aiPlan && !ob.loadError) ? T.purple : T.muted,
               },
             ]}
             onPress={() => ob.goNext(markOnboardingComplete)}
-            disabled={
-              !ob.canGo || (ob.step === 6 && !ob.aiPlan && !ob.loadError)
-            }
+            disabled={!ob.canGo || (ob.step === 6 && !ob.aiPlan && !ob.loadError)}
             activeOpacity={0.82}
           >
             <Text style={s.ctaTxt}>
@@ -786,53 +668,39 @@ export default function OnBoardingGoal({ onComplete }) {
             ]}
           >
             <ActivityIndicator size="large" color={T.purple} />
-            <Text
-              style={[
-                s.bodyTxt,
-                { color: T.sub, textAlign: "center", marginTop: 16 },
-              ]}
-            >
+            <Text style={[s.bodyTxt, { color: T.sub, textAlign: "center", marginTop: 16 }]}>
               Saving your profile...
             </Text>
           </View>
         )}
 
-        {ob.step === 6 &&
-          ob.loadError &&
-          ob.aiPlan &&
-          !ob.loading &&
-          !ob.savingProfile && (
-            <View>
-              <View
-                style={[
-                  s.card,
-                  {
-                    backgroundColor: T.orange + "14",
-                    borderColor: T.orange + "30",
-                    marginTop: 24,
-                  },
-                ]}
-              >
-                <Text
-                  style={[s.bodyTxt, { color: T.text, textAlign: "center" }]}
-                >
-                  ⚠️ {ob.loadError}
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={[s.cta, { backgroundColor: T.orange, marginTop: 12 }]}
-                onPress={() => ob.goNext(markOnboardingComplete)}
-              >
-                <Text style={s.ctaTxt}>🔄 Retry Save</Text>
-              </TouchableOpacity>
+        {ob.step === 6 && ob.loadError && ob.aiPlan && !ob.loading && !ob.savingProfile && (
+          <View>
+            <View
+              style={[
+                s.card,
+                {
+                  backgroundColor: T.orange + "14",
+                  borderColor: T.orange + "30",
+                  marginTop: 24,
+                },
+              ]}
+            >
+              <Text style={[s.bodyTxt, { color: T.text, textAlign: "center" }]}>
+                ⚠️ {ob.loadError}
+              </Text>
             </View>
-          )}
+            <TouchableOpacity
+              style={[s.cta, { backgroundColor: T.orange, marginTop: 12 }]}
+              onPress={() => ob.goNext(markOnboardingComplete)}
+            >
+              <Text style={s.ctaTxt}>🔄 Retry Save</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {ob.step > 0 && ob.step !== 6 && (
-          <TouchableOpacity
-            style={s.backBtn}
-            onPress={() => ob.animateTo(ob.step - 1)}
-          >
+          <TouchableOpacity style={s.backBtn} onPress={() => ob.animateTo(ob.step - 1)}>
             <Text style={[s.backTxt, { color: T.sub }]}>← Back</Text>
           </TouchableOpacity>
         )}

@@ -8,6 +8,6 @@
  *   In App.js:       <NavigationContainer ref={navigationRef} ...>
  *   Anywhere else:   navigationRef.navigate('Train')
  */
-import { createNavigationContainerRef } from '@react-navigation/native';
+import { createNavigationContainerRef } from "@react-navigation/native";
 
 export const navigationRef = createNavigationContainerRef();

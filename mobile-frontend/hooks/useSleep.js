@@ -3,16 +3,16 @@
  * Thin wrapper over TodayContext for sleep data.
  * Return API is identical to the original hook.
  */
-import { useToday } from '../context/TodayContext';
+import { useToday } from "../context/TodayContext";
 
 export function useSleep() {
-    const { loading, sleepHours, sleepQuality, logSleep, refresh } = useToday();
+  const { loading, sleepHours, sleepQuality, logSleep, refresh } = useToday();
 
-    return {
-        loading,
-        sleepHours,
-        sleepQuality,
-        logSleep,
-        refresh,
-    };
+  return {
+    loading,
+    sleepHours,
+    sleepQuality,
+    logSleep,
+    refresh,
+  };
 }
