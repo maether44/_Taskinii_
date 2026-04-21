@@ -3,7 +3,12 @@ import { View, StyleSheet, ActivityIndicator } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import * as Font from "expo-font";
-import { Outfit_400Regular, Outfit_500Medium, Outfit_600SemiBold, Outfit_700Bold } from "@expo-google-fonts/outfit";
+import {
+  Outfit_400Regular,
+  Outfit_500Medium,
+  Outfit_600SemiBold,
+  Outfit_700Bold,
+} from "@expo-google-fonts/outfit";
 import { Inter_400Regular, Inter_600SemiBold } from "@expo-google-fonts/inter";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -13,9 +18,11 @@ import { registerRootComponent } from "expo";
 
 // Context & Supabase
 import { supabase } from "./lib/supabase";
+import { navigationRef } from "./lib/navigationRef";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { TodayProvider } from "./context/TodayContext";
 import { MilestoneProvider, useMilestones } from "./context/MilestoneContext";
+import { ThemeProvider } from "./context/ThemeContext";
 
 // ✅ Custom splash screen
 import CustomSplashScreen from "./components/CustomSplashScreen";
@@ -36,10 +43,10 @@ import FoodScannerScreen from "./components/food-scanner/FoodScannerScreen";
 import WorkoutSummary from "./screens/workout/WorkoutSummary";
 
 // Global Components
-import AlexiAssistant from "./components/AlexiAssistant";
+import YaraAssistant from "./components/YaraAssistant";
 import AppTour from "./components/onBoarding/AppTour";
 import CelebrationInterstitial from "./components/reports/CelebrationInterstitial";
-import { warn } from './lib/logger';
+import { AlexiEvents, AlexiVoiceProvider } from "./context/AlexiVoiceContext";
 
 SplashScreen.preventAutoHideAsync();
 const Stack = createStackNavigator();
@@ -136,28 +143,31 @@ export default function App() {
 
   // Route navigation commands emitted by AlexiVoiceContext
   useEffect(() => {
-    const offNav = AlexiEvents.on('navigate', ({ screen, params }) => {
+    const offNav = AlexiEvents.on("navigate", ({ screen, params }) => {
       try {
         if (!navigationRef.isReady()) {
-          console.warn('[Alexi] navigationRef not ready — queued screen:', screen);
+          console.warn("[Alexi] navigationRef not ready — queued screen:", screen);
           return;
         }
-        console.log('[Alexi] → navigate(', screen, params ? JSON.stringify(params) : '', ')');
+        console.log("[Alexi] → navigate(", screen, params ? JSON.stringify(params) : "", ")");
         navigationRef.navigate(screen, params);
       } catch (e) {
         console.error('[Alexi] Navigation failed for screen "' + screen + '":', e?.message);
       }
     });
-    const offBack = AlexiEvents.on('go_back', () => {
+    const offBack = AlexiEvents.on("go_back", () => {
       try {
         if (navigationRef.isReady() && navigationRef.canGoBack()) {
           navigationRef.goBack();
         }
       } catch (e) {
-        console.error('[Alexi] goBack failed:', e?.message);
+        console.error("[Alexi] goBack failed:", e?.message);
       }
     });
-    return () => { offNav(); offBack(); };
+    return () => {
+      offNav();
+      offBack();
+    };
   }, []);
   if (!appIsReady) return null;
 
@@ -175,30 +185,42 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <AuthProvider>
-          <TodayProvider>
-            <MilestoneProvider>
-              <View style={styles.container} onLayout={onLayoutRootView}>
-                <StatusBar style="light" />
-                <NavigationContainer
-                  onStateChange={(state) => setActiveRoute(getActiveRouteName(state))}
-                >
-                  <Navigation />
-                </NavigationContainer>
-                {activeRoute !== "WorkoutActive" && <YaraAssistant />}
-                <AppTour activeTab={activeTab} onTabPress={setActiveTab} showOnMount={true} />
-                <CelebrationOverlay />
-              </View>
-            </MilestoneProvider>
-          </TodayProvider>
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <AlexiVoiceProvider>
+              <TodayProvider>
+                <MilestoneProvider>
+                  <View style={styles.container} onLayout={onLayoutRootView}>
+                    <StatusBar style="light" />
+                    <NavigationContainer
+                      ref={navigationRef}
+                      onStateChange={(state) => setActiveRoute(getActiveRouteName(state))}
+                    >
+                      <Navigation />
+                    </NavigationContainer>
+                    {activeRoute !== "WorkoutActive" && <YaraAssistant />}
+                    <AppTour activeTab={activeTab} onTabPress={setActiveTab} showOnMount={true} />
+                    <CelebrationOverlay />
+                  </View>
+                </MilestoneProvider>
+              </TodayProvider>
+            </AlexiVoiceProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
-  centered: { justifyContent: "center", alignItems: "center" },
+  container: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  centered: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 });
 
 registerRootComponent(App);
