@@ -234,6 +234,10 @@ function parseCommand(text) {
   if (/\b(go back|go backwards?|back|close|dismiss|cancel|exit screen)\b/i.test(t))
     return { type: 'GO_BACK' };
 
+  // ── PostureAI — direct check before generic nav loop ─────────────────────
+  if (/\b(posture|form check|check.*form|body scan|posture ai|posture check)\b/i.test(t))
+    return { type: 'NAVIGATE', screen: 'PostureAI' };
+
   // ── Utility ────────────────────────────────────────────────────────────────
   if (/show.*move|instructions?|form (guide|check|tip)|how to do (this|it)|help( me)?$/.test(t))
     return { type: 'SHOW_INSTRUCTIONS' };
@@ -799,17 +803,17 @@ export function AlexiVoiceProvider({ children }) {
 
       if (!raw) { setPassiveState('listening'); continue; }
 
-      console.log('[Alexi] Heard:', raw);
-
-      // ── L1: hallucination fix ─────────────────────────────────────────────
-      const fixed = applyHallucMap(raw);
-
-      // ── Wake-word check (fuzzy) ───────────────────────────────────────────
-      const hasWake = WAKE_RE.test(fixed);
+      // ── Sensitivity gate — ignore all background noise immediately ────────
+      const hasWake = WAKE_RE.test(raw);
       if (!hasWake && !isAlexiVisibleRef.current) {
         setPassiveState('listening');
         continue;
       }
+
+      console.log('[Alexi] Heard:', raw);
+
+      // ── L1: hallucination fix ─────────────────────────────────────────────
+      const fixed = applyHallucMap(raw);
 
       // ── WAKE — haptic + Siri orb fires immediately ────────────────────────
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
