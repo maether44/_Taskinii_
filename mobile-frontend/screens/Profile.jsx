@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useNavigation } from '@react-navigation/native';
+import { decode } from 'base64-arraybuffer';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { AppEvents, emit, on } from '../lib/eventBus';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystemLegacy from 'expo-file-system/legacy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import {
@@ -609,10 +610,15 @@ export default function Profile({ replayTour }) {
     try {
       const asset = result.assets[0];
       let base64 = asset.base64;
-      if (!base64)
-        base64 = await FileSystem.readAsStringAsync(asset.uri, {
-          encoding: FileSystem.EncodingType.Base64,
+      if (!base64) {
+        base64 = await FileSystemLegacy.readAsStringAsync(asset.uri, {
+          encoding: 'base64',
         });
+      }
+      if (!base64 || !String(base64).trim()) {
+        throw new Error('Selected image is empty. Please pick another photo.');
+      }
+
       const mimeType = asset.mimeType || 'image/jpeg';
       const dataUri = `data:${mimeType};base64,${base64}`;
       const extension = (mimeType.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
@@ -622,11 +628,18 @@ export default function Profile({ replayTour }) {
       setProfileAvatarUri(dataUri);
       setProfile((prev) => ({ ...prev, avatar_url: dataUri, avatar_path: path }));
 
-      const response = await fetch(dataUri);
-      const blob = await response.blob();
+      const arrayBuffer = decode(base64);
+      const bytes = new Uint8Array(arrayBuffer);
+      if (!bytes.length) {
+        throw new Error('Image bytes are empty after decode. Please pick another photo.');
+      }
+
       const { error: uploadError } = await supabase.storage
         .from(AVATAR_BUCKET)
-        .upload(path, blob, { contentType: asset.mimeType || 'image/jpeg' });
+        .upload(path, bytes, {
+          contentType: asset.mimeType || 'image/jpeg',
+          upsert: false,
+        });
       if (uploadError) throw uploadError;
 
       const { error: profileError } = await supabase
