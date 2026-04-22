@@ -16,6 +16,7 @@ import { supabase } from '../lib/supabase';
 import { getMuscleFatigue } from '../services/workoutService';
 import { useAuth } from '../context/AuthContext';
 import { AppEvents, emit, on } from '../lib/eventBus';
+// eslint-disable-next-line no-unused-vars
 import { warn, log } from '../lib/logger';
 import { loadPlan, generatePlan } from '../services/aiPlanService';
 
@@ -24,15 +25,15 @@ const STREAK_MILESTONES = [3, 7, 14, 30, 60, 100, 365];
 const { width } = Dimensions.get('window');
 
 const C = {
-  bg:      '#0F0B1E',
-  card:    '#161230',
-  border:  '#1E1A35',
-  purple:  '#7C5CFC',
+  bg: '#0F0B1E',
+  card: '#161230',
+  border: '#1E1A35',
+  purple: '#7C5CFC',
   purpleD: '#4A2FC8',
-  lime:    '#C8F135',
-  text:    '#FFFFFF',
-  sub:     '#6B5F8A',
-  accent:  '#9D85F5',
+  lime: '#C8F135',
+  text: '#FFFFFF',
+  sub: '#6B5F8A',
+  accent: '#9D85F5',
 };
 
 const SHADOW = {
@@ -49,12 +50,12 @@ const WEEK = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 // ── Machine Intelligence Hub Data ────────────────────────────
 const GYM_EQUIPMENT = [
   {
-    id:           'smithMachine',
-    name:         'Smith Machine',
-    icon:         'barbell-outline',
-    primaryMuscle:'Quads · Glutes',
-    imageUrl:     'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&q=80',
-    exerciseKey:  'squat',
+    id: 'smithMachine',
+    name: 'Smith Machine',
+    icon: 'barbell-outline',
+    primaryMuscle: 'Quads · Glutes',
+    imageUrl: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&q=80',
+    exerciseKey: 'squat',
     setup: [
       'Set the bar at mid-chest height when standing.',
       'Step under the bar, feet shoulder-width, toes slightly out.',
@@ -69,12 +70,12 @@ const GYM_EQUIPMENT = [
     ],
   },
   {
-    id:           'legPress',
-    name:         'Leg Press',
-    icon:         'footsteps-outline',
-    primaryMuscle:'Quads · Hamstrings',
-    imageUrl:     'https://images.unsplash.com/photo-1540497077202-7c8a3999166f?w=400&q=80',
-    exerciseKey:  'squat',
+    id: 'legPress',
+    name: 'Leg Press',
+    icon: 'footsteps-outline',
+    primaryMuscle: 'Quads · Hamstrings',
+    imageUrl: 'https://images.unsplash.com/photo-1540497077202-7c8a3999166f?w=400&q=80',
+    exerciseKey: 'squat',
     setup: [
       'Adjust seat so knees are at 90° with feet on platform.',
       'Place feet hip-width apart, mid-platform.',
@@ -89,12 +90,12 @@ const GYM_EQUIPMENT = [
     ],
   },
   {
-    id:           'latPulldown',
-    name:         'Lat Pulldown',
-    icon:         'arrow-down-circle-outline',
-    primaryMuscle:'Lats · Biceps',
-    imageUrl:     'https://images.unsplash.com/photo-1581009137042-c552e485697a?w=400&q=80',
-    exerciseKey:  'bicepCurl',
+    id: 'latPulldown',
+    name: 'Lat Pulldown',
+    icon: 'arrow-down-circle-outline',
+    primaryMuscle: 'Lats · Biceps',
+    imageUrl: 'https://images.unsplash.com/photo-1581009137042-c552e485697a?w=400&q=80',
+    exerciseKey: 'bicepCurl',
     setup: [
       'Adjust thigh pad to lock hips firmly in place.',
       'Grip bar slightly wider than shoulder-width, overhand.',
@@ -109,12 +110,12 @@ const GYM_EQUIPMENT = [
     ],
   },
   {
-    id:           'chestPress',
-    name:         'Chest Press',
-    icon:         'expand-outline',
-    primaryMuscle:'Chest · Triceps',
-    imageUrl:     'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=400&q=80',
-    exerciseKey:  'pushup',
+    id: 'chestPress',
+    name: 'Chest Press',
+    icon: 'expand-outline',
+    primaryMuscle: 'Chest · Triceps',
+    imageUrl: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=400&q=80',
+    exerciseKey: 'pushup',
     setup: [
       'Adjust seat so handles are at mid-chest height.',
       'Sit tall — lower back lightly against the pad.',
@@ -129,12 +130,12 @@ const GYM_EQUIPMENT = [
     ],
   },
   {
-    id:           'cableRow',
-    name:         'Cable Row',
-    icon:         'swap-horizontal-outline',
-    primaryMuscle:'Back · Rear Delts',
-    imageUrl:     'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=400&q=80',
-    exerciseKey:  'bicepCurl',
+    id: 'cableRow',
+    name: 'Cable Row',
+    icon: 'swap-horizontal-outline',
+    primaryMuscle: 'Back · Rear Delts',
+    imageUrl: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=400&q=80',
+    exerciseKey: 'bicepCurl',
     setup: [
       'Set pulley to hip height. Use a close-grip V-bar attachment.',
       'Sit upright, knees slightly bent, feet on platforms.',
@@ -149,12 +150,12 @@ const GYM_EQUIPMENT = [
     ],
   },
   {
-    id:           'shoulderPress',
-    name:         'Shoulder Press',
-    icon:         'arrow-up-circle-outline',
-    primaryMuscle:'Shoulders · Triceps',
-    imageUrl:     'https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=400&q=80',
-    exerciseKey:  'shoulderPress',
+    id: 'shoulderPress',
+    name: 'Shoulder Press',
+    icon: 'arrow-up-circle-outline',
+    primaryMuscle: 'Shoulders · Triceps',
+    imageUrl: 'https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=400&q=80',
+    exerciseKey: 'shoulderPress',
     setup: [
       'Adjust seat so handles are at ear/jaw height.',
       'Sit with lower back flush against the pad.',
@@ -162,23 +163,23 @@ const GYM_EQUIPMENT = [
       'Keep core tight — avoid arching your lower back at the top.',
     ],
     activation:
-      'Press through the heel of your palm. At the top, shrug slightly — feel the lateral head of the shoulder squeeze. Lower slowly over 3 counts to maximise deltoid activation.',
+      'Press through the heel of your palm. At the top, shrug slightly — feel the lateral head of the shoulder squeeze. Lower slowly over 3 counts to maximize deltoid activation.',
     alternatives: [
       { name: 'DB Arnold Press', icon: 'fitness-outline' },
       { name: 'DB Lateral Raise', icon: 'body-outline' },
     ],
   },
   {
-    id:           'legCurl',
-    name:         'Leg Curl',
-    icon:         'walk-outline',
-    primaryMuscle:'Hamstrings',
-    imageUrl:     'https://images.unsplash.com/photo-1516567832786-d171bef2e97e?w=400&q=80',
-    exerciseKey:  'deadlift',
+    id: 'legCurl',
+    name: 'Leg Curl',
+    icon: 'walk-outline',
+    primaryMuscle: 'Hamstrings',
+    imageUrl: 'https://images.unsplash.com/photo-1516567832786-d171bef2e97e?w=400&q=80',
+    exerciseKey: 'deadlift',
     setup: [
       'Adjust pad so it rests just above the heel, not on the ankle.',
       'Lie face-down, hips pressed into the bench.',
-      'Hold handles to stabilise — do not lift your hips.',
+      'Hold handles to stabilize — do not lift your hips.',
       'Keep toes pointed slightly inward to target bicep femoris.',
     ],
     activation:
@@ -189,12 +190,12 @@ const GYM_EQUIPMENT = [
     ],
   },
   {
-    id:           'cableBicepCurl',
-    name:         'Cable Curl',
-    icon:         'hand-right-outline',
-    primaryMuscle:'Biceps · Forearms',
-    imageUrl:     'https://images.unsplash.com/photo-1597452485675-8c2a65a7253c?w=400&q=80',
-    exerciseKey:  'bicepCurl',
+    id: 'cableBicepCurl',
+    name: 'Cable Curl',
+    icon: 'hand-right-outline',
+    primaryMuscle: 'Biceps · Forearms',
+    imageUrl: 'https://images.unsplash.com/photo-1597452485675-8c2a65a7253c?w=400&q=80',
+    exerciseKey: 'bicepCurl',
     setup: [
       'Set pulley to lowest pin. Use a straight or EZ bar attachment.',
       'Stand one step back from the machine, arms fully extended.',
@@ -212,41 +213,149 @@ const GYM_EQUIPMENT = [
 
 // ── Home bodyweight exercises ────────────────────────────────
 const HOME_EXERCISES = [
-  { id: 'pushup',   name: 'Push-Up',       icon: 'body-outline',      primaryMuscle: 'Chest · Triceps',    exerciseKey: 'pushup',  sets: '4 × 15', imageUrl: 'https://images.unsplash.com/photo-1598971639058-fab3c3109a00?w=400&q=80', isHome: true },
-  { id: 'airsquat', name: 'Air Squat',     icon: 'walk-outline',      primaryMuscle: 'Quads · Glutes',     exerciseKey: 'squat',   sets: '4 × 20', imageUrl: 'https://images.unsplash.com/photo-1536922246289-88c42f957773?w=400&q=80', isHome: true },
-  { id: 'lunge',    name: 'Reverse Lunge', icon: 'footsteps-outline', primaryMuscle: 'Glutes · Quads',     exerciseKey: 'lunge',   sets: '3 × 12', imageUrl: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&q=80', isHome: true },
-  { id: 'plank',    name: 'Plank Hold',    icon: 'fitness-outline',   primaryMuscle: 'Core',               exerciseKey: 'plank',   sets: '3 × 45s',imageUrl: 'https://images.unsplash.com/photo-1601422407692-ec4eeec1d9b3?w=400&q=80', isHome: true },
-  { id: 'glute',    name: 'Glute Bridge',  icon: 'arrow-up-outline',  primaryMuscle: 'Glutes · Hamstrings',exerciseKey: 'squat',   sets: '4 × 20', imageUrl: 'https://images.unsplash.com/photo-1518611012118-696072aa579a?w=400&q=80', isHome: true },
-  { id: 'dipchest', name: 'Tricep Dip',    icon: 'arrow-down-outline',primaryMuscle: 'Triceps · Chest',   exerciseKey: 'pushup',  sets: '3 × 12', imageUrl: 'https://images.unsplash.com/photo-1530822847156-5df684ec5933?w=400&q=80', isHome: true },
+  {
+    id: 'pushup',
+    name: 'Push-Up',
+    icon: 'body-outline',
+    primaryMuscle: 'Chest · Triceps',
+    exerciseKey: 'pushup',
+    sets: '4 × 15',
+    imageUrl: 'https://images.unsplash.com/photo-1598971639058-fab3c3109a00?w=400&q=80',
+    isHome: true,
+  },
+  {
+    id: 'airsquat',
+    name: 'Air Squat',
+    icon: 'walk-outline',
+    primaryMuscle: 'Quads · Glutes',
+    exerciseKey: 'squat',
+    sets: '4 × 20',
+    imageUrl: 'https://images.unsplash.com/photo-1536922246289-88c42f957773?w=400&q=80',
+    isHome: true,
+  },
+  {
+    id: 'lunge',
+    name: 'Reverse Lunge',
+    icon: 'footsteps-outline',
+    primaryMuscle: 'Glutes · Quads',
+    exerciseKey: 'lunge',
+    sets: '3 × 12',
+    imageUrl: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&q=80',
+    isHome: true,
+  },
+  {
+    id: 'plank',
+    name: 'Plank Hold',
+    icon: 'fitness-outline',
+    primaryMuscle: 'Core',
+    exerciseKey: 'plank',
+    sets: '3 × 45s',
+    imageUrl: 'https://images.unsplash.com/photo-1601422407692-ec4eeec1d9b3?w=400&q=80',
+    isHome: true,
+  },
+  {
+    id: 'glute',
+    name: 'Glute Bridge',
+    icon: 'arrow-up-outline',
+    primaryMuscle: 'Glutes · Hamstrings',
+    exerciseKey: 'squat',
+    sets: '4 × 20',
+    imageUrl: 'https://images.unsplash.com/photo-1518611012118-696072aa579a?w=400&q=80',
+    isHome: true,
+  },
+  {
+    id: 'dipchest',
+    name: 'Tricep Dip',
+    icon: 'arrow-down-outline',
+    primaryMuscle: 'Triceps · Chest',
+    exerciseKey: 'pushup',
+    sets: '3 × 12',
+    imageUrl: 'https://images.unsplash.com/photo-1530822847156-5df684ec5933?w=400&q=80',
+    isHome: true,
+  },
 ];
 
 // ── Combined Equipment Floor (Gym + Home) ────────────────────
 const COMBINED_EQUIPMENT = [
-  ...GYM_EQUIPMENT.map(e => ({ ...e, isHome: false })),
+  ...GYM_EQUIPMENT.map((e) => ({ ...e, isHome: false })),
   ...HOME_EXERCISES,
 ];
 
 // ── Today's Plan circuits per focus ──────────────────────────
 const PLAN_CIRCUITS = {
   strength: [
-    { name: 'Barbell Squat',   icon: 'barbell-outline',          key: 'squat',         sets: '4×8',  target: 'Quads · Glutes' },
-    { name: 'Chest Press',     icon: 'expand-outline',           key: 'pushup',        sets: '3×10', target: 'Chest · Triceps' },
-    { name: 'Cable Row',       icon: 'swap-horizontal-outline',  key: 'bicepCurl',     sets: '3×12', target: 'Back · Rear Delts' },
+    {
+      name: 'Barbell Squat',
+      icon: 'barbell-outline',
+      key: 'squat',
+      sets: '4×8',
+      target: 'Quads · Glutes',
+    },
+    {
+      name: 'Chest Press',
+      icon: 'expand-outline',
+      key: 'pushup',
+      sets: '3×10',
+      target: 'Chest · Triceps',
+    },
+    {
+      name: 'Cable Row',
+      icon: 'swap-horizontal-outline',
+      key: 'bicepCurl',
+      sets: '3×12',
+      target: 'Back · Rear Delts',
+    },
   ],
   upper: [
-    { name: 'Shoulder Press',  icon: 'arrow-up-circle-outline',  key: 'shoulderPress', sets: '4×10', target: 'Shoulders · Triceps' },
-    { name: 'Lat Pulldown',    icon: 'arrow-down-circle-outline',key: 'bicepCurl',     sets: '3×12', target: 'Lats · Biceps' },
-    { name: 'Cable Curl',      icon: 'hand-right-outline',       key: 'bicepCurl',     sets: '3×15', target: 'Biceps' },
+    {
+      name: 'Shoulder Press',
+      icon: 'arrow-up-circle-outline',
+      key: 'shoulderPress',
+      sets: '4×10',
+      target: 'Shoulders · Triceps',
+    },
+    {
+      name: 'Lat Pulldown',
+      icon: 'arrow-down-circle-outline',
+      key: 'bicepCurl',
+      sets: '3×12',
+      target: 'Lats · Biceps',
+    },
+    {
+      name: 'Cable Curl',
+      icon: 'hand-right-outline',
+      key: 'bicepCurl',
+      sets: '3×15',
+      target: 'Biceps',
+    },
   ],
   lower: [
-    { name: 'Leg Press',       icon: 'footsteps-outline',        key: 'squat',         sets: '4×10', target: 'Quads · Hamstrings' },
-    { name: 'Leg Curl',        icon: 'walk-outline',             key: 'deadlift',      sets: '3×12', target: 'Hamstrings' },
-    { name: 'Smith Machine',   icon: 'barbell-outline',          key: 'squat',         sets: '3×10', target: 'Quads · Glutes' },
+    {
+      name: 'Leg Press',
+      icon: 'footsteps-outline',
+      key: 'squat',
+      sets: '4×10',
+      target: 'Quads · Hamstrings',
+    },
+    { name: 'Leg Curl', icon: 'walk-outline', key: 'deadlift', sets: '3×12', target: 'Hamstrings' },
+    {
+      name: 'Smith Machine',
+      icon: 'barbell-outline',
+      key: 'squat',
+      sets: '3×10',
+      target: 'Quads · Glutes',
+    },
   ],
   recovery: [
-    { name: 'Plank Hold',      icon: 'fitness-outline',          key: 'plank',         sets: '3×45s',target: 'Core' },
-    { name: 'Air Squat',       icon: 'walk-outline',             key: 'squat',         sets: '3×20', target: 'Full Body' },
-    { name: 'Glute Bridge',    icon: 'arrow-up-outline',         key: 'squat',         sets: '3×20', target: 'Glutes' },
+    { name: 'Plank Hold', icon: 'fitness-outline', key: 'plank', sets: '3×45s', target: 'Core' },
+    { name: 'Air Squat', icon: 'walk-outline', key: 'squat', sets: '3×20', target: 'Full Body' },
+    {
+      name: 'Glute Bridge',
+      icon: 'arrow-up-outline',
+      key: 'squat',
+      sets: '3×20',
+      target: 'Glutes',
+    },
   ],
 };
 
@@ -265,23 +374,23 @@ const UNTRAINED = 'rgba(255,255,255,0.07)';
 
 // ── SVG body muscle spots ────────────────────────────────────
 const BODY_SPOTS = [
-  { id: 'Shoulders', cx: 17,  cy: 52,  rx: 11, ry: 9  },
-  { id: 'Shoulders', cx: 103, cy: 52,  rx: 11, ry: 9  },
-  { id: 'Chest',     cx: 60,  cy: 64,  rx: 22, ry: 16 },
-  { id: 'Biceps',    cx: 15,  cy: 80,  rx: 8,  ry: 14 },
-  { id: 'Biceps',    cx: 105, cy: 80,  rx: 8,  ry: 14 },
-  { id: 'Triceps',   cx: 13,  cy: 93,  rx: 7,  ry: 10 },
-  { id: 'Triceps',   cx: 107, cy: 93,  rx: 7,  ry: 10 },
-  { id: 'Forearms',  cx: 14,  cy: 118, rx: 6,  ry: 12 },
-  { id: 'Forearms',  cx: 106, cy: 118, rx: 6,  ry: 12 },
-  { id: 'Core',      cx: 60,  cy: 98,  rx: 17, ry: 22 },
-  { id: 'Glutes',    cx: 42,  cy: 137, rx: 13, ry: 10 },
-  { id: 'Glutes',    cx: 78,  cy: 137, rx: 13, ry: 10 },
-  { id: 'Quads',     cx: 42,  cy: 162, rx: 12, ry: 22 },
-  { id: 'Quads',     cx: 78,  cy: 162, rx: 12, ry: 22 },
-  { id: 'Hamstrings',cx: 42,  cy: 185, rx: 11, ry: 12 },
-  { id: 'Hamstrings',cx: 78,  cy: 185, rx: 11, ry: 12 },
-  { id: 'Back',      cx: 60,  cy: 78,  rx: 20, ry: 20 },
+  { id: 'Shoulders', cx: 17, cy: 52, rx: 11, ry: 9 },
+  { id: 'Shoulders', cx: 103, cy: 52, rx: 11, ry: 9 },
+  { id: 'Chest', cx: 60, cy: 64, rx: 22, ry: 16 },
+  { id: 'Biceps', cx: 15, cy: 80, rx: 8, ry: 14 },
+  { id: 'Biceps', cx: 105, cy: 80, rx: 8, ry: 14 },
+  { id: 'Triceps', cx: 13, cy: 93, rx: 7, ry: 10 },
+  { id: 'Triceps', cx: 107, cy: 93, rx: 7, ry: 10 },
+  { id: 'Forearms', cx: 14, cy: 118, rx: 6, ry: 12 },
+  { id: 'Forearms', cx: 106, cy: 118, rx: 6, ry: 12 },
+  { id: 'Core', cx: 60, cy: 98, rx: 17, ry: 22 },
+  { id: 'Glutes', cx: 42, cy: 137, rx: 13, ry: 10 },
+  { id: 'Glutes', cx: 78, cy: 137, rx: 13, ry: 10 },
+  { id: 'Quads', cx: 42, cy: 162, rx: 12, ry: 22 },
+  { id: 'Quads', cx: 78, cy: 162, rx: 12, ry: 22 },
+  { id: 'Hamstrings', cx: 42, cy: 185, rx: 11, ry: 12 },
+  { id: 'Hamstrings', cx: 78, cy: 185, rx: 11, ry: 12 },
+  { id: 'Back', cx: 60, cy: 78, rx: 20, ry: 20 },
 ];
 
 // ── Body Silhouette SVG ──────────────────────────────────────
@@ -301,19 +410,103 @@ function BodySilhouette({ fatigueMap, selectedMuscle, onMusclePress }) {
     <Svg width={120} height={265} viewBox="0 0 120 265">
       <Circle cx={60} cy={18} r={14} fill="#1A1538" stroke="#2A2550" strokeWidth={1} />
       <Rect x={55} y={31} width={10} height={11} rx={4} fill="#1A1538" />
-      <Rect x={28} y={40} width={64} height={98} rx={12} fill="#1A1538" stroke="#2A2550" strokeWidth={1} />
-      <Rect x={10} y={46} width={18} height={60} rx={9} fill="#1A1538" stroke="#2A2550" strokeWidth={1} />
-      <Rect x={92} y={46} width={18} height={60} rx={9} fill="#1A1538" stroke="#2A2550" strokeWidth={1} />
-      <Rect x={11} y={104} width={15} height={50} rx={7} fill="#1A1538" stroke="#2A2550" strokeWidth={1} />
-      <Rect x={94} y={104} width={15} height={50} rx={7} fill="#1A1538" stroke="#2A2550" strokeWidth={1} />
-      <Rect x={31} y={136} width={26} height={72} rx={13} fill="#1A1538" stroke="#2A2550" strokeWidth={1} />
-      <Rect x={63} y={136} width={26} height={72} rx={13} fill="#1A1538" stroke="#2A2550" strokeWidth={1} />
-      <Rect x={33} y={205} width={22} height={55} rx={11} fill="#1A1538" stroke="#2A2550" strokeWidth={1} />
-      <Rect x={65} y={205} width={22} height={55} rx={11} fill="#1A1538" stroke="#2A2550" strokeWidth={1} />
+      <Rect
+        x={28}
+        y={40}
+        width={64}
+        height={98}
+        rx={12}
+        fill="#1A1538"
+        stroke="#2A2550"
+        strokeWidth={1}
+      />
+      <Rect
+        x={10}
+        y={46}
+        width={18}
+        height={60}
+        rx={9}
+        fill="#1A1538"
+        stroke="#2A2550"
+        strokeWidth={1}
+      />
+      <Rect
+        x={92}
+        y={46}
+        width={18}
+        height={60}
+        rx={9}
+        fill="#1A1538"
+        stroke="#2A2550"
+        strokeWidth={1}
+      />
+      <Rect
+        x={11}
+        y={104}
+        width={15}
+        height={50}
+        rx={7}
+        fill="#1A1538"
+        stroke="#2A2550"
+        strokeWidth={1}
+      />
+      <Rect
+        x={94}
+        y={104}
+        width={15}
+        height={50}
+        rx={7}
+        fill="#1A1538"
+        stroke="#2A2550"
+        strokeWidth={1}
+      />
+      <Rect
+        x={31}
+        y={136}
+        width={26}
+        height={72}
+        rx={13}
+        fill="#1A1538"
+        stroke="#2A2550"
+        strokeWidth={1}
+      />
+      <Rect
+        x={63}
+        y={136}
+        width={26}
+        height={72}
+        rx={13}
+        fill="#1A1538"
+        stroke="#2A2550"
+        strokeWidth={1}
+      />
+      <Rect
+        x={33}
+        y={205}
+        width={22}
+        height={55}
+        rx={11}
+        fill="#1A1538"
+        stroke="#2A2550"
+        strokeWidth={1}
+      />
+      <Rect
+        x={65}
+        y={205}
+        width={22}
+        height={55}
+        rx={11}
+        fill="#1A1538"
+        stroke="#2A2550"
+        strokeWidth={1}
+      />
       {BODY_SPOTS.map((spot, i) => (
         <Ellipse
           key={i}
-          cx={spot.cx} cy={spot.cy} rx={spot.rx} ry={spot.ry}
+          cx={spot.cx}
+          cy={spot.cy}
+          rx={spot.rx}
+          ry={spot.ry}
           fill={colorOf(spot.id)}
           opacity={opacityOf(spot.id)}
           onPress={() => onMusclePress?.(spot.id === selectedMuscle ? null : spot.id)}
@@ -342,7 +535,11 @@ function MachineCard({ machine, onPress }) {
       />
       {/* Gym / Home badge */}
       <View style={[s.floorBadge, machine.isHome ? s.floorBadgeHome : s.floorBadgeGym]}>
-        <Ionicons name={machine.isHome ? 'home-outline' : 'barbell-outline'} size={9} color="#fff" />
+        <Ionicons
+          name={machine.isHome ? 'home-outline' : 'barbell-outline'}
+          size={9}
+          color="#fff"
+        />
         <Text style={s.floorBadgeTxt}>{machine.isHome ? 'HOME' : 'GYM'}</Text>
       </View>
       {/* Icon center */}
@@ -374,7 +571,7 @@ function MachineModal({ machine, visible, onClose, onAnalyze }) {
   const [showAlts, setShowAlts] = useState(false);
 
   const cardStyle = useAnimatedStyle(() => ({
-    opacity:   interpolate(prog.value, [0, 0.4, 1], [0, 1, 1]),
+    opacity: interpolate(prog.value, [0, 0.4, 1], [0, 1, 1]),
     transform: [{ scale: interpolate(prog.value, [0, 1], [0.86, 1]) }],
   }));
 
@@ -386,7 +583,7 @@ function MachineModal({ machine, visible, onClose, onAnalyze }) {
     } else {
       prog.value = withSpring(0, { damping: 20, stiffness: 260 });
     }
-  }, [visible]);
+  }, [prog, visible]);
 
   if (!machine) return null;
 
@@ -460,7 +657,7 @@ function MachineModal({ machine, visible, onClose, onAnalyze }) {
               <View style={s.modalSection}>
                 <TouchableOpacity
                   style={[s.pivotBtn, showAlts && s.pivotBtnActive]}
-                  onPress={() => setShowAlts(v => !v)}
+                  onPress={() => setShowAlts((v) => !v)}
                   activeOpacity={0.8}
                 >
                   <Ionicons
@@ -499,7 +696,8 @@ function MachineModal({ machine, visible, onClose, onAnalyze }) {
               >
                 <LinearGradient
                   colors={[C.lime, '#A8D020']}
-                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
                   style={s.analyzeBtnGradient}
                 >
                   <Ionicons name="scan-outline" size={18} color="#000" />
@@ -523,34 +721,31 @@ export default function Training({ navigation }) {
   const { user: authUser } = useAuth();
   const authUserId = authUser?.id ?? null;
   const hour = new Date().getHours();
-  const greeting =
-    hour < 12 ? 'Good Morning' :
-    hour < 18 ? 'Good Afternoon' :
-    'Good Evening';
+  const greeting = hour < 12 ? 'Good Morning' : hour < 18 ? 'Good Afternoon' : 'Good Evening';
 
-  const [fatigueMap,     setFatigueMap]     = useState({});
-  const [fatigueList,    setFatigueList]    = useState([]);
+  const [fatigueMap, setFatigueMap] = useState({});
+  const [fatigueList, setFatigueList] = useState([]);
   const [fatigueLoading, setFatigueLoading] = useState(true);
-  const [weekDays,       setWeekDays]       = useState(Array(7).fill(false));
-  const [streakCount,    setStreakCount]     = useState(0);
+  const [weekDays, setWeekDays] = useState(Array(7).fill(false));
+  const [streakCount, setStreakCount] = useState(0);
   const prevStreakRef = useRef(0);
-  const [recoveryPct,    setRecoveryPct]    = useState(100);
-  const [selectedMachine,  setSelectedMachine]  = useState(null);
-  const [modalVisible,     setModalVisible]     = useState(false);
-  const [overloadTip,      setOverloadTip]      = useState(null);
-  const [nutritionTip,     setNutritionTip]     = useState(null);
-  const [selectedMuscle,   setSelectedMuscle]   = useState(null);
-  const [environment,      setEnvironment]      = useState('gym');  // 'gym' | 'home'
-  const [todayPlan,        setTodayPlan]        = useState([]);
+  const [recoveryPct, setRecoveryPct] = useState(100);
+  const [selectedMachine, setSelectedMachine] = useState(null);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [overloadTip, setOverloadTip] = useState(null);
+  const [nutritionTip, setNutritionTip] = useState(null);
+  const [selectedMuscle, setSelectedMuscle] = useState(null);
+  const [environment, setEnvironment] = useState('gym'); // 'gym' | 'home'
+  const [todayPlan, setTodayPlan] = useState([]);
   const machineScrollRef = useRef(null);
   const [recommendation,   setRecommendation]   = useState({
     title: 'Full Body\nStrength', duration: '25 min', kcal: '280 kcal',
     focus: 'Strength Focus', exerciseKey: 'squat',
     reason: '"Based on your current fitness status — let\'s push today."',
   });
-  const [aiPlan,           setAiPlan]           = useState(null);   // full AI plan object
-  const [aiPlanLoading,    setAiPlanLoading]    = useState(false);
-  const [aiPlanDate,       setAiPlanDate]       = useState(null);   // when the plan was generated
+  const [aiPlan, setAiPlan] = useState(null); // full AI plan object
+  const [aiPlanLoading, setAiPlanLoading] = useState(false);
+  const [aiPlanDate, setAiPlanDate] = useState(null); // when the plan was generated
 
   const loadData = useCallback(async () => {
     if (!authUserId) return;
