@@ -321,7 +321,7 @@ export default function WorkoutActive({ route, navigation }) {
   const { pausePassive, resumePassive } = useAlexiVoice();
   // speakYara: lightweight TTS wrapper (replaces old Yara voice system)
   const speakYara = useCallback((text) => {
-    try { Speech.speak(text, { language: 'en-US', rate: 1.0 }); } catch (_) {}
+    Speech.speak(text, { language: 'en-US', rate: 1.0 });
   }, []);
   const rawKey      = route.params?.exerciseKey || route.params?.exerciseName || 'squat';
   const isPostureMode = rawKey === 'posture_check' || route.params?.mode === 'posture';
@@ -395,16 +395,20 @@ export default function WorkoutActive({ route, navigation }) {
   // ── Rest timer between circuit exercises ────────────────────
   const [showRest,        setShowRest]       = useState(false);
   const [restSecs,        setRestSecs]       = useState(0);
+  const [isMicReleased,   setIsMicReleased]  = useState(false);
   const restIntervalRef = useRef(null);
   const REST_DURATION = 60;
 
   // ── Global Alexi passive loop — pause immediately, resume after camera releases ─
-  // Pausing prevents Alexi's recorder racing the WebView camera init (iOS only
-  // allows one audio session owner at a time).  On unmount we wait 2 s before
-  // resumePassive so the camera codec fully releases before Alexi opens the mic.
+  // isMicReleased gates the WebView and countdown so neither starts until the
+  // iOS AVAudioSession hardware is fully freed (800ms safety buffer).
   useEffect(() => {
-    // Force-kill the mic before WebView camera starts (iOS allows only one audio session)
-    stopAnyRecording().catch(() => {}).finally(() => pausePassive());
+    async function release() {
+      await stopAnyRecording();
+      pausePassive();
+      setTimeout(() => setIsMicReleased(true), 800);
+    }
+    release();
     return () => { setTimeout(() => resumePassive(), 2000); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -582,7 +586,7 @@ export default function WorkoutActive({ route, navigation }) {
     showStep();
   }, [countScaleAnim, countOpacityAnim, speakYara, cameraAlpha]);
 
-  useEffect(() => { startCountdown(); }, [startCountdown]);
+  useEffect(() => { if (isMicReleased) startCountdown(); }, [isMicReleased, startCountdown]);
 
   // ── WebView message bridge ──────────────────────────────────
   const onMessage = useCallback((e) => {
@@ -852,7 +856,7 @@ export default function WorkoutActive({ route, navigation }) {
       <StatusBar hidden />
 
       {/* ══ FULL-SCREEN AI CAMERA ══════════════════════════════ */}
-      {htmlContent && (
+      {htmlContent && isMicReleased && (
         <Reanimated.View style={[StyleSheet.absoluteFillObject, cameraStyle]}>
           <WebView
             ref={webViewRef}
