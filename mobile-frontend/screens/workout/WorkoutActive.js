@@ -440,8 +440,9 @@ export default function WorkoutActive({ route, navigation }) {
       parent.setOptions({ tabBarStyle: { display: 'none' } });
     }
     return () => {
-      const p = navigation.getParent();
-      if (p) p.setOptions({ tabBarStyle: { backgroundColor: '#0F0B1E', borderTopColor: '#1E1A35', height: 85, paddingBottom: 20 } });
+      if (parent) {
+        parent.setOptions({ tabBarStyle: { backgroundColor: '#0F0B1E', borderTopColor: '#1E1A35', height: 85, paddingBottom: 20 } });
+      }
     };
   }, [navigation]);
 
