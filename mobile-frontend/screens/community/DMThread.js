@@ -56,6 +56,7 @@ export default function DMThread({ navigation, route }) {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
   const [resolvedPeerAvatarUri, setResolvedPeerAvatarUri] = useState(null);
+  const flatListRef = React.useRef(null);
 
   const title = useMemo(() => `${peerName}`, [peerName]);
 
@@ -91,6 +92,15 @@ export default function DMThread({ navigation, route }) {
       deleteThreadIfEmpty(ownerId, threadId);
     };
   }, [ownerId, threadId]);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    if (messages.length > 0 && flatListRef.current) {
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    }
+  }, [messages]);
 
   useEffect(() => {
     if (!threadId || !ownerId) return;
@@ -185,11 +195,13 @@ export default function DMThread({ navigation, route }) {
       </View>
 
       <FlatList
+        ref={flatListRef}
         data={messages}
         keyExtractor={(item) => item.id}
         renderItem={renderMessage}
         contentContainerStyle={styles.messagesList}
         ListEmptyComponent={<Text style={styles.empty}>No messages yet. Say hi.</Text>}
+        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
       />
 
       <View style={styles.composer}>

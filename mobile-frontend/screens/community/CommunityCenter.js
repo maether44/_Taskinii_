@@ -10,6 +10,8 @@ import {
   listPostComments,
   togglePostLike,
 } from '../../services/communityService';
+import { useUnreadMessageSummary } from '../../hooks/useNotification';
+
 
 function formatDate(iso) {
   const d = new Date(iso);
@@ -23,6 +25,7 @@ function formatDate(iso) {
 
 export default function CommunityCenter({ navigation }) {
   const { user } = useAuth();
+  const { unreadCount } = useUnreadMessageSummary(user?.id);
   const [posts, setPosts] = useState([]);
   const [statusText, setStatusText] = useState('');
   const [pickedImageUri, setPickedImageUri] = useState(null);
@@ -494,8 +497,8 @@ export default function CommunityCenter({ navigation }) {
           <Pressable onPress={() => navigation.navigate('Messages')} style={styles.backBtn}>
             <Ionicons name="chatbubble-ellipses-outline" size={18} color="#C8F135" />
             {unreadCount > 0 && (
-              <View style={styles.communityBadge}>
-                <Text style={styles.communityBadgeTxt}>
+              <View style={styles.messageBadge}>
+                <Text style={styles.messageBadgeTxt}>
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </Text>
               </View>
@@ -730,7 +733,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   messageBtnTxt: { color: '#C8F135', fontWeight: '700', fontSize: 12 },
-  meaageBadge: {
+  messageBadge: {
     position: 'absolute',
     right: -4,
     top: -4,
