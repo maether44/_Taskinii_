@@ -318,6 +318,10 @@ function formatTimer(secs) {
 export default function WorkoutActive({ route, navigation }) {
   const { user } = useAuth();
   const { pausePassive, resumePassive } = useAlexiVoice();
+  // speakYara: lightweight TTS wrapper (replaces old Yara voice system)
+  const speakYara = useCallback((text) => {
+    try { require('expo-speech').speak(text, { language: 'en-US', rate: 1.0 }); } catch (_) {}
+  }, []);
   const rawKey      = route.params?.exerciseKey || route.params?.exerciseName || 'squat';
   const isPostureMode = rawKey === 'posture_check' || route.params?.mode === 'posture';
   const htmlKey     = isPostureMode ? 'posture_check' : resolveHtmlKey(rawKey);

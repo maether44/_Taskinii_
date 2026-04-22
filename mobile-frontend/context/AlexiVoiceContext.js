@@ -61,22 +61,28 @@ export const AlexiEvents = {
 // DoNotMix during recording  → mic gets a clean signal, no bleed.
 // allowsRecordingIOS: false during playback → forces TTS to main speaker
 //   even when the phone is on Silent / Vibrate (exactly like Siri).
+// Use numeric fallbacks in case InterruptionMode enums are undefined on some SDK builds
+const IOS_DO_NOT_MIX   = InterruptionModeIOS?.DoNotMix   ?? 1;
+const IOS_DUCK_OTHERS  = InterruptionModeIOS?.DuckOthers  ?? 2;
+const AND_DO_NOT_MIX   = InterruptionModeAndroid?.DoNotMix  ?? 1;
+const AND_DUCK_OTHERS  = InterruptionModeAndroid?.DuckOthers ?? 2;
+
 const RECORDING_MODE = {
   allowsRecordingIOS:         true,
   playsInSilentModeIOS:       true,
-  interruptionModeIOS:        InterruptionModeIOS.DoNotMix,
+  interruptionModeIOS:        IOS_DO_NOT_MIX,
   shouldDuckAndroid:          false,
-  interruptionModeAndroid:    InterruptionModeAndroid.DoNotMix,
+  interruptionModeAndroid:    AND_DO_NOT_MIX,
   playThroughEarpieceAndroid: false,
   staysActiveInBackground:    false,
 };
 
 const PLAYBACK_MODE = {
-  allowsRecordingIOS:         false,   // KEY: main speaker even on Silent
+  allowsRecordingIOS:         false,
   playsInSilentModeIOS:       true,
-  interruptionModeIOS:        InterruptionModeIOS.DuckOthers,
+  interruptionModeIOS:        IOS_DUCK_OTHERS,
   shouldDuckAndroid:          true,
-  interruptionModeAndroid:    InterruptionModeAndroid.DuckOthers,
+  interruptionModeAndroid:    AND_DUCK_OTHERS,
   playThroughEarpieceAndroid: false,
   staysActiveInBackground:    false,
 };
