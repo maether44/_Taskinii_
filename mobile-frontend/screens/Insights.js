@@ -25,6 +25,7 @@ import { useAuth } from '../context/AuthContext';
 import { useMilestones } from '../context/MilestoneContext';
 import { generateAndCacheInsights } from '../services/yaraInsightsService';
 import { AppEvents, on } from '../lib/eventBus';
+import { AlexiEvents } from '../context/AlexiVoiceContext';
 import { error as logError } from '../lib/logger';
 import ReportCard from '../components/reports/ReportCard';
 import MilestonePath from '../components/reports/MilestonePath';
