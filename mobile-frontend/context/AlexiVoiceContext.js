@@ -41,6 +41,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Haptics from 'expo-haptics';
 import * as Speech from 'expo-speech';
 import { supabase } from '../lib/supabase';
+import { navigationRef } from '../lib/navigationRef';
 
 // ─── Cross-screen event bus — declared FIRST so every importer gets the same ref ──
 export const AlexiEvents = {
@@ -758,6 +759,16 @@ export function AlexiVoiceProvider({ children }) {
     console.log('[Alexi] Starting while loop. Muted:', mutedRef.current);
 
     while (alive()) {
+      // ── AI Vision screens — mic must be completely offline ─────────────────
+      const currentRoute = navigationRef.isReady() ? navigationRef.getCurrentRoute()?.name : null;
+      if (currentRoute === 'WorkoutActive' || currentRoute === 'PostureAI') {
+        console.log('[Alexi] AI Vision active. Standing down mic hardware.');
+        await stopAnyRecording();
+        setPassiveState('paused');
+        await new Promise(r => setTimeout(r, 2000));
+        continue;
+      }
+
       // ── Paused (app backgrounded) ───────────────────────────────────────────
       if (pausedRef.current) {
         setPassiveState('paused');
@@ -1044,7 +1055,10 @@ export function AlexiVoiceProvider({ children }) {
       if (wasActive && !isActive && loopRef.current && !pausedRef.current) {
         await pausePassive();
       } else if (!wasActive && isActive && loopRef.current && !mutedRef.current) {
-        resumePassive();
+        const route = navigationRef.isReady() ? navigationRef.getCurrentRoute()?.name : null;
+        if (route !== 'WorkoutActive' && route !== 'PostureAI') {
+          resumePassive();
+        }
       }
     });
     return () => sub.remove();

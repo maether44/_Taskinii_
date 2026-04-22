@@ -10,18 +10,18 @@ import Reanimated, {
 } from 'react-native-reanimated';
 import { WebView } from 'react-native-webview';
 import { Camera } from 'expo-camera';
-import { Asset } from 'expo-asset';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useAuth } from '../../context/AuthContext';
 import { saveWorkoutSession } from '../../services/workoutService';
 import { supabase } from '../../lib/supabase';
 import * as Speech from 'expo-speech';
-import { useAlexiVoice, AlexiEvents, stopAnyRecording } from '../../context/AlexiVoiceContext';
+import { AlexiEvents } from '../../context/AlexiVoiceContext';
 import { AppEvents, emit } from '../../lib/eventBus';
 import { error as logError, log } from '../../lib/logger';
 
 const { height: SH } = Dimensions.get('window');
+const coachHtml = require('../../assets/ai_coach.html');
 
 // ── Yara breathing tips (every 3 reps) ────────────────────────
 const BREATHING_TIPS = [
@@ -318,7 +318,6 @@ function formatTimer(secs) {
 // ─────────────────────────────────────────────────────────────
 export default function WorkoutActive({ route, navigation }) {
   const { user } = useAuth();
-  const { pausePassive, resumePassive } = useAlexiVoice();
   // speakYara: lightweight TTS wrapper (replaces old Yara voice system)
   const speakYara = useCallback((text) => {
     Speech.speak(text, { language: 'en-US', rate: 1.0 });
@@ -376,7 +375,6 @@ export default function WorkoutActive({ route, navigation }) {
 
   // ── State ───────────────────────────────────────────────────
   const [hasPermission,   setHasPermission]  = useState(null);
-  const [htmlContent,     setHtmlContent]    = useState(null);
   const [cue,             setCue]            = useState('Get ready…');
   const [repCount,        setRepCount]       = useState(0);
   const [formScore,       setFormScore]      = useState(0);
@@ -399,18 +397,12 @@ export default function WorkoutActive({ route, navigation }) {
   const restIntervalRef = useRef(null);
   const REST_DURATION = 60;
 
-  // ── Global Alexi passive loop — pause immediately, resume after camera releases ─
-  // isMicReleased gates the WebView and countdown so neither starts until the
-  // iOS AVAudioSession hardware is fully freed (800ms safety buffer).
+  // ── Hardware gate — AlexiVoiceContext self-gates when it sees this route,
+  // but we wait 800ms before allowing the WebView/camera to mount so the
+  // loop has time to detect the route and release the mic hardware.
   useEffect(() => {
-    async function release() {
-      await stopAnyRecording();
-      pausePassive();
-      setTimeout(() => setIsMicReleased(true), 800);
-    }
-    release();
-    return () => { setTimeout(() => resumePassive(), 2000); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    const t = setTimeout(() => setIsMicReleased(true), 800);
+    return () => clearTimeout(t);
   }, []);
 
   // ── Subscribe to global Alexi commands (e.g. triggered by other paths) ───────
@@ -450,21 +442,11 @@ export default function WorkoutActive({ route, navigation }) {
     };
   }, [navigation]);
 
-  // ── Camera permission + HTML preload ────────────────────────
+  // ── Camera permission ────────────────────────────────────────
   useEffect(() => {
-    (async () => {
-      const { status } = await Camera.requestCameraPermissionsAsync();
+    Camera.requestCameraPermissionsAsync().then(({ status }) => {
       setHasPermission(status === 'granted');
-      try {
-        const asset = Asset.fromModule(require('../../assets/ai_coach.html'));
-        await asset.downloadAsync();
-        const res  = await fetch(asset.localUri || asset.uri);
-        const text = await res.text();
-        setHtmlContent(text);
-      } catch (err) {
-        console.error('[BodyQ] HTML Load Error:', err);
-      }
-    })();
+    });
   }, []);
 
   // ── Live timer ──────────────────────────────────────────────
@@ -856,12 +838,12 @@ export default function WorkoutActive({ route, navigation }) {
       <StatusBar hidden />
 
       {/* ══ FULL-SCREEN AI CAMERA ══════════════════════════════ */}
-      {htmlContent && isMicReleased && (
+      {isMicReleased && (
         <Reanimated.View style={[StyleSheet.absoluteFillObject, cameraStyle]}>
           <WebView
             ref={webViewRef}
             originWhitelist={['*']}
-            source={{ html: htmlContent, baseUrl: 'https://localhost' }}
+            source={coachHtml}
             style={StyleSheet.absoluteFillObject}
             allowsInlineMediaPlayback
             mediaPlaybackRequiresUserAction={false}
