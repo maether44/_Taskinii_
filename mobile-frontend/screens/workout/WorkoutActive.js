@@ -1,10 +1,21 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
-  View, StyleSheet, TouchableOpacity, Text, Alert,
-  StatusBar, Animated, Platform, Dimensions, ScrollView,
+  View,
+  StyleSheet,
+  TouchableOpacity,
+  Text,
+  Alert,
+  StatusBar,
+  Animated,
+  Platform,
+  Dimensions,
+  ScrollView,
 } from 'react-native';
 import Reanimated, {
-  useSharedValue, useAnimatedStyle, withSpring, interpolate,
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  interpolate,
 } from 'react-native-reanimated';
 import { WebView } from 'react-native-webview';
 import * as Speech from 'expo-speech';
@@ -22,8 +33,14 @@ const { height: SH } = Dimensions.get('window');
 
 // ── Yara encouragement phrases ─────────────────────────────────
 const REP_PHRASES = [
-  'Nice work!', 'Power up!', 'Keep going!', 'Strong!',
-  'You got it!', 'One more!', 'Beast mode!', 'Perfect!',
+  'Nice work!',
+  'Power up!',
+  'Keep going!',
+  'Strong!',
+  'You got it!',
+  'One more!',
+  'Beast mode!',
+  'Perfect!',
 ];
 
 // ── Yara breathing tips (every 3 reps) ────────────────────────
@@ -38,13 +55,38 @@ const BREATHING_TIPS = [
 
 // ── Exercise → muscles targeted (for fatigue tracking) ─────────
 const EXERCISE_MUSCLES = {
-  squat:         [{ name: 'Quads', inc: 25 }, { name: 'Glutes', inc: 20 }, { name: 'Hamstrings', inc: 15 }],
-  pushup:        [{ name: 'Chest', inc: 25 }, { name: 'Triceps', inc: 20 }, { name: 'Shoulders', inc: 15 }],
-  bicepCurl:     [{ name: 'Biceps', inc: 30 }, { name: 'Forearms', inc: 15 }],
-  shoulderPress: [{ name: 'Shoulders', inc: 30 }, { name: 'Triceps', inc: 20 }],
-  deadlift:      [{ name: 'Hamstrings', inc: 25 }, { name: 'Glutes', inc: 20 }, { name: 'Back', inc: 25 }],
-  lunge:         [{ name: 'Quads', inc: 25 }, { name: 'Glutes', inc: 20 }, { name: 'Hamstrings', inc: 10 }],
-  plank:         [{ name: 'Core', inc: 25 }, { name: 'Shoulders', inc: 10 }],
+  squat: [
+    { name: 'Quads', inc: 25 },
+    { name: 'Glutes', inc: 20 },
+    { name: 'Hamstrings', inc: 15 },
+  ],
+  pushup: [
+    { name: 'Chest', inc: 25 },
+    { name: 'Triceps', inc: 20 },
+    { name: 'Shoulders', inc: 15 },
+  ],
+  bicepCurl: [
+    { name: 'Biceps', inc: 30 },
+    { name: 'Forearms', inc: 15 },
+  ],
+  shoulderPress: [
+    { name: 'Shoulders', inc: 30 },
+    { name: 'Triceps', inc: 20 },
+  ],
+  deadlift: [
+    { name: 'Hamstrings', inc: 25 },
+    { name: 'Glutes', inc: 20 },
+    { name: 'Back', inc: 25 },
+  ],
+  lunge: [
+    { name: 'Quads', inc: 25 },
+    { name: 'Glutes', inc: 20 },
+    { name: 'Hamstrings', inc: 10 },
+  ],
+  plank: [
+    { name: 'Core', inc: 25 },
+    { name: 'Shoulders', inc: 10 },
+  ],
 };
 
 // ── Canvas skeleton demo (Hologram Guide, Electric Violet glow) ─
@@ -142,15 +184,14 @@ tick();
 function resolveHtmlKey(name) {
   const k = name.trim().toLowerCase();
   if (k.includes('push') || k.includes('bench')) return 'pushup';
-  if (k.includes('squat'))                        return 'squat';
-  if (k.includes('curl'))                         return 'bicepCurl';
-  if (k.includes('press'))                        return 'shoulderPress';
+  if (k.includes('squat')) return 'squat';
+  if (k.includes('curl')) return 'bicepCurl';
+  if (k.includes('press')) return 'shoulderPress';
   if (k.includes('deadlift') || k.includes('rdl')) return 'deadlift';
-  if (k.includes('lunge'))                        return 'lunge';
-  if (k.includes('plank'))                        return 'plank';
+  if (k.includes('lunge')) return 'lunge';
+  if (k.includes('plank')) return 'plank';
   return null;
 }
-
 
 // ── Exercise instructions (shown in HelpOverlay) ───────────────
 const EXERCISE_INSTRUCTIONS = {
@@ -219,17 +260,17 @@ function HelpOverlay({ visible, exerciseKey, onClose }) {
 
   useEffect(() => {
     if (visible) {
-      slideY.value  = withSpring(0,   { damping: 18, stiffness: 220 });
-      opacity.value = withSpring(1,   { damping: 20, stiffness: 180 });
+      slideY.value = withSpring(0, { damping: 18, stiffness: 220 });
+      opacity.value = withSpring(1, { damping: 20, stiffness: 180 });
     } else {
-      slideY.value  = withSpring(300, { damping: 20, stiffness: 260 });
-      opacity.value = withSpring(0,   { damping: 20, stiffness: 260 });
+      slideY.value = withSpring(300, { damping: 20, stiffness: 260 });
+      opacity.value = withSpring(0, { damping: 20, stiffness: 260 });
     }
   }, [visible]);
 
   const cardStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: slideY.value }],
-    opacity:   opacity.value,
+    opacity: opacity.value,
   }));
 
   const key = exerciseKey || 'squat';
@@ -261,8 +302,14 @@ function HelpOverlay({ visible, exerciseKey, onClose }) {
             <Text style={hw.superLabel}>HOW TO MOVE</Text>
             <Text style={hw.exerciseName}>{label}</Text>
           </View>
-          <TouchableOpacity onPress={onClose} style={hw.closeBtn} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-            <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 18, fontWeight: '700' }}>✕</Text>
+          <TouchableOpacity
+            onPress={onClose}
+            style={hw.closeBtn}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 18, fontWeight: '700' }}>
+              ✕
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -291,25 +338,74 @@ function HelpOverlay({ visible, exerciseKey, onClose }) {
 const hw = StyleSheet.create({
   card: {
     position: 'absolute',
-    bottom: 0, left: 0, right: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
     backgroundColor: 'rgba(0,0,0,0.92)',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     paddingBottom: 36,
     overflow: 'hidden',
   },
-  accentBar:    { height: 3, backgroundColor: '#C6FF33', marginHorizontal: 40, borderRadius: 2, marginBottom: 0 },
-  header:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 20, paddingBottom: 12 },
-  superLabel:   { color: '#C6FF33', fontSize: 10, fontWeight: '900', letterSpacing: 2, marginBottom: 4 },
+  accentBar: {
+    height: 3,
+    backgroundColor: '#C6FF33',
+    marginHorizontal: 40,
+    borderRadius: 2,
+    marginBottom: 0,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    padding: 20,
+    paddingBottom: 12,
+  },
+  superLabel: {
+    color: '#C6FF33',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 2,
+    marginBottom: 4,
+  },
   exerciseName: { color: '#FFFFFF', fontSize: 20, fontWeight: '800', letterSpacing: -0.5 },
-  closeBtn:     { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
-  stepRow:      { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingHorizontal: 20, paddingVertical: 8 },
-  stepNum:      { width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(198,255,51,0.15)', borderWidth: 1, borderColor: 'rgba(198,255,51,0.5)', alignItems: 'center', justifyContent: 'center', marginTop: 1 },
-  stepNumTxt:   { color: '#C6FF33', fontSize: 11, fontWeight: '900' },
-  stepTxt:      { color: '#FFFFFF', fontSize: 14, lineHeight: 20, flex: 1 },
-  footer:       { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16, paddingHorizontal: 20 },
-  voiceDot:     { width: 7, height: 7, borderRadius: 3.5, backgroundColor: '#C6FF33' },
-  footerTxt:    { color: 'rgba(255,255,255,0.4)', fontSize: 11 },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+  },
+  stepNum: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(198,255,51,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(198,255,51,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  stepNumTxt: { color: '#C6FF33', fontSize: 11, fontWeight: '900' },
+  stepTxt: { color: '#FFFFFF', fontSize: 14, lineHeight: 20, flex: 1 },
+  footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 16,
+    paddingHorizontal: 20,
+  },
+  voiceDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: '#C6FF33' },
+  footerTxt: { color: 'rgba(255,255,255,0.4)', fontSize: 11 },
 });
 
 function formatTimer(secs) {
@@ -321,40 +417,40 @@ function formatTimer(secs) {
 // ─────────────────────────────────────────────────────────────
 export default function WorkoutActive({ route, navigation }) {
   const { user } = useAuth();
-  const rawKey      = route.params?.exerciseKey || route.params?.exerciseName || 'squat';
+  const rawKey = route.params?.exerciseKey || route.params?.exerciseName || 'squat';
   const isPostureMode = rawKey === 'posture_check' || route.params?.mode === 'posture';
-  const htmlKey     = isPostureMode ? 'posture_check' : resolveHtmlKey(rawKey);
+  const htmlKey = isPostureMode ? 'posture_check' : resolveHtmlKey(rawKey);
   const displayName = isPostureMode ? 'POSTURE SCAN' : rawKey.replace(/_/g, ' ').toUpperCase();
 
   // ── Refs ────────────────────────────────────────────────────
-  const webViewRef        = useRef(null);
-  const demoWebViewRef    = useRef(null);
-  const startTimeRef      = useRef(Date.now());
-  const formScoreSum      = useRef(0);
-  const formScoreCount    = useRef(0);
-  const isMountedRef      = useRef(true);
-  const pulseLoopActive   = useRef(false);
-  const timerIntervalRef  = useRef(null);
+  const webViewRef = useRef(null);
+  const demoWebViewRef = useRef(null);
+  const startTimeRef = useRef(Date.now());
+  const formScoreSum = useRef(0);
+  const formScoreCount = useRef(0);
+  const isMountedRef = useRef(true);
+  const pulseLoopActive = useRef(false);
+  const timerIntervalRef = useRef(null);
   const lastSpeechTimeRef = useRef(0);
-  const lastCueRef        = useRef('');
-  const repTimestampsRef  = useRef([]);
-  const tapCountRef       = useRef(0);
-  const tapTimerRef       = useRef(null);
+  const lastCueRef = useRef('');
+  const repTimestampsRef = useRef([]);
+  const tapCountRef = useRef(0);
+  const tapTimerRef = useRef(null);
 
   // ── Animated values ─────────────────────────────────────────
-  const countScaleAnim   = useRef(new Animated.Value(0.3)).current;
+  const countScaleAnim = useRef(new Animated.Value(0.3)).current;
   const countOpacityAnim = useRef(new Animated.Value(0)).current;
-  const glowOpacityAnim  = useRef(new Animated.Value(0)).current;
-  const syncScaleAnim    = useRef(new Animated.Value(0)).current;
+  const glowOpacityAnim = useRef(new Animated.Value(0)).current;
+  const syncScaleAnim = useRef(new Animated.Value(0)).current;
   // Mic pulse indicator
   const micPulseAnim = useRef(new Animated.Value(1)).current;
 
   // ── Reanimated shared values ─────────────────────────────────
-  const guideProg   = useSharedValue(0);  // 0=hidden 1=shown
-  const cameraAlpha = useSharedValue(0);  // 0=invisible 1=visible
+  const guideProg = useSharedValue(0); // 0=hidden 1=shown
+  const cameraAlpha = useSharedValue(0); // 0=invisible 1=visible
 
   const guideCardStyle = useAnimatedStyle(() => ({
-    opacity:   interpolate(guideProg.value, [0, 0.35, 1], [0, 1, 1]),
+    opacity: interpolate(guideProg.value, [0, 0.35, 1], [0, 1, 1]),
     transform: [{ scale: interpolate(guideProg.value, [0, 1], [0.82, 1]) }],
   }));
 
@@ -367,35 +463,35 @@ export default function WorkoutActive({ route, navigation }) {
   }));
 
   // ── State ───────────────────────────────────────────────────
-  const [hasPermission,   setHasPermission]  = useState(null);
-  const [htmlContent,     setHtmlContent]    = useState(null);
-  const [cue,             setCue]            = useState('Get ready…');
-  const [repCount,        setRepCount]       = useState(0);
-  const [formScore,       setFormScore]      = useState(0);
-  const [isCountingDown,  setIsCountingDown] = useState(true);
-  const [countStep,       setCountStep]      = useState(null);
-  const [timerSecs,       setTimerSecs]      = useState(0);
-  const [timerRunning,    setTimerRunning]   = useState(false);
-  const [inSync,          setInSync]         = useState(false);
-  const [guideVisible,    setGuideVisible]   = useState(false);
+  const [hasPermission, setHasPermission] = useState(null);
+  const [htmlContent, setHtmlContent] = useState(null);
+  const [cue, setCue] = useState('Get ready…');
+  const [repCount, setRepCount] = useState(0);
+  const [formScore, setFormScore] = useState(0);
+  const [isCountingDown, setIsCountingDown] = useState(true);
+  const [countStep, setCountStep] = useState(null);
+  const [timerSecs, setTimerSecs] = useState(0);
+  const [timerRunning, setTimerRunning] = useState(false);
+  const [inSync, setInSync] = useState(false);
+  const [guideVisible, setGuideVisible] = useState(false);
   // Once true, keeps the guide WebView mounted for instant re-show
-  const [guideEverShown,  setGuideEverShown] = useState(false);
+  const [guideEverShown, setGuideEverShown] = useState(false);
   // Voice-command triggered help overlay
-  const [isHelpVisible,   setIsHelpVisible]  = useState(false);
+  const [isHelpVisible, setIsHelpVisible] = useState(false);
   // Whether SpeechRecognition is supported in this WebView
-  const [srSupported,     setSrSupported]    = useState(true);
+  const [srSupported, setSrSupported] = useState(true);
 
   // ── Cleanup on unmount ──────────────────────────────────────
   useEffect(() => {
     return () => {
-      isMountedRef.current    = false;
+      isMountedRef.current = false;
       pulseLoopActive.current = false;
       clearInterval(timerIntervalRef.current);
       clearTimeout(tapTimerRef.current);
       Speech.stop().catch(() => {});
       // Tell the WebView to stop speech recognition to save battery
       webViewRef.current?.injectJavaScript(
-        'if(window.onRNMessage) window.onRNMessage(\'{"type":"STOP_VOICE"}\'); true;'
+        'if(window.onRNMessage) window.onRNMessage(\'{"type":"STOP_VOICE"}\'); true;',
       );
     };
   }, []);
@@ -403,9 +499,15 @@ export default function WorkoutActive({ route, navigation }) {
   // ── Hide tab bar ────────────────────────────────────────────
   useEffect(() => {
     navigation.getParent()?.setOptions({ tabBarStyle: { display: 'none' } });
-    return () => navigation.getParent()?.setOptions({
-      tabBarStyle: { backgroundColor: '#0F0B1E', borderTopColor: '#1E1A35', height: 85, paddingBottom: 20 },
-    });
+    return () =>
+      navigation.getParent()?.setOptions({
+        tabBarStyle: {
+          backgroundColor: '#0F0B1E',
+          borderTopColor: '#1E1A35',
+          height: 85,
+          paddingBottom: 20,
+        },
+      });
   }, [navigation]);
 
   // ── Camera permission + HTML preload ────────────────────────
@@ -416,7 +518,7 @@ export default function WorkoutActive({ route, navigation }) {
       try {
         const asset = Asset.fromModule(require('../../assets/ai_coach.html'));
         await asset.downloadAsync();
-        const res  = await fetch(asset.localUri || asset.uri);
+        const res = await fetch(asset.localUri || asset.uri);
         const text = await res.text();
         setHtmlContent(text);
       } catch (err) {
@@ -429,7 +531,7 @@ export default function WorkoutActive({ route, navigation }) {
   useEffect(() => {
     if (timerRunning) {
       timerIntervalRef.current = setInterval(() => {
-        if (isMountedRef.current) setTimerSecs(s => s + 1);
+        if (isMountedRef.current) setTimerSecs((s) => s + 1);
       }, 1000);
     } else {
       clearInterval(timerIntervalRef.current);
@@ -440,7 +542,7 @@ export default function WorkoutActive({ route, navigation }) {
   // ── Electric Violet screen glow on perfect form ─────────────
   useEffect(() => {
     Animated.timing(glowOpacityAnim, {
-      toValue:  formScore === 100 ? 1 : 0,
+      toValue: formScore === 100 ? 1 : 0,
       duration: formScore === 100 ? 500 : 200,
       useNativeDriver: true,
     }).start();
@@ -452,7 +554,7 @@ export default function WorkoutActive({ route, navigation }) {
       Animated.sequence([
         Animated.timing(micPulseAnim, { toValue: 1.4, duration: 900, useNativeDriver: true }),
         Animated.timing(micPulseAnim, { toValue: 1.0, duration: 900, useNativeDriver: true }),
-      ])
+      ]),
     );
     loop.start();
     return () => loop.stop();
@@ -468,21 +570,30 @@ export default function WorkoutActive({ route, navigation }) {
   }, []);
 
   // ── IN SYNC detection ────────────────────────────────────────
-  const updateSync = useCallback((count) => {
-    const ts = repTimestampsRef.current;
-    if (ts.length < 2 || count < 3) { setInSync(false); return; }
-    const intervals = [];
-    for (let i = 1; i < ts.length; i++) intervals.push(ts[i] - ts[i - 1]);
-    const avg      = intervals.reduce((a, b) => a + b, 0) / intervals.length;
-    const variance = intervals.reduce((s, t) => s + Math.abs(t - avg), 0) / intervals.length;
-    const consistent = avg > 800 && avg < 8000 && (variance / avg) < 0.35;
-    if (consistent !== inSync) {
-      setInSync(consistent);
-      Animated.spring(syncScaleAnim, {
-        toValue: consistent ? 1 : 0, tension: 220, friction: 7, useNativeDriver: true,
-      }).start();
-    }
-  }, [inSync, syncScaleAnim]);
+  const updateSync = useCallback(
+    (count) => {
+      const ts = repTimestampsRef.current;
+      if (ts.length < 2 || count < 3) {
+        setInSync(false);
+        return;
+      }
+      const intervals = [];
+      for (let i = 1; i < ts.length; i++) intervals.push(ts[i] - ts[i - 1]);
+      const avg = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+      const variance = intervals.reduce((s, t) => s + Math.abs(t - avg), 0) / intervals.length;
+      const consistent = avg > 800 && avg < 8000 && variance / avg < 0.35;
+      if (consistent !== inSync) {
+        setInSync(consistent);
+        Animated.spring(syncScaleAnim, {
+          toValue: consistent ? 1 : 0,
+          tension: 220,
+          friction: 7,
+          useNativeDriver: true,
+        }).start();
+      }
+    },
+    [inSync, syncScaleAnim],
+  );
 
   // ── Floating Guide show / hide ────────────────────────────────
   const showGuide = useCallback(() => {
@@ -492,7 +603,7 @@ export default function WorkoutActive({ route, navigation }) {
     if (htmlKey) {
       setTimeout(() => {
         demoWebViewRef.current?.injectJavaScript(
-          `window.setExercise && window.setExercise('${htmlKey}'); true;`
+          `window.setExercise && window.setExercise('${htmlKey}'); true;`,
         );
       }, 350);
     }
@@ -512,8 +623,10 @@ export default function WorkoutActive({ route, navigation }) {
       if (!pulseLoopActive.current || !isMountedRef.current) return;
       Animated.sequence([
         Animated.timing(countScaleAnim, { toValue: 1.12, duration: 260, useNativeDriver: true }),
-        Animated.timing(countScaleAnim, { toValue: 1.00, duration: 260, useNativeDriver: true }),
-      ]).start(({ finished }) => { if (finished) runPulse(); });
+        Animated.timing(countScaleAnim, { toValue: 1.0, duration: 260, useNativeDriver: true }),
+      ]).start(({ finished }) => {
+        if (finished) runPulse();
+      });
     };
 
     const showStep = () => {
@@ -536,7 +649,12 @@ export default function WorkoutActive({ route, navigation }) {
       countOpacityAnim.setValue(0);
 
       Animated.parallel([
-        Animated.spring(countScaleAnim, { toValue: 1, tension: 220, friction: 7, useNativeDriver: true }),
+        Animated.spring(countScaleAnim, {
+          toValue: 1,
+          tension: 220,
+          friction: 7,
+          useNativeDriver: true,
+        }),
         Animated.timing(countOpacityAnim, { toValue: 1, duration: 100, useNativeDriver: true }),
       ]).start(() => {
         pulseLoopActive.current = true;
@@ -545,8 +663,14 @@ export default function WorkoutActive({ route, navigation }) {
         setTimeout(() => {
           if (!isMountedRef.current) return;
           pulseLoopActive.current = false;
-          Animated.timing(countOpacityAnim, { toValue: 0, duration: 200, useNativeDriver: true })
-            .start(() => { i++; showStep(); });
+          Animated.timing(countOpacityAnim, {
+            toValue: 0,
+            duration: 200,
+            useNativeDriver: true,
+          }).start(() => {
+            i++;
+            showStep();
+          });
         }, hold);
       });
     };
@@ -554,217 +678,255 @@ export default function WorkoutActive({ route, navigation }) {
     showStep();
   }, [countScaleAnim, countOpacityAnim, speakYara]);
 
-  useEffect(() => { startCountdown(); }, [startCountdown]);
+  useEffect(() => {
+    startCountdown();
+  }, [startCountdown]);
 
   // ── WebView message bridge ──────────────────────────────────
-  const onMessage = useCallback((e) => {
-    const data = e.nativeEvent.data;
+  const onMessage = useCallback(
+    (e) => {
+      const data = e.nativeEvent.data;
 
-    if (data === 'AI_READY') {
-      if (isPostureMode) {
-        webViewRef.current?.injectJavaScript('window.startPostureMode && window.startPostureMode(); true;');
-        webViewRef.current?.injectJavaScript('window.startAI && window.startAI(); true;');
-        setTimeout(() => speakYara('Stand straight and face the camera. I will scan your posture.'), 400);
-      } else {
-        if (htmlKey) {
+      if (data === 'AI_READY') {
+        if (isPostureMode) {
           webViewRef.current?.injectJavaScript(
-            `window.applyExerciseChange && window.applyExerciseChange('${htmlKey}'); true;`
+            'window.startPostureMode && window.startPostureMode(); true;',
+          );
+          webViewRef.current?.injectJavaScript('window.startAI && window.startAI(); true;');
+          setTimeout(
+            () => speakYara('Stand straight and face the camera. I will scan your posture.'),
+            400,
+          );
+        } else {
+          if (htmlKey) {
+            webViewRef.current?.injectJavaScript(
+              `window.applyExerciseChange && window.applyExerciseChange('${htmlKey}'); true;`,
+            );
+          }
+          webViewRef.current?.injectJavaScript('window.startAI && window.startAI(); true;');
+          setTimeout(() => speakYara("I'm watching your form. Begin when you are ready."), 400);
+        }
+        return;
+      }
+
+      try {
+        const msg = JSON.parse(data);
+
+        if (msg.type === 'cue') {
+          setCue(msg.text);
+          if (msg.formScore !== undefined) {
+            setFormScore(msg.formScore);
+            formScoreSum.current += msg.formScore;
+            formScoreCount.current += 1;
+          }
+          const isBadForm =
+            msg.text && !msg.text.includes('Great form') && !msg.text.includes('Detecting');
+          if (isBadForm && msg.text !== lastCueRef.current) {
+            lastCueRef.current = msg.text;
+            speakYara(msg.text);
+          }
+        }
+
+        if (msg.type === 'REP_COUNTED') {
+          setRepCount(msg.count);
+          repTimestampsRef.current = [...repTimestampsRef.current.slice(-4), Date.now()];
+          updateSync(msg.count);
+          if (msg.count % 3 === 0) {
+            speakYara(BREATHING_TIPS[Math.floor(msg.count / 3 - 1) % BREATHING_TIPS.length]);
+          } else {
+            speakYara(REP_PHRASES[(msg.count - 1) % REP_PHRASES.length]);
+          }
+        }
+
+        if (msg.type === 'CALIBRATED') {
+          speakYara(
+            isPostureMode
+              ? 'Body detected. Hold still for your posture scan.'
+              : 'Body detected. Calibration complete.',
           );
         }
-        webViewRef.current?.injectJavaScript('window.startAI && window.startAI(); true;');
-        setTimeout(() => speakYara("I'm watching your form. Begin when you are ready."), 400);
-      }
-      return;
-    }
 
-    try {
-      const msg = JSON.parse(data);
-
-      if (msg.type === 'cue') {
-        setCue(msg.text);
-        if (msg.formScore !== undefined) {
-          setFormScore(msg.formScore);
-          formScoreSum.current   += msg.formScore;
-          formScoreCount.current += 1;
+        if (msg.type === 'POSTURE_SCORE') {
+          setFormScore(msg.score);
+          setCue(msg.verdict);
+          speakYara(msg.verdict);
         }
-        const isBadForm = msg.text && !msg.text.includes('Great form') && !msg.text.includes('Detecting');
-        if (isBadForm && msg.text !== lastCueRef.current) {
-          lastCueRef.current = msg.text;
-          speakYara(msg.text);
+
+        if (msg.type === 'VOICE_COMMAND') {
+          if (msg.action === 'OPEN_HELP') setIsHelpVisible(true);
+          if (msg.action === 'CLOSE_HELP') setIsHelpVisible(false);
+          if (msg.action === 'SR_UNSUPPORTED') setSrSupported(false);
+          if (msg.action === 'SR_STARTED') setSrSupported(true);
         }
-      }
 
-      if (msg.type === 'REP_COUNTED') {
-        setRepCount(msg.count);
-        repTimestampsRef.current = [...repTimestampsRef.current.slice(-4), Date.now()];
-        updateSync(msg.count);
-        if (msg.count % 3 === 0) {
-          speakYara(BREATHING_TIPS[Math.floor(msg.count / 3 - 1) % BREATHING_TIPS.length]);
-        } else {
-          speakYara(REP_PHRASES[(msg.count - 1) % REP_PHRASES.length]);
+        if (msg.type === 'SYNC_STATUS') {
+          const s = !!msg.inSync;
+          setInSync(s);
+          Animated.spring(syncScaleAnim, {
+            toValue: s ? 1 : 0,
+            tension: 220,
+            friction: 7,
+            useNativeDriver: true,
+          }).start();
         }
-      }
 
-      if (msg.type === 'CALIBRATED') {
-        speakYara(isPostureMode ? 'Body detected. Hold still for your posture scan.' : 'Body detected. Calibration complete.');
-      }
+        if (msg.type === 'SESSION_COMPLETE') {
+          const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+          const avgFormScore =
+            formScoreCount.current > 0
+              ? Math.round(formScoreSum.current / formScoreCount.current)
+              : (msg.score ?? 0);
+          const calories = Math.max(1, msg.reps * 5);
 
-      if (msg.type === 'POSTURE_SCORE') {
-        setFormScore(msg.score);
-        setCue(msg.verdict);
-        speakYara(msg.verdict);
-      }
+          setTimerRunning(false);
+          Speech.stop().catch(() => {});
+          speakYara(
+            msg.reps > 0
+              ? `Session complete! ${msg.reps} reps. Incredible work!`
+              : 'Session saved. Great effort!',
+          );
 
-      if (msg.type === 'VOICE_COMMAND') {
-        if (msg.action === 'OPEN_HELP')       setIsHelpVisible(true);
-        if (msg.action === 'CLOSE_HELP')      setIsHelpVisible(false);
-        if (msg.action === 'SR_UNSUPPORTED')  setSrSupported(false);
-        if (msg.action === 'SR_STARTED')      setSrSupported(true);
-      }
-
-      if (msg.type === 'SYNC_STATUS') {
-        const s = !!msg.inSync;
-        setInSync(s);
-        Animated.spring(syncScaleAnim, {
-          toValue: s ? 1 : 0, tension: 220, friction: 7, useNativeDriver: true,
-        }).start();
-      }
-
-      if (msg.type === 'SESSION_COMPLETE') {
-        const elapsed      = Math.floor((Date.now() - startTimeRef.current) / 1000);
-        const avgFormScore = formScoreCount.current > 0
-          ? Math.round(formScoreSum.current / formScoreCount.current)
-          : (msg.score ?? 0);
-        const calories = Math.max(1, msg.reps * 5);
-
-        setTimerRunning(false);
-        Speech.stop().catch(() => {});
-        speakYara(msg.reps > 0 ? `Session complete! ${msg.reps} reps. Incredible work!` : 'Session saved. Great effort!');
-
-        (async () => {
-          let sessionId = null;
-          if (user?.id) {
-            sessionId = await saveWorkoutSession({
-              userId:         user.id,
-              exerciseKey:    htmlKey ?? rawKey,
-              exerciseName:   msg.exercise || displayName,
-              reps:           msg.reps,
-              postureScore:   avgFormScore,
-              caloriesBurned: calories,
-            });
-
-            try {
-              const TODAY = new Date().toISOString().split('T')[0];
-              const { data: existing } = await supabase
-                .from('daily_activity')
-                .select('id, calories_burned')
-                .eq('user_id', user.id)
-                .eq('date', TODAY)
-                .maybeSingle();
-
-              const newTotal = (existing?.calories_burned || 0) + calories;
-              if (existing) {
-                await supabase.from('daily_activity').update({ calories_burned: newTotal }).eq('id', existing.id);
-              } else {
-                await supabase.from('daily_activity').insert({ user_id: user.id, date: TODAY, calories_burned: newTotal });
-              }
-            } catch (e) {
-              logError('[BodyQ] daily_activity:', e.message);
-            }
-
-            // Award XP for completing workout
-            try {
-              const { data: xpResult, error: xpError } = await supabase.rpc('award_xp', {
-                p_user_id: user.id,
-                p_amount: 50,
-                p_source: 'workout',
-                p_description: `Completed ${msg.exercise || displayName} workout`
+          (async () => {
+            let sessionId = null;
+            if (user?.id) {
+              sessionId = await saveWorkoutSession({
+                userId: user.id,
+                exerciseKey: htmlKey ?? rawKey,
+                exerciseName: msg.exercise || displayName,
+                reps: msg.reps,
+                postureScore: avgFormScore,
+                caloriesBurned: calories,
               });
-              if (xpError) logError('[BodyQ] award_xp:', xpError);
-              else {
-                log('[BodyQ] XP awarded:', xpResult);
-                emit(AppEvents.XP_AWARDED, { amount: 50, source: 'workout', result: xpResult });
-              }
-            } catch (e) {
-              logError('[BodyQ] award_xp exception:', e);
-            }
 
-            // Check for achievements
-            try {
-              const { data: achievementsResult, error: achError } = await supabase.rpc('check_achievements', {
-                p_user_id: user.id
-              });
-              if (achError) logError('[BodyQ] check_achievements:', achError);
-              else if (achievementsResult?.awarded?.length > 0) {
-                log('[BodyQ] Achievements awarded:', achievementsResult.awarded);
-                const newAchievements = achievementsResult.awarded;
-                emit(AppEvents.ACHIEVEMENT_AWARDED, { awarded: newAchievements });
-                if (newAchievements.length > 0) {
-                  const achievement = newAchievements[0]; // Show first new achievement
-                  Alert.alert(
-                    '🏆 Achievement Unlocked!',
-                    `${achievement.achievement || achievement.name}\n${achievement.description || ''}\n+${achievement.xp_reward || 0} XP`,
-                    [{ text: 'Awesome!' }]
-                  );
+              try {
+                const TODAY = new Date().toISOString().split('T')[0];
+                const { data: existing } = await supabase
+                  .from('daily_activity')
+                  .select('id, calories_burned')
+                  .eq('user_id', user.id)
+                  .eq('date', TODAY)
+                  .maybeSingle();
+
+                const newTotal = (existing?.calories_burned || 0) + calories;
+                if (existing) {
+                  await supabase
+                    .from('daily_activity')
+                    .update({ calories_burned: newTotal })
+                    .eq('id', existing.id);
+                } else {
+                  await supabase
+                    .from('daily_activity')
+                    .insert({ user_id: user.id, date: TODAY, calories_burned: newTotal });
+                }
+              } catch (e) {
+                logError('[BodyQ] daily_activity:', e.message);
+              }
+
+              // Award XP for completing workout
+              try {
+                const { data: xpResult, error: xpError } = await supabase.rpc('award_xp', {
+                  p_user_id: user.id,
+                  p_amount: 50,
+                  p_source: 'workout',
+                  p_description: `Completed ${msg.exercise || displayName} workout`,
+                });
+                if (xpError) logError('[BodyQ] award_xp:', xpError);
+                else {
+                  log('[BodyQ] XP awarded:', xpResult);
+                  emit(AppEvents.XP_AWARDED, { amount: 50, source: 'workout', result: xpResult });
+                }
+              } catch (e) {
+                logError('[BodyQ] award_xp exception:', e);
+              }
+
+              // Check for achievements
+              try {
+                const { data: achievementsResult, error: achError } = await supabase.rpc(
+                  'check_achievements',
+                  {
+                    p_user_id: user.id,
+                  },
+                );
+                if (achError) logError('[BodyQ] check_achievements:', achError);
+                else if (achievementsResult?.awarded?.length > 0) {
+                  log('[BodyQ] Achievements awarded:', achievementsResult.awarded);
+                  const newAchievements = achievementsResult.awarded;
+                  emit(AppEvents.ACHIEVEMENT_AWARDED, { awarded: newAchievements });
+                  if (newAchievements.length > 0) {
+                    const achievement = newAchievements[0]; // Show first new achievement
+                    Alert.alert(
+                      '🏆 Achievement Unlocked!',
+                      `${achievement.achievement || achievement.name}\n${achievement.description || ''}\n+${achievement.xp_reward || 0} XP`,
+                      [{ text: 'Awesome!' }],
+                    );
+                  }
+                }
+              } catch (e) {
+                logError('[BodyQ] check_achievements exception:', e);
+              }
+
+              // ── Update muscle fatigue ───────────────────────────
+              const muscles = EXERCISE_MUSCLES[htmlKey] || [];
+              if (muscles.length > 0) {
+                try {
+                  const { data: currentRows } = await supabase
+                    .from('muscle_fatigue')
+                    .select('muscle_name, fatigue_pct')
+                    .eq('user_id', user.id)
+                    .in(
+                      'muscle_name',
+                      muscles.map((m) => m.name),
+                    );
+
+                  const currentMap = {};
+                  (currentRows || []).forEach((r) => {
+                    currentMap[r.muscle_name] = r.fatigue_pct;
+                  });
+
+                  const upserts = muscles.map((m) => ({
+                    user_id: user.id,
+                    muscle_name: m.name,
+                    fatigue_pct: Math.min(100, (currentMap[m.name] || 0) + m.inc),
+                    last_updated: new Date().toISOString(),
+                  }));
+
+                  await supabase
+                    .from('muscle_fatigue')
+                    .upsert(upserts, { onConflict: 'user_id,muscle_name' });
+                } catch (e) {
+                  logError('[BodyQ] muscle_fatigue:', e.message);
                 }
               }
-            } catch (e) {
-              logError('[BodyQ] check_achievements exception:', e);
+
+              // Signal: workout is done — refresh TodayContext + any other subscribers
+              emit(AppEvents.WORKOUT_COMPLETED, {
+                sessionId,
+                exerciseKey: htmlKey ?? rawKey,
+                exerciseName: msg.exercise || displayName,
+                reps: msg.reps,
+                calories,
+                postureScore: avgFormScore,
+              });
             }
 
-            // ── Update muscle fatigue ───────────────────────────
-            const muscles = EXERCISE_MUSCLES[htmlKey] || [];
-            if (muscles.length > 0) {
-              try {
-                const { data: currentRows } = await supabase
-                  .from('muscle_fatigue')
-                  .select('muscle_name, fatigue_pct')
-                  .eq('user_id', user.id)
-                  .in('muscle_name', muscles.map(m => m.name));
-
-                const currentMap = {};
-                (currentRows || []).forEach(r => { currentMap[r.muscle_name] = r.fatigue_pct; });
-
-                const upserts = muscles.map(m => ({
-                  user_id:      user.id,
-                  muscle_name:  m.name,
-                  fatigue_pct:  Math.min(100, (currentMap[m.name] || 0) + m.inc),
-                  last_updated: new Date().toISOString(),
-                }));
-
-                await supabase
-                  .from('muscle_fatigue')
-                  .upsert(upserts, { onConflict: 'user_id,muscle_name' });
-              } catch (e) {
-                logError('[BodyQ] muscle_fatigue:', e.message);
-              }
-            }
-
-            // Signal: workout is done — refresh TodayContext + any other subscribers
-            emit(AppEvents.WORKOUT_COMPLETED, {
+            navigation.replace('WorkoutSummary', {
+              exerciseName: displayName,
+              repCount: msg.reps,
+              formScore: avgFormScore,
+              elapsed,
               sessionId,
-              exerciseKey: htmlKey ?? rawKey,
-              exerciseName: msg.exercise || displayName,
-              reps: msg.reps,
-              calories,
-              postureScore: avgFormScore,
             });
-          }
-
-          navigation.replace('WorkoutSummary', {
-            exerciseName: displayName,
-            repCount:     msg.reps,
-            formScore:    avgFormScore,
-            elapsed,
-            sessionId,
-          });
-        })();
-      }
-    } catch (_) {}
-  }, [navigation, displayName, htmlKey, rawKey, user, speakYara, updateSync, syncScaleAnim]);
+          })();
+        }
+      } catch (_) {}
+    },
+    [navigation, displayName, htmlKey, rawKey, user, speakYara, updateSync, syncScaleAnim],
+  );
 
   const handleFinish = useCallback(() => {
-    webViewRef.current?.injectJavaScript('if (window.getSessionState) window.getSessionState(); true;');
+    webViewRef.current?.injectJavaScript(
+      'if (window.getSessionState) window.getSessionState(); true;',
+    );
   }, []);
 
   // ── Double-tap camera area → finish ──────────────────────────
@@ -772,13 +934,17 @@ export default function WorkoutActive({ route, navigation }) {
     if (isCountingDown) return;
     tapCountRef.current += 1;
     if (tapCountRef.current === 1) {
-      tapTimerRef.current = setTimeout(() => { tapCountRef.current = 0; }, 400);
+      tapTimerRef.current = setTimeout(() => {
+        tapCountRef.current = 0;
+      }, 400);
     } else if (tapCountRef.current >= 2) {
       clearTimeout(tapTimerRef.current);
       tapCountRef.current = 0;
       speakYara('Finishing session.');
       setTimeout(() => {
-        webViewRef.current?.injectJavaScript('if (window.getSessionState) window.getSessionState(); true;');
+        webViewRef.current?.injectJavaScript(
+          'if (window.getSessionState) window.getSessionState(); true;',
+        );
       }, 800);
     }
   }, [isCountingDown, speakYara]);
@@ -825,7 +991,7 @@ export default function WorkoutActive({ route, navigation }) {
             allowsInlineMediaPlayback
             mediaPlaybackRequiresUserAction={false}
             startInLoadingState={false}
-            onPermissionRequest={e => e.grant(e.resources)}
+            onPermissionRequest={(e) => e.grant(e.resources)}
             javaScriptEnabled
             domStorageEnabled
             scrollEnabled={false}
@@ -837,11 +1003,7 @@ export default function WorkoutActive({ route, navigation }) {
 
       {/* ── Double-tap invisible overlay (large gesture finish) ─ */}
       {!isCountingDown && (
-        <TouchableOpacity
-          activeOpacity={1}
-          style={s.doubleTapZone}
-          onPress={handleDoubleTap}
-        />
+        <TouchableOpacity activeOpacity={1} style={s.doubleTapZone} onPress={handleDoubleTap} />
       )}
 
       {/* ══ HUD LAYER (all glass, absolutePositioned) ══════════ */}
@@ -917,7 +1079,11 @@ export default function WorkoutActive({ route, navigation }) {
             pointerEvents={guideVisible ? 'auto' : 'none'}
             style={[s.guideBackdrop, guideBackdropStyle]}
           >
-            <TouchableOpacity style={StyleSheet.absoluteFillObject} onPress={hideGuide} activeOpacity={1} />
+            <TouchableOpacity
+              style={StyleSheet.absoluteFillObject}
+              onPress={hideGuide}
+              activeOpacity={1}
+            />
           </Reanimated.View>
 
           {/* Modal card */}
@@ -932,14 +1098,15 @@ export default function WorkoutActive({ route, navigation }) {
             <View style={s.guideAccentBar} />
 
             <View style={s.guideCardInner}>
-
               {/* ── Header ─────────────────────────────────── */}
               <View style={s.guideHeader}>
                 <View style={s.guideHeaderLeft}>
                   <View style={s.guidePulseDot} />
                   <View>
                     <Text style={s.guideSuperLabel}>FORM GUIDE</Text>
-                    <Text style={s.guideExName} numberOfLines={1}>{displayName}</Text>
+                    <Text style={s.guideExName} numberOfLines={1}>
+                      {displayName}
+                    </Text>
                   </View>
                 </View>
                 <TouchableOpacity onPress={hideGuide} style={s.guideCloseBtn}>
@@ -950,10 +1117,30 @@ export default function WorkoutActive({ route, navigation }) {
               {/* ── Skeleton animation ─────────────────────── */}
               <View style={s.guideWebViewWrap}>
                 {/* Corner glow accents */}
-                <View style={[s.cornerAccent, { top: 0, left: 0, borderTopWidth: 2, borderLeftWidth: 2 }]} />
-                <View style={[s.cornerAccent, { top: 0, right: 0, borderTopWidth: 2, borderRightWidth: 2 }]} />
-                <View style={[s.cornerAccent, { bottom: 0, left: 0, borderBottomWidth: 2, borderLeftWidth: 2 }]} />
-                <View style={[s.cornerAccent, { bottom: 0, right: 0, borderBottomWidth: 2, borderRightWidth: 2 }]} />
+                <View
+                  style={[
+                    s.cornerAccent,
+                    { top: 0, left: 0, borderTopWidth: 2, borderLeftWidth: 2 },
+                  ]}
+                />
+                <View
+                  style={[
+                    s.cornerAccent,
+                    { top: 0, right: 0, borderTopWidth: 2, borderRightWidth: 2 },
+                  ]}
+                />
+                <View
+                  style={[
+                    s.cornerAccent,
+                    { bottom: 0, left: 0, borderBottomWidth: 2, borderLeftWidth: 2 },
+                  ]}
+                />
+                <View
+                  style={[
+                    s.cornerAccent,
+                    { bottom: 0, right: 0, borderBottomWidth: 2, borderRightWidth: 2 },
+                  ]}
+                />
 
                 <WebView
                   ref={demoWebViewRef}
@@ -966,7 +1153,7 @@ export default function WorkoutActive({ route, navigation }) {
                   onLoad={() => {
                     if (htmlKey) {
                       demoWebViewRef.current?.injectJavaScript(
-                        `window.setExercise && window.setExercise('${htmlKey}'); true;`
+                        `window.setExercise && window.setExercise('${htmlKey}'); true;`,
                       );
                     }
                   }}
@@ -994,7 +1181,9 @@ export default function WorkoutActive({ route, navigation }) {
         <View style={s.bottomRow}>
           <BlurView intensity={40} tint="dark" style={s.cuePill}>
             <Ionicons name="sparkles" size={11} color="#C8F135" style={{ marginRight: 6 }} />
-            <Text style={s.cueText} numberOfLines={1}>{cue}</Text>
+            <Text style={s.cueText} numberOfLines={1}>
+              {cue}
+            </Text>
           </BlurView>
           <TouchableOpacity style={s.finishBtn} onPress={handleFinish}>
             <Ionicons name="checkmark" size={18} color="#000" />
@@ -1003,10 +1192,7 @@ export default function WorkoutActive({ route, navigation }) {
       )}
 
       {/* ══ PERFECT FORM — SCREEN EDGE GLOW ════════════════════ */}
-      <Animated.View
-        pointerEvents="none"
-        style={[s.screenGlow, { opacity: glowOpacityAnim }]}
-      />
+      <Animated.View pointerEvents="none" style={[s.screenGlow, { opacity: glowOpacityAnim }]} />
 
       {/* ══ CINEMATIC COUNTDOWN OVERLAY ═══════════════════════ */}
       {isCountingDown && (
@@ -1040,71 +1226,133 @@ export default function WorkoutActive({ route, navigation }) {
 // ─── Styles ────────────────────────────────────────────────────
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
-  center:    { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0F0B1E' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0F0B1E' },
 
   // ── Double-tap zone ─────────────────────────────────────────
   doubleTapZone: {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: 100,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 100,
     zIndex: 20,
   },
 
   // ── Top-left: Live AI tag + exercise name + timer ──────────
   liveTag: {
-    position: 'absolute', top: 52, left: 16,
-    flexDirection: 'row', alignItems: 'center',
-    borderRadius: 20, overflow: 'hidden',
-    paddingHorizontal: 12, paddingVertical: 7,
+    position: 'absolute',
+    top: 52,
+    left: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 20,
+    overflow: 'hidden',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
     zIndex: 40,
   },
-  liveDot:   { width: 6, height: 6, borderRadius: 3, backgroundColor: '#C8F135', marginRight: 7, shadowColor: '#C8F135', shadowOpacity: 1, shadowRadius: 5 },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#C8F135',
+    marginRight: 7,
+    shadowColor: '#C8F135',
+    shadowOpacity: 1,
+    shadowRadius: 5,
+  },
   liveLabel: { color: '#FFF', fontSize: 10, fontWeight: '900', letterSpacing: 0.8 },
-  liveTimer: { color: 'rgba(255,255,255,0.45)', fontSize: 10, fontWeight: '700', letterSpacing: 2, marginLeft: 10, fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace' },
+  liveTimer: {
+    color: 'rgba(255,255,255,0.45)',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 2,
+    marginLeft: 10,
+    fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
+  },
 
   // ── Top-right: Neon Lime mic button ──────────────────────────
   micGuideBtn: {
-    position: 'absolute', top: 48, right: 16,
-    width: 46, height: 46, borderRadius: 23,
+    position: 'absolute',
+    top: 48,
+    right: 16,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     backgroundColor: '#C8F135',
-    alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#C8F135', shadowOpacity: 0.55, shadowRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#C8F135',
+    shadowOpacity: 0.55,
+    shadowRadius: 16,
     shadowOffset: { width: 0, height: 0 },
     zIndex: 40,
   },
 
   // ── Center-top: Two separate glass bubbles ───────────────────
   centerStats: {
-    position: 'absolute', top: 108, left: 0, right: 0,
+    position: 'absolute',
+    top: 108,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
-    justifyContent: 'center', alignItems: 'center',
+    justifyContent: 'center',
+    alignItems: 'center',
     opacity: 0.72,
     zIndex: 40,
   },
   statBubble: {
     alignItems: 'center',
-    borderRadius: 20, overflow: 'hidden',
-    paddingHorizontal: 22, paddingVertical: 11,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 20,
+    overflow: 'hidden',
+    paddingHorizontal: 22,
+    paddingVertical: 11,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
-  statGap:    { width: 12 },
+  statGap: { width: 12 },
   statBigNum: { fontSize: 34, fontWeight: '900', lineHeight: 36 },
-  statLbl:    { color: 'rgba(255,255,255,0.4)', fontSize: 9, fontWeight: '900', letterSpacing: 1.5, marginTop: 2 },
+  statLbl: {
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1.5,
+    marginTop: 2,
+  },
 
   // ── Mic voice indicator (bottom-left, above bottom row) ─────
   micTag: {
-    position: 'absolute', bottom: 110, left: 16,
-    flexDirection: 'row', alignItems: 'center',
-    borderRadius: 12, overflow: 'hidden',
-    paddingHorizontal: 8, paddingVertical: 5,
+    position: 'absolute',
+    bottom: 110,
+    left: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    overflow: 'hidden',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
     zIndex: 40,
   },
-  micLabel: { color: 'rgba(124,92,252,0.7)', fontSize: 8, fontWeight: '800', letterSpacing: 1, marginLeft: 4 },
+  micLabel: {
+    color: 'rgba(124,92,252,0.7)',
+    fontSize: 8,
+    fontWeight: '800',
+    letterSpacing: 1,
+    marginLeft: 4,
+  },
 
   // ── Level 2 voice indicator (bottom-right) ──────────────────
   voiceTag: {
-    position: 'absolute', bottom: 110, right: 16,
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    borderRadius: 12, overflow: 'hidden',
-    paddingHorizontal: 8, paddingVertical: 5,
+    position: 'absolute',
+    bottom: 110,
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 12,
+    overflow: 'hidden',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
     zIndex: 40,
   },
   voiceTagDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#C6FF33' },
@@ -1119,7 +1367,8 @@ const s = StyleSheet.create({
   guideCard: {
     position: 'absolute',
     top: SH * 0.1,
-    left: 24, right: 24,
+    left: 24,
+    right: 24,
     height: SH * 0.72,
     borderRadius: 28,
     overflow: 'hidden',
@@ -1128,7 +1377,9 @@ const s = StyleSheet.create({
   guideAccentBar: {
     height: 3,
     backgroundColor: '#7C5CFC',
-    shadowColor: '#7C5CFC', shadowOpacity: 1, shadowRadius: 12,
+    shadowColor: '#7C5CFC',
+    shadowOpacity: 1,
+    shadowRadius: 12,
     shadowOffset: { width: 0, height: 0 },
   },
   guideCardInner: {
@@ -1138,53 +1389,84 @@ const s = StyleSheet.create({
     paddingBottom: 16,
   },
   guideHeader: {
-    flexDirection: 'row', alignItems: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 16,
   },
   guideHeaderLeft: {
-    flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
   },
   guidePulseDot: {
-    width: 8, height: 8, borderRadius: 4,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: '#7C5CFC',
-    shadowColor: '#7C5CFC', shadowOpacity: 1, shadowRadius: 8,
+    shadowColor: '#7C5CFC',
+    shadowOpacity: 1,
+    shadowRadius: 8,
   },
   guideSuperLabel: {
-    color: 'rgba(124,92,252,0.8)', fontSize: 9,
-    fontWeight: '900', letterSpacing: 2, textTransform: 'uppercase',
+    color: 'rgba(124,92,252,0.8)',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
   },
   guideExName: {
-    color: '#FFF', fontSize: 18, fontWeight: '900',
-    letterSpacing: 0.5, marginTop: 2,
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    marginTop: 2,
   },
   guideCloseBtn: {
-    width: 32, height: 32, borderRadius: 16,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: 'rgba(255,255,255,0.1)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
-    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   guideWebViewWrap: {
-    flex: 1, borderRadius: 18, overflow: 'hidden',
+    flex: 1,
+    borderRadius: 18,
+    overflow: 'hidden',
     backgroundColor: '#060412',
-    borderWidth: 1, borderColor: 'rgba(124,92,252,0.25)',
+    borderWidth: 1,
+    borderColor: 'rgba(124,92,252,0.25)',
   },
   cornerAccent: {
-    position: 'absolute', width: 16, height: 16,
-    borderColor: '#C8F135', zIndex: 2,
+    position: 'absolute',
+    width: 16,
+    height: 16,
+    borderColor: '#C8F135',
+    zIndex: 2,
   },
   guideFooter: {
-    marginTop: 14, gap: 6,
+    marginTop: 14,
+    gap: 6,
   },
   guideTipRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   guideTipText: {
-    color: 'rgba(255,255,255,0.75)', fontSize: 12, fontWeight: '600',
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 12,
+    fontWeight: '600',
   },
   guideVoiceHint: {
-    color: 'rgba(124,92,252,0.6)', fontSize: 10,
-    fontWeight: '700', letterSpacing: 0.3,
+    color: 'rgba(124,92,252,0.6)',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   guideBorder: {
     ...StyleSheet.absoluteFillObject,
@@ -1195,23 +1477,38 @@ const s = StyleSheet.create({
 
   // ── Bottom row: Cue pill + Finish button ─────────────────────
   bottomRow: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingBottom: 32, paddingTop: 8,
-    gap: 10, zIndex: 40,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingBottom: 32,
+    paddingTop: 8,
+    gap: 10,
+    zIndex: 40,
   },
   cuePill: {
     flex: 1,
-    flexDirection: 'row', alignItems: 'center',
-    borderRadius: 14, overflow: 'hidden',
-    paddingHorizontal: 14, paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 14,
+    overflow: 'hidden',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
   cueText: { color: '#FFF', fontSize: 12, fontWeight: '700', flex: 1 },
   finishBtn: {
-    width: 48, height: 48, borderRadius: 24,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: '#C8F135',
-    alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#C8F135', shadowOpacity: 0.6, shadowRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#C8F135',
+    shadowOpacity: 0.6,
+    shadowRadius: 14,
     flexShrink: 0,
   },
 
@@ -1221,41 +1518,68 @@ const s = StyleSheet.create({
     borderWidth: 4,
     borderColor: '#7C5CFC',
     borderRadius: 0,
-    shadowColor: '#7C5CFC', shadowOpacity: 1, shadowRadius: 30,
-    zIndex: 30, pointerEvents: 'none',
+    shadowColor: '#7C5CFC',
+    shadowOpacity: 1,
+    shadowRadius: 30,
+    zIndex: 30,
+    pointerEvents: 'none',
   },
 
   // ── Countdown overlay ────────────────────────────────────────
   countdownOverlay: {
     ...StyleSheet.absoluteFillObject,
-    zIndex: 100, backgroundColor: '#000',
-    alignItems: 'center', justifyContent: 'center',
+    zIndex: 100,
+    backgroundColor: '#000',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   countdownExercise: {
-    color: 'rgba(255,255,255,0.25)', fontSize: 11, fontWeight: '900',
-    letterSpacing: 4, textTransform: 'uppercase', marginBottom: 32,
+    color: 'rgba(255,255,255,0.25)',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 4,
+    textTransform: 'uppercase',
+    marginBottom: 32,
   },
   countdownNum: {
-    fontSize: 160, fontWeight: '900', color: '#C8F135',
-    lineHeight: 168, letterSpacing: -8,
-    textShadowColor: 'rgba(200,241,53,0.5)', textShadowRadius: 60,
+    fontSize: 160,
+    fontWeight: '900',
+    color: '#C8F135',
+    lineHeight: 168,
+    letterSpacing: -8,
+    textShadowColor: 'rgba(200,241,53,0.5)',
+    textShadowRadius: 60,
     textShadowOffset: { width: 0, height: 0 },
   },
   countdownGo: { fontSize: 80, letterSpacing: 12, lineHeight: 88 },
   countdownHint: {
-    color: 'rgba(255,255,255,0.35)', fontSize: 13, fontWeight: '600',
-    letterSpacing: 0.5, marginTop: 40,
+    color: 'rgba(255,255,255,0.35)',
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    marginTop: 40,
   },
   skipBtn: {
-    position: 'absolute', bottom: 56,
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 20, paddingVertical: 10,
+    position: 'absolute',
+    bottom: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
   },
   skipTxt: { color: 'rgba(255,255,255,0.3)', fontSize: 13, fontWeight: '600' },
 
   // ── Fallback screens ─────────────────────────────────────────
-  errorTitle:   { color: '#FFF', fontSize: 20, fontWeight: '900', marginBottom: 10 },
-  errorSub:     { color: '#6B5F8A', fontSize: 14, textAlign: 'center', paddingHorizontal: 30 },
-  backLink:     { marginTop: 20, paddingHorizontal: 24, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: '#C8F135' },
-  backLinkTxt:  { color: '#C8F135', fontWeight: '700' },
+  errorTitle: { color: '#FFF', fontSize: 20, fontWeight: '900', marginBottom: 10 },
+  errorSub: { color: '#6B5F8A', fontSize: 14, textAlign: 'center', paddingHorizontal: 30 },
+  backLink: {
+    marginTop: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#C8F135',
+  },
+  backLinkTxt: { color: '#C8F135', fontWeight: '700' },
 });

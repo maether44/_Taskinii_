@@ -6,7 +6,7 @@ export function registerTourRef(key, ref) {
 }
 
 export function measureTourRef(key) {
-  return new Promise(resolve => {
+  return new Promise((resolve) => {
     const ref = _refs[key];
     if (!ref) return resolve(null);
     setTimeout(() => {

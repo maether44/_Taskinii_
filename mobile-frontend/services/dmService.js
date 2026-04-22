@@ -1,120 +1,154 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '../lib/supabase';
 
-const DM_STORE_KEY = 'bodyq_dm_store_v1';
-
-async function readStore() {
-  try {
-    const raw = await AsyncStorage.getItem(DM_STORE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
-
-async function writeStore(store) {
-  await AsyncStorage.setItem(DM_STORE_KEY, JSON.stringify(store));
-}
-
-function userBucket(store, ownerId) {
-  if (!store[ownerId]) {
-    store[ownerId] = { threads: [], messagesByThread: {} };
-  }
-  return store[ownerId];
-}
-
-function nowIso() {
-  return new Date().toISOString();
+function deriveHandle(name) {
+  const base = String(name || 'user')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_ ]/g, '')
+    .replace(/\s+/g, '_');
+  return `@${base || 'user'}`;
 }
 
 export async function listThreads(ownerId) {
-  const store = await readStore();
-  const bucket = userBucket(store, ownerId);
-  return [...bucket.threads].sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt));
-}
+  if (!ownerId) return [];
 
-export async function ensureThread(ownerId, peer, options = {}) {
-  const store = await readStore();
-  const bucket = userBucket(store, ownerId);
-
-  const safePeerId = peer?.id || peer?.handle || peer?.name || `peer-${Date.now()}`;
-  const threadId = `thread-${ownerId}-${safePeerId}`;
-
-  let thread = bucket.threads.find((t) => t.id === threadId);
-  if (!thread) {
-    thread = {
-      id: threadId,
-      peerId: safePeerId,
-      peerName: peer?.name || 'Unknown user',
-      peerHandle: peer?.handle || '@unknown',
-      peerAvatarUri: peer?.avatarUri || null,
-      lastMessage: options.initialPeerMessage || 'Say hi to start chatting.',
-      updatedAt: nowIso(),
-      unreadCount: options.initialPeerMessage ? 1 : 0,
-    };
-
-    bucket.threads.unshift(thread);
-    bucket.messagesByThread[threadId] = [];
-
-    if (options.initialPeerMessage) {
-      bucket.messagesByThread[threadId].push({
-        id: `msg-${Date.now()}-peer`,
-        sender: 'them',
-        text: options.initialPeerMessage,
-        createdAt: nowIso(),
-      });
-    }
-
-    await writeStore(store);
-  } else if (peer?.avatarUri && thread.peerAvatarUri !== peer.avatarUri) {
-    thread.peerAvatarUri = peer.avatarUri;
-    await writeStore(store);
+  const { data, error } = await supabase.from('inbox').select('*');
+  if (error) {
+    const detail = [error?.message, error?.details, error?.hint].filter(Boolean).join(' | ');
+    throw new Error(detail || 'Could not load inbox conversations.');
   }
 
-  return thread;
+  const rows = (data || [])
+    // Hide empty conversations (no messages sent yet).
+    .filter((row) => !!row.last_message_at)
+    .map((row) => ({
+      id: row.conversation_id,
+      peerId: row.other_user_id,
+      peerName: row.other_user_name || 'Unknown user',
+      peerHandle: deriveHandle(row.other_user_name),
+      peerAvatarUri: row.other_user_avatar || null,
+      lastMessage: row.last_message || '',
+      updatedAt: row.last_message_at,
+      unreadCount: Number(row.unread_count || 0),
+    }));
+
+  return rows.sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt));
+}
+
+export async function ensureThread(ownerId, peer) {
+  if (!ownerId) throw new Error('Missing owner id.');
+  if (!peer?.id) throw new Error('Missing peer id.');
+
+  const { data: conversationId, error: rpcError } = await supabase.rpc(
+    'get_or_create_conversation',
+    {
+      user_a: ownerId,
+      user_b: peer.id,
+    },
+  );
+
+  if (rpcError) {
+    const detail = [rpcError?.message, rpcError?.details, rpcError?.hint]
+      .filter(Boolean)
+      .join(' | ');
+    throw new Error(detail || 'Could not open conversation.');
+  }
+
+  const { data: inboxRow } = await supabase
+    .from('inbox')
+    .select('*')
+    .eq('conversation_id', conversationId)
+    .maybeSingle();
+
+  return {
+    id: conversationId,
+    peerId: peer.id,
+    peerName: inboxRow?.other_user_name || peer?.name || 'Unknown user',
+    peerHandle: inboxRow?.other_user_name
+      ? deriveHandle(inboxRow.other_user_name)
+      : peer?.handle || '@user',
+    peerAvatarUri: inboxRow?.other_user_avatar || peer?.avatarUri || null,
+    lastMessage: inboxRow?.last_message || '',
+    updatedAt: inboxRow?.last_message_at || new Date().toISOString(),
+    unreadCount: Number(inboxRow?.unread_count || 0),
+  };
 }
 
 export async function getThreadMessages(ownerId, threadId) {
-  const store = await readStore();
-  const bucket = userBucket(store, ownerId);
-  const list = bucket.messagesByThread[threadId] || [];
-  return [...list].sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt));
-}
+  if (!ownerId || !threadId) return [];
 
-export async function sendThreadMessage(ownerId, threadId, text, sender = 'me') {
-  const trimmed = (text || '').trim();
-  if (!trimmed) return null;
+  const { data, error } = await supabase
+    .from('messages')
+    .select('id, sender_id, content, media_url, created_at')
+    .eq('conversation_id', threadId)
+    .eq('is_deleted', false)
+    .order('created_at', { ascending: true });
 
-  const store = await readStore();
-  const bucket = userBucket(store, ownerId);
-  const thread = bucket.threads.find((t) => t.id === threadId);
-  if (!thread) return null;
-
-  if (!bucket.messagesByThread[threadId]) {
-    bucket.messagesByThread[threadId] = [];
+  if (error) {
+    const detail = [error?.message, error?.details, error?.hint].filter(Boolean).join(' | ');
+    throw new Error(detail || 'Could not load thread messages.');
   }
 
-  const message = {
-    id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    sender,
-    text: trimmed,
-    createdAt: nowIso(),
+  return (data || []).map((msg) => ({
+    id: msg.id,
+    sender: msg.sender_id === ownerId ? 'me' : 'them',
+    text: msg.content || (msg.media_url ? '[Attachment]' : ''),
+    createdAt: msg.created_at,
+  }));
+}
+
+export async function sendThreadMessage(ownerId, threadId, text) {
+  const trimmed = (text || '').trim();
+  if (!trimmed || !ownerId || !threadId) return null;
+
+  const { data, error } = await supabase
+    .from('messages')
+    .insert({
+      conversation_id: threadId,
+      sender_id: ownerId,
+      content: trimmed,
+    })
+    .select('id, sender_id, content, created_at')
+    .single();
+
+  if (error) {
+    const detail = [error?.message, error?.details, error?.hint].filter(Boolean).join(' | ');
+    throw new Error(detail || 'Could not send message.');
+  }
+
+  return {
+    id: data.id,
+    sender: data.sender_id === ownerId ? 'me' : 'them',
+    text: data.content || '',
+    createdAt: data.created_at,
   };
-
-  bucket.messagesByThread[threadId].push(message);
-  thread.lastMessage = trimmed;
-  thread.updatedAt = message.createdAt;
-  if (sender === 'them') thread.unreadCount = (thread.unreadCount || 0) + 1;
-
-  bucket.threads.sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt));
-  await writeStore(store);
-  return message;
 }
 
 export async function markThreadRead(ownerId, threadId) {
-  const store = await readStore();
-  const bucket = userBucket(store, ownerId);
-  const thread = bucket.threads.find((t) => t.id === threadId);
-  if (!thread) return;
-  thread.unreadCount = 0;
-  await writeStore(store);
+  if (!ownerId || !threadId) return;
+
+  const { error } = await supabase
+    .from('conversation_participants')
+    .update({ last_read_at: new Date().toISOString() })
+    .eq('conversation_id', threadId)
+    .eq('user_id', ownerId);
+
+  if (error) {
+    const detail = [error?.message, error?.details, error?.hint].filter(Boolean).join(' | ');
+    throw new Error(detail || 'Could not mark conversation as read.');
+  }
+}
+
+// Empty conversations are hidden by listThreads() and don't need deletion.
+export async function deleteThreadIfEmpty(ownerId, threadId) {
+  if (!ownerId || !threadId) return;
+
+  const { data, error } = await supabase
+    .from('messages')
+    .select('id')
+    .eq('conversation_id', threadId)
+    .eq('is_deleted', false)
+    .limit(1);
+
+  if (error || (data || []).length > 0) return;
 }

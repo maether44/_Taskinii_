@@ -13,7 +13,12 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
-import { getThreadMessages, markThreadRead, sendThreadMessage } from '../../services/dmService';
+import {
+  deleteThreadIfEmpty,
+  getThreadMessages,
+  markThreadRead,
+  sendThreadMessage,
+} from '../../services/dmService';
 import { supabase } from '../../lib/supabase';
 import { AVATAR_BUCKET } from '../../lib/avatar';
 
@@ -81,10 +86,40 @@ export default function DMThread({ navigation, route }) {
     };
   }, [peerAvatarUri]);
 
+  useEffect(() => {
+    return () => {
+      deleteThreadIfEmpty(ownerId, threadId);
+    };
+  }, [ownerId, threadId]);
+
+  useEffect(() => {
+    if (!threadId || !ownerId) return;
+
+    const channel = supabase
+      .channel(`dm-${threadId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `conversation_id=eq.${threadId}`,
+        },
+        () => {
+          loadMessages();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [threadId, ownerId, loadMessages]);
+
   const onSend = async () => {
     const trimmed = text.trim();
     if (!trimmed || !ownerId || !threadId) return;
-    await sendThreadMessage(ownerId, threadId, trimmed, 'me');
+    await sendThreadMessage(ownerId, threadId, trimmed);
     setText('');
     await loadMessages();
   };

@@ -1,7 +1,7 @@
-import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "@react-navigation/native";
-import { LinearGradient } from "expo-linear-gradient";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   ScrollView,
@@ -9,27 +9,27 @@ import {
   Text,
   TouchableOpacity,
   View,
-} from "react-native";
-import MacroBar from "../components/shared/MacroBar";
-import RingProgress from "../components/shared/RingProgress";
-import { StepCounter } from "../components/StepCounter";
-import { useNutrition } from "../hooks/useNutrition";
-import { useProfile } from "../hooks/useProfile";
-import { invokeEdgePublic, supabase } from "../lib/supabase";
-import { DEFAULT_TARGETS } from "../constants/targets";
+} from 'react-native';
+import MacroBar from '../components/shared/MacroBar';
+import RingProgress from '../components/shared/RingProgress';
+import { StepCounter } from '../components/StepCounter';
+import { useNutrition } from '../hooks/useNutrition';
+import { useProfile } from '../hooks/useProfile';
+import { invokeEdgePublic, supabase } from '../lib/supabase';
+import { DEFAULT_TARGETS } from '../constants/targets';
 
 const C = {
-  bg: "#0F0B1E",
-  card: "#161230",
-  cardAlt: "#1B1637",
-  border: "#241E45",
-  purple: "#7C5CFC",
-  lime: "#C8F135",
-  accent: "#9D85F5",
-  text: "#FFFFFF",
-  sub: "#8C80B1",
-  dim: "#6B5F8A",
-  blue: "#56B8FF",
+  bg: '#0F0B1E',
+  card: '#161230',
+  cardAlt: '#1B1637',
+  border: '#241E45',
+  purple: '#7C5CFC',
+  lime: '#C8F135',
+  accent: '#9D85F5',
+  text: '#FFFFFF',
+  sub: '#8C80B1',
+  dim: '#6B5F8A',
+  blue: '#56B8FF',
 };
 
 function MacroPill({ label, value, color }) {
@@ -46,37 +46,53 @@ function buildFallbackMealPlan({ goals, eaten, protein, carbs, fat, mealSections
   const remainingProtein = Math.max((goals?.protein_target || 0) - (protein || 0), 0);
   const remainingCarbs = Math.max((goals?.carbs_target || 0) - (carbs || 0), 0);
   const remainingFat = Math.max((goals?.fat_target || 0) - (fat || 0), 0);
-  const emptyMeals = (mealSections || []).filter((meal) => !meal.logged).map((meal) => meal.label.toLowerCase());
-  const nextMeals = emptyMeals.length ? emptyMeals.join(", ") : "your next meal";
+  const emptyMeals = (mealSections || [])
+    .filter((meal) => !meal.logged)
+    .map((meal) => meal.label.toLowerCase());
+  const nextMeals = emptyMeals.length ? emptyMeals.join(', ') : 'your next meal';
   const plan = [];
 
   if (remainingProtein > 35) {
-    plan.push(`Protein is the main gap, so make ${nextMeals} center around chicken, tuna, Greek yogurt, eggs, or tofu.`);
+    plan.push(
+      `Protein is the main gap, so make ${nextMeals} center around chicken, tuna, Greek yogurt, eggs, or tofu.`,
+    );
   } else {
-    plan.push("Protein is in a decent place, so keep the next meals balanced instead of over-correcting.");
+    plan.push(
+      'Protein is in a decent place, so keep the next meals balanced instead of over-correcting.',
+    );
   }
 
   if (remainingCalories > 600) {
-    plan.push(`You still have about ${remainingCalories} kcal left, so you can fit a proper meal plus a snack.`);
+    plan.push(
+      `You still have about ${remainingCalories} kcal left, so you can fit a proper meal plus a snack.`,
+    );
   } else if (remainingCalories > 250) {
-    plan.push(`You have about ${remainingCalories} kcal left, so one balanced meal should finish the day well.`);
+    plan.push(
+      `You have about ${remainingCalories} kcal left, so one balanced meal should finish the day well.`,
+    );
   } else {
-    plan.push("Calories are already close to target, so keep the rest of the day light and satisfying.");
+    plan.push(
+      'Calories are already close to target, so keep the rest of the day light and satisfying.',
+    );
   }
 
   if (remainingCarbs > remainingFat) {
-    plan.push("Add quality carbs like rice, oats, potatoes, or fruit to keep energy up.");
+    plan.push('Add quality carbs like rice, oats, potatoes, or fruit to keep energy up.');
   } else if (remainingFat > 15) {
-    plan.push("Healthy fats are still low, so avocado, olive oil, nuts, or salmon would balance things nicely.");
+    plan.push(
+      'Healthy fats are still low, so avocado, olive oil, nuts, or salmon would balance things nicely.',
+    );
   }
 
-  plan.push("Fun version: build one easy plate with a protein, one smart carb, and one colorful fruit or vegetable so Yara has even better data tomorrow.");
+  plan.push(
+    'Fun version: build one easy plate with a protein, one smart carb, and one colorful fruit or vegetable so Yara has even better data tomorrow.',
+  );
 
-  return plan.join(" ");
+  return plan.join(' ');
 }
 
 async function extractEdgeFunctionMessage(error) {
-  if (!error) return "";
+  if (!error) return '';
 
   if (error?.context) {
     try {
@@ -94,40 +110,58 @@ async function extractEdgeFunctionMessage(error) {
     }
   }
 
-  return error?.message || "";
+  return error?.message || '';
 }
 
-const INTERNAL_LINE_RE = /^[^\n]*(COMMAND\s*:|MEMORIES\s*:|log_water|log_sleep|log_weight|log_food|log_workout|forget_fact|navigate)[^\n]*$/gim;
+const INTERNAL_LINE_RE =
+  /^[^\n]*(COMMAND\s*:|MEMORIES\s*:|log_water|log_sleep|log_weight|log_food|log_workout|forget_fact|navigate)[^\n]*$/gim;
 
 function cleanAiResponse(text) {
   if (!text) return text;
-  return text.replace(INTERNAL_LINE_RE, "").replace(/\n{3,}/g, "\n\n").trim();
+  return text
+    .replace(INTERNAL_LINE_RE, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 async function invokeYaraPlan(body) {
   try {
-    const { data, error } = await supabase.functions.invoke("ai-assistant", { body });
+    const { data, error } = await supabase.functions.invoke('ai-assistant', { body });
     if (error) {
       const detail = await extractEdgeFunctionMessage(error);
       throw new Error(detail || error.message);
     }
     return data;
   } catch (error) {
-    const message = error?.message || "";
-    if (/invalid jwt/i.test(message) || /non-2xx/i.test(message) || /unsupported jwt/i.test(message) || /ES256/i.test(message)) {
-      return invokeEdgePublic("ai-assistant", body);
+    const message = error?.message || '';
+    if (
+      /invalid jwt/i.test(message) ||
+      /non-2xx/i.test(message) ||
+      /unsupported jwt/i.test(message) ||
+      /ES256/i.test(message)
+    ) {
+      return invokeEdgePublic('ai-assistant', body);
     }
     throw error;
   }
 }
 
-function buildClientNutritionContext({ goals, eaten, protein, carbs, fat, waterMl, caloriesBurned, mealSections }) {
+function buildClientNutritionContext({
+  goals,
+  eaten,
+  protein,
+  carbs,
+  fat,
+  waterMl,
+  caloriesBurned,
+  mealSections,
+}) {
   const recentMeals = (mealSections || [])
     .filter((meal) => meal.logged)
     .map((meal) => ({
       date: new Date().toISOString().slice(0, 10),
       meal_type: meal.id,
-      foods: meal.items.map((item) => item.name).join(", "),
+      foods: meal.items.map((item) => item.name).join(', '),
     }));
 
   return {
@@ -165,36 +199,46 @@ export default function Nutrition({ navigation }) {
     logWater,
     refresh,
   } = useNutrition();
-  const [mealPlan, setMealPlan] = useState("");
+  const [mealPlan, setMealPlan] = useState('');
   const [mealPlanLoading, setMealPlanLoading] = useState(false);
-  const [mealPlanError, setMealPlanError] = useState("");
+  const [mealPlanError, setMealPlanError] = useState('');
   const hasBootstrappedPlan = useRef(false);
   const fallbackMealPlan = useMemo(
     () => buildFallbackMealPlan({ goals, eaten, protein, carbs, fat, mealSections }),
     [goals, eaten, protein, carbs, fat, mealSections],
   );
   const clientContext = useMemo(
-    () => buildClientNutritionContext({ goals, eaten, protein, carbs, fat, waterMl, caloriesBurned, mealSections }),
+    () =>
+      buildClientNutritionContext({
+        goals,
+        eaten,
+        protein,
+        carbs,
+        fat,
+        waterMl,
+        caloriesBurned,
+        mealSections,
+      }),
     [goals, eaten, protein, carbs, fat, waterMl, caloriesBurned, mealSections],
   );
 
   const loadMealPlan = useCallback(async () => {
     if (!userId) {
       setMealPlan(fallbackMealPlan);
-      setMealPlanError("");
+      setMealPlanError('');
       return;
     }
     setMealPlanLoading(true);
-    setMealPlanError("");
+    setMealPlanError('');
 
     try {
       const prompt = [
-        "Use my real recent meals, calorie target, macro target, and goal.",
-        "Give me a short enjoyable meal plan for today.",
-        "Mention breakfast, lunch, dinner, and snack if useful.",
-        "Focus on what I should repeat, swap, or add based on my actual logs.",
-        "Keep it concise, practical, and fun.",
-      ].join(" ");
+        'Use my real recent meals, calorie target, macro target, and goal.',
+        'Give me a short enjoyable meal plan for today.',
+        'Mention breakfast, lunch, dinner, and snack if useful.',
+        'Focus on what I should repeat, swap, or add based on my actual logs.',
+        'Keep it concise, practical, and fun.',
+      ].join(' ');
 
       let resolvedData = await invokeYaraPlan({ userId, query: prompt, clientContext });
       if (!resolvedData?.response) {
@@ -202,28 +246,32 @@ export default function Nutrition({ navigation }) {
       }
       if (resolvedData?.fallback) {
         setMealPlan(cleanAiResponse(resolvedData?.response) || fallbackMealPlan);
-        setMealPlanError(resolvedData?.reason
-          ? `Yara is using fallback mode right now: ${resolvedData.reason}`
-          : "Yara is using fallback mode right now.");
+        setMealPlanError(
+          resolvedData?.reason
+            ? `Yara is using fallback mode right now: ${resolvedData.reason}`
+            : 'Yara is using fallback mode right now.',
+        );
         return;
       }
-      setMealPlan(cleanAiResponse(resolvedData?.response) || "");
+      setMealPlan(cleanAiResponse(resolvedData?.response) || '');
     } catch (error) {
       const detail = await extractEdgeFunctionMessage(error);
       setMealPlan(fallbackMealPlan);
       setMealPlanError(
         detail
           ? `Yara live planning is unavailable right now: ${detail}`
-          : "Yara live planning is unavailable right now, so this card is using a smart local fallback.",
+          : 'Yara live planning is unavailable right now, so this card is using a smart local fallback.',
       );
     } finally {
       setMealPlanLoading(false);
     }
   }, [clientContext, fallbackMealPlan, userId]);
 
-  useFocusEffect(useCallback(() => {
-    refresh();
-  }, [refresh]));
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh]),
+  );
 
   useEffect(() => {
     if (loading) return;
@@ -239,8 +287,8 @@ export default function Nutrition({ navigation }) {
   const calPct = Math.min(eaten / Math.max(1, adjustedGoal), 1);
   const waterPct = Math.min(waterMl / Math.max(1, goals.water_target_ml), 1);
 
-  const openScanner = (mealType = "snack") => {
-    navigation.navigate("FoodScanner", {
+  const openScanner = (mealType = 'snack') => {
+    navigation.navigate('FoodScanner', {
       currentCalories: eaten,
       currentProtein: protein,
       currentCarbs: carbs,
@@ -254,7 +302,7 @@ export default function Nutrition({ navigation }) {
   };
 
   const openMealLogger = (meal) => {
-    navigation.navigate("MealLogger", { mealSlot: meal, onSavedAt: Date.now() });
+    navigation.navigate('MealLogger', { mealSlot: meal, onSavedAt: Date.now() });
   };
 
   if (loading) {
@@ -273,7 +321,11 @@ export default function Nutrition({ navigation }) {
           <View>
             <Text style={s.title}>Food diary</Text>
             <Text style={s.date}>
-              {new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
+              {new Date().toLocaleDateString('en-US', {
+                weekday: 'long',
+                month: 'short',
+                day: 'numeric',
+              })}
             </Text>
           </View>
           <TouchableOpacity onPress={refresh} style={s.refreshBtn}>
@@ -281,8 +333,12 @@ export default function Nutrition({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity activeOpacity={0.9} onPress={() => openScanner("snack")} style={s.heroWrap}>
-          <LinearGradient colors={["#7C5CFC", "#9D85F5"]} style={s.heroCard}>
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPress={() => openScanner('snack')}
+          style={s.heroWrap}
+        >
+          <LinearGradient colors={['#7C5CFC', '#9D85F5']} style={s.heroCard}>
             <View style={{ flex: 1 }}>
               <Text style={s.heroEyebrow}>Food Scanner</Text>
               <Text style={s.heroTitle}>Scan a barcode or let AI estimate your meal</Text>
@@ -302,11 +358,16 @@ export default function Nutrition({ navigation }) {
               <Text style={s.cardSub}>
                 {caloriesBurned > 0
                   ? `Workout bonus added: +${caloriesBurned} kcal`
-                  : "Track meals to help Yara coach you better"}
+                  : 'Track meals to help Yara coach you better'}
               </Text>
             </View>
-            <RingProgress size={116} stroke={10} progress={calPct} color={eaten > adjustedGoal ? "#FF6B6B" : C.lime}>
-              <View style={{ alignItems: "center" }}>
+            <RingProgress
+              size={116}
+              stroke={10}
+              progress={calPct}
+              color={eaten > adjustedGoal ? '#FF6B6B' : C.lime}
+            >
+              <View style={{ alignItems: 'center' }}>
                 <Text style={s.ringValue}>{eaten}</Text>
                 <Text style={s.ringLabel}>eaten</Text>
               </View>
@@ -331,7 +392,12 @@ export default function Nutrition({ navigation }) {
           </View>
 
           <View style={s.macroSection}>
-            <MacroBar label="Protein" eaten={protein} goal={goals.protein_target} color={C.purple} />
+            <MacroBar
+              label="Protein"
+              eaten={protein}
+              goal={goals.protein_target}
+              color={C.purple}
+            />
             <MacroBar label="Carbs" eaten={carbs} goal={goals.carbs_target} color={C.accent} />
             <MacroBar label="Fat" eaten={fat} goal={goals.fat_target} color={C.lime} />
           </View>
@@ -343,23 +409,31 @@ export default function Nutrition({ navigation }) {
               <Text style={s.cardLabel}>YARA PLAN</Text>
               <Text style={s.cardTitle}>Today's meal game plan</Text>
             </View>
-            <TouchableOpacity style={s.planRefreshBtn} onPress={loadMealPlan} disabled={mealPlanLoading}>
+            <TouchableOpacity
+              style={s.planRefreshBtn}
+              onPress={loadMealPlan}
+              disabled={mealPlanLoading}
+            >
               <Ionicons name="sparkles-outline" size={16} color={C.lime} />
-              <Text style={s.planRefreshTxt}>{mealPlanLoading ? "Thinking" : "Refresh"}</Text>
+              <Text style={s.planRefreshTxt}>{mealPlanLoading ? 'Thinking' : 'Refresh'}</Text>
             </TouchableOpacity>
           </View>
 
           {mealPlanLoading ? (
             <View style={s.planLoading}>
               <ActivityIndicator color={C.lime} />
-              <Text style={s.planLoadingTxt}>Yara is building your plan from your real logs...</Text>
+              <Text style={s.planLoadingTxt}>
+                Yara is building your plan from your real logs...
+              </Text>
             </View>
           ) : mealPlanError ? (
             <Text style={s.planError}>{mealPlanError}</Text>
           ) : mealPlan ? (
             <Text style={s.planBody}>{mealPlan}</Text>
           ) : (
-            <Text style={s.planEmpty}>Log a couple meals and Yara will turn them into a more personalized day plan.</Text>
+            <Text style={s.planEmpty}>
+              Log a couple meals and Yara will turn them into a more personalized day plan.
+            </Text>
           )}
         </View>
 
@@ -368,7 +442,7 @@ export default function Nutrition({ navigation }) {
             <Text style={s.sectionTitle}>Meals</Text>
             <Text style={s.sectionSub}>Scan into a meal or add food manually</Text>
           </View>
-          <TouchableOpacity style={s.scanMiniBtn} onPress={() => openScanner("snack")}>
+          <TouchableOpacity style={s.scanMiniBtn} onPress={() => openScanner('snack')}>
             <Ionicons name="scan-outline" size={14} color={C.purple} />
             <Text style={s.scanMiniTxt}>Quick scan</Text>
           </TouchableOpacity>
@@ -385,8 +459,8 @@ export default function Nutrition({ navigation }) {
                   <Text style={s.mealName}>{meal.label}</Text>
                   <Text style={s.mealSub}>
                     {meal.logged
-                      ? `${meal.itemCount} item${meal.itemCount > 1 ? "s" : ""} logged`
-                      : "Nothing logged yet"}
+                      ? `${meal.itemCount} item${meal.itemCount > 1 ? 's' : ''} logged`
+                      : 'Nothing logged yet'}
                   </Text>
                 </View>
               </View>
@@ -406,8 +480,7 @@ export default function Nutrition({ navigation }) {
                       <View style={{ flex: 1 }}>
                         <Text style={s.foodName}>{item.name}</Text>
                         <Text style={s.foodMeta}>
-                          {item.quantity}g
-                          {item.brand ? ` • ${item.brand}` : ""}
+                          {item.quantity}g{item.brand ? ` • ${item.brand}` : ''}
                         </Text>
                       </View>
                       <Text style={s.foodCals}>{item.calories} kcal</Text>
@@ -427,7 +500,9 @@ export default function Nutrition({ navigation }) {
                 <Text style={s.mealPrimaryTxt}>Scan to {meal.label}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.mealSecondaryBtn} onPress={() => openMealLogger(meal)}>
-                <Text style={s.mealSecondaryTxt}>{meal.logged ? "Add more manually" : "Add manually"}</Text>
+                <Text style={s.mealSecondaryTxt}>
+                  {meal.logged ? 'Add more manually' : 'Add manually'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -453,7 +528,7 @@ export default function Nutrition({ navigation }) {
               </TouchableOpacity>
             ))}
             <TouchableOpacity style={[s.waterBtn, s.waterUndo]} onPress={() => logWater(-250)}>
-              <Text style={[s.waterBtnTxt, { color: "#FF6B6B" }]}>Undo</Text>
+              <Text style={[s.waterBtnTxt, { color: '#FF6B6B' }]}>Undo</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -464,7 +539,8 @@ export default function Nutrition({ navigation }) {
           <Text style={s.cardLabel}>YARA</Text>
           <Text style={s.cardTitle}>Daily meal coaching works best with real logs</Text>
           <Text style={s.cardSub}>
-            Every meal you save here becomes part of the nutrition context Yara can use when you ask for analysis or meal ideas.
+            Every meal you save here becomes part of the nutrition context Yara can use when you ask
+            for analysis or meal ideas.
           </Text>
         </View>
       </ScrollView>
@@ -474,19 +550,24 @@ export default function Nutrition({ navigation }) {
 
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
-  centered: { justifyContent: "center", alignItems: "center" },
+  centered: { justifyContent: 'center', alignItems: 'center' },
   loadingTxt: { color: C.sub, marginTop: 12, fontSize: 13 },
   scroll: { paddingHorizontal: 16, paddingTop: 52, paddingBottom: 24 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 18 },
-  title: { color: C.text, fontSize: 30, fontWeight: "800", letterSpacing: -0.8 },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 18,
+  },
+  title: { color: C.text, fontSize: 30, fontWeight: '800', letterSpacing: -0.8 },
   date: { color: C.sub, fontSize: 13, marginTop: 2 },
   refreshBtn: {
     width: 38,
     height: 38,
     borderRadius: 19,
     backgroundColor: C.card,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
     borderColor: C.border,
   },
@@ -494,20 +575,25 @@ const s = StyleSheet.create({
   heroCard: {
     borderRadius: 24,
     padding: 18,
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 16,
   },
-  heroEyebrow: { color: "rgba(255,255,255,0.7)", fontSize: 11, fontWeight: "800", letterSpacing: 1.2 },
-  heroTitle: { color: "#fff", fontSize: 21, fontWeight: "800", lineHeight: 27, marginTop: 6 },
-  heroSub: { color: "rgba(255,255,255,0.75)", fontSize: 13, lineHeight: 19, marginTop: 8 },
+  heroEyebrow: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+  },
+  heroTitle: { color: '#fff', fontSize: 21, fontWeight: '800', lineHeight: 27, marginTop: 6 },
+  heroSub: { color: 'rgba(255,255,255,0.75)', fontSize: 13, lineHeight: 19, marginTop: 8 },
   heroIcon: {
     width: 56,
     height: 56,
     borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.14)",
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   summaryCard: {
     backgroundColor: C.card,
@@ -517,14 +603,19 @@ const s = StyleSheet.create({
     padding: 18,
     marginBottom: 20,
   },
-  summaryTop: { flexDirection: "row", justifyContent: "space-between", gap: 16, alignItems: "center" },
-  cardLabel: { color: C.sub, fontSize: 11, fontWeight: "800", letterSpacing: 1.1 },
-  cardTitle: { color: C.text, fontSize: 20, fontWeight: "800", marginTop: 6 },
+  summaryTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 16,
+    alignItems: 'center',
+  },
+  cardLabel: { color: C.sub, fontSize: 11, fontWeight: '800', letterSpacing: 1.1 },
+  cardTitle: { color: C.text, fontSize: 20, fontWeight: '800', marginTop: 6 },
   cardSub: { color: C.dim, fontSize: 13, lineHeight: 19, marginTop: 6 },
-  ringValue: { color: C.text, fontSize: 22, fontWeight: "900" },
+  ringValue: { color: C.text, fontSize: 22, fontWeight: '900' },
   ringLabel: { color: C.sub, fontSize: 11 },
   summaryStats: {
-    flexDirection: "row",
+    flexDirection: 'row',
     marginTop: 18,
     backgroundColor: C.cardAlt,
     borderRadius: 18,
@@ -532,18 +623,27 @@ const s = StyleSheet.create({
     borderColor: C.border,
     paddingVertical: 14,
   },
-  summaryStat: { flex: 1, alignItems: "center" },
-  summaryValue: { color: C.text, fontSize: 18, fontWeight: "800" },
+  summaryStat: { flex: 1, alignItems: 'center' },
+  summaryValue: { color: C.text, fontSize: 18, fontWeight: '800' },
   summaryLabel: { color: C.sub, fontSize: 11, marginTop: 4 },
   summaryDivider: { width: 1, backgroundColor: C.border },
   macroSection: { marginTop: 18 },
-  sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
-  sectionHeaderTight: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  sectionTitle: { color: C.text, fontSize: 22, fontWeight: "800" },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  sectionHeaderTight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sectionTitle: { color: C.text, fontSize: 22, fontWeight: '800' },
   sectionSub: { color: C.sub, fontSize: 13, marginTop: 2 },
   scanMiniBtn: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 4,
     backgroundColor: `${C.purple}18`,
     borderWidth: 1,
@@ -552,7 +652,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  scanMiniTxt: { color: C.purple, fontSize: 12, fontWeight: "700" },
+  scanMiniTxt: { color: C.purple, fontSize: 12, fontWeight: '700' },
   mealCard: {
     backgroundColor: C.card,
     borderRadius: 22,
@@ -561,22 +661,34 @@ const s = StyleSheet.create({
     padding: 16,
     marginBottom: 12,
   },
-  mealHead: { flexDirection: "row", justifyContent: "space-between", gap: 12 },
-  mealTitleRow: { flexDirection: "row", gap: 12, flex: 1 },
-  mealIconWrap: { width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  mealHead: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
+  mealTitleRow: { flexDirection: 'row', gap: 12, flex: 1 },
+  mealIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   mealEmoji: { fontSize: 20 },
-  mealName: { color: C.text, fontSize: 18, fontWeight: "700" },
+  mealName: { color: C.text, fontSize: 18, fontWeight: '700' },
   mealSub: { color: C.sub, fontSize: 12, marginTop: 3 },
-  mealCalories: { color: C.lime, fontSize: 16, fontWeight: "800" },
-  pillRow: { flexDirection: "row", gap: 8, marginTop: 14 },
-  macroPill: { flex: 1, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 10, borderWidth: 1 },
-  macroPillValue: { fontSize: 14, fontWeight: "800" },
+  mealCalories: { color: C.lime, fontSize: 16, fontWeight: '800' },
+  pillRow: { flexDirection: 'row', gap: 8, marginTop: 14 },
+  macroPill: {
+    flex: 1,
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    borderWidth: 1,
+  },
+  macroPillValue: { fontSize: 14, fontWeight: '800' },
   macroPillLabel: { color: C.sub, fontSize: 11, marginTop: 2 },
   foodList: { marginTop: 14, gap: 8 },
   foodRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     backgroundColor: C.cardAlt,
     borderWidth: 1,
     borderColor: C.border,
@@ -585,9 +697,9 @@ const s = StyleSheet.create({
     paddingVertical: 11,
     gap: 10,
   },
-  foodName: { color: C.text, fontSize: 14, fontWeight: "700" },
+  foodName: { color: C.text, fontSize: 14, fontWeight: '700' },
   foodMeta: { color: C.sub, fontSize: 11, marginTop: 2 },
-  foodCals: { color: C.accent, fontSize: 13, fontWeight: "700" },
+  foodCals: { color: C.accent, fontSize: 13, fontWeight: '700' },
   emptyMeal: {
     marginTop: 14,
     paddingVertical: 16,
@@ -595,32 +707,32 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: C.border,
     backgroundColor: C.cardAlt,
-    alignItems: "center",
+    alignItems: 'center',
   },
   emptyMealTxt: { color: C.sub, fontSize: 13 },
-  mealActions: { flexDirection: "row", gap: 10, marginTop: 14 },
+  mealActions: { flexDirection: 'row', gap: 10, marginTop: 14 },
   mealPrimaryBtn: {
     flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
     backgroundColor: C.purple,
     borderRadius: 14,
     paddingVertical: 13,
   },
-  mealPrimaryTxt: { color: "#fff", fontSize: 13, fontWeight: "800" },
+  mealPrimaryTxt: { color: '#fff', fontSize: 13, fontWeight: '800' },
   mealSecondaryBtn: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: 14,
     paddingVertical: 13,
     backgroundColor: C.cardAlt,
     borderWidth: 1,
     borderColor: C.border,
   },
-  mealSecondaryTxt: { color: C.text, fontSize: 13, fontWeight: "700" },
+  mealSecondaryTxt: { color: C.text, fontSize: 13, fontWeight: '700' },
   waterCard: {
     backgroundColor: C.card,
     borderRadius: 22,
@@ -629,22 +741,28 @@ const s = StyleSheet.create({
     padding: 18,
     marginTop: 8,
   },
-  waterStat: { color: C.blue, fontSize: 14, fontWeight: "700" },
-  waterBar: { height: 10, borderRadius: 5, backgroundColor: `${C.blue}18`, marginTop: 14, overflow: "hidden" },
-  waterFill: { height: "100%", backgroundColor: C.blue, borderRadius: 5 },
-  waterBtns: { flexDirection: "row", gap: 8, marginTop: 16 },
+  waterStat: { color: C.blue, fontSize: 14, fontWeight: '700' },
+  waterBar: {
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: `${C.blue}18`,
+    marginTop: 14,
+    overflow: 'hidden',
+  },
+  waterFill: { height: '100%', backgroundColor: C.blue, borderRadius: 5 },
+  waterBtns: { flexDirection: 'row', gap: 8, marginTop: 16 },
   waterBtn: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 12,
     borderRadius: 14,
     backgroundColor: `${C.blue}12`,
     borderWidth: 1,
     borderColor: `${C.blue}30`,
   },
-  waterUndo: { backgroundColor: "rgba(255,107,107,0.08)", borderColor: "rgba(255,107,107,0.25)" },
-  waterBtnTxt: { color: C.blue, fontSize: 13, fontWeight: "700" },
+  waterUndo: { backgroundColor: 'rgba(255,107,107,0.08)', borderColor: 'rgba(255,107,107,0.25)' },
+  waterBtnTxt: { color: C.blue, fontSize: 13, fontWeight: '700' },
   yaraCard: {
     backgroundColor: C.card,
     borderRadius: 22,
@@ -662,26 +780,26 @@ const s = StyleSheet.create({
     marginBottom: 18,
   },
   planHead: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 12,
   },
   planRefreshBtn: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 6,
-    backgroundColor: "rgba(200,241,53,0.10)",
-    borderColor: "rgba(200,241,53,0.24)",
+    backgroundColor: 'rgba(200,241,53,0.10)',
+    borderColor: 'rgba(200,241,53,0.24)',
     borderWidth: 1,
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  planRefreshTxt: { color: C.lime, fontSize: 12, fontWeight: "800" },
-  planLoading: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 16 },
+  planRefreshTxt: { color: C.lime, fontSize: 12, fontWeight: '800' },
+  planLoading: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 16 },
   planLoadingTxt: { color: C.sub, fontSize: 13, flex: 1, lineHeight: 19 },
   planBody: { color: C.text, fontSize: 14, lineHeight: 22, marginTop: 16 },
   planEmpty: { color: C.sub, fontSize: 13, lineHeight: 20, marginTop: 16 },
-  planError: { color: "#FF6B6B", fontSize: 13, lineHeight: 20, marginTop: 16 },
+  planError: { color: '#FF6B6B', fontSize: 13, lineHeight: 20, marginTop: 16 },
 });

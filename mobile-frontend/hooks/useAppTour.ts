@@ -1,14 +1,14 @@
-import { useEffect, useRef, useState } from "react";
-import { Animated } from "react-native";
-import { STEPS } from "../constants/tourSteps";
-import { hasTourBeenSeen, markTourSeen } from "../services/tourService";
-import { measureTourRef } from "../components/onBoarding/tourRefs";
+import { useEffect, useRef, useState } from 'react';
+import { Animated } from 'react-native';
+import { STEPS } from '../constants/tourSteps';
+import { hasTourBeenSeen, markTourSeen } from '../services/tourService';
+import { measureTourRef } from '../components/onBoarding/tourRefs';
 
 const PAD = 14;
 const BUBBLE_W = 220;
 const BUBBLE_H = 170;
-import { Dimensions } from "react-native";
-const { width: W, height: H } = Dimensions.get("window");
+import { Dimensions } from 'react-native';
+const { width: W, height: H } = Dimensions.get('window');
 
 export function useAppTour({ activeTab, onTabPress, showOnMount }) {
   const [visible, setVisible] = useState(false);
@@ -157,25 +157,25 @@ export function useAppTour({ activeTab, onTabPress, showOnMount }) {
     let arrowSide;
     let arrowOffset;
 
-    if (side === "bottom") {
+    if (side === 'bottom') {
       by = spotB + margin;
       bx = Math.max(16, Math.min(spotCX - BUBBLE_W / 2, W - BUBBLE_W - 16));
-      arrowSide = "top";
+      arrowSide = 'top';
       arrowOffset = Math.min(Math.max(spotCX - bx - 14, 16), BUBBLE_W - 44);
-    } else if (side === "top") {
+    } else if (side === 'top') {
       by = spotT - BUBBLE_H - margin;
       bx = Math.max(16, Math.min(spotCX - BUBBLE_W / 2, W - BUBBLE_W - 16));
-      arrowSide = "bottom";
+      arrowSide = 'bottom';
       arrowOffset = Math.min(Math.max(spotCX - bx - 14, 16), BUBBLE_W - 44);
-    } else if (side === "right") {
+    } else if (side === 'right') {
       bx = spotR + margin;
       by = Math.max(80, Math.min(spotCY - BUBBLE_H / 2, H - BUBBLE_H - 80));
-      arrowSide = "left";
+      arrowSide = 'left';
       arrowOffset = Math.min(Math.max(spotCY - by - 14, 16), BUBBLE_H - 44);
     } else {
       bx = spotL - BUBBLE_W - margin;
       by = Math.max(80, Math.min(spotCY - BUBBLE_H / 2, H - BUBBLE_H - 80));
-      arrowSide = "right";
+      arrowSide = 'right';
       arrowOffset = Math.min(Math.max(spotCY - by - 14, 16), BUBBLE_H - 44);
     }
 
@@ -198,7 +198,7 @@ export function useAppTour({ activeTab, onTabPress, showOnMount }) {
       if (rect) {
         moveSpot(rect);
         setComputed(computeLayout(rect, step.side));
-        showBubble(step.side === "top" ? 14 : -14);
+        showBubble(step.side === 'top' ? 14 : -14);
         return;
       }
     }
@@ -242,7 +242,7 @@ export function useAppTour({ activeTab, onTabPress, showOnMount }) {
       useNativeDriver: true,
     }).start(() => setVisible(false));
     await markTourSeen();
-    onTabPress?.("Home");
+    onTabPress?.('Home');
   };
 
   return {

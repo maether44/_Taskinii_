@@ -15,6 +15,7 @@ import WaterTracker from '../components/home/WaterTracker';
 import { COLORS } from '../constants/colors';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { useUnreadMessageSummary } from '../hooks/useNotification';
 const NOTIFICATION_PREFS_KEY = 'bodyq_notification_prefs';
 
 // ─── Level 5 Bento Components ───────────────────────────────────────────────
@@ -43,6 +44,7 @@ export default function Home({ navigation }) {
   });
 
   const authUserId = authUser?.id;
+  const { unreadCount, refreshUnreadCount } = useUnreadMessageSummary(authUserId);
 
   useEffect(() => {
     let mounted = true;
@@ -157,6 +159,7 @@ export default function Home({ navigation }) {
           </View>
           <Pressable style={styles.communityBtn} onPress={() => navigation.navigate('Community')}>
             <Ionicons name="people" size={20} color="#0F0B1E" />
+            {unreadCount > 0 && <View style={styles.communityBadge}></View>}
           </Pressable>
         </View>
 
@@ -397,6 +400,7 @@ const styles = StyleSheet.create({
   greeting: { color: '#FFF', fontSize: 24, fontWeight: '900' },
   subGreeting: { color: '#6B5F8A', fontSize: 14, marginTop: 4 },
   communityBtn: {
+    position: 'relative',
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -405,6 +409,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#E6FF7A',
+  },
+  communityBadge: {
+    position: 'absolute',
+    right: -4,
+    top: -4,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    backgroundColor: '#FF4D4D',
+    borderWidth: 1,
+    borderColor: '#0F0B1E',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   cardBase: {

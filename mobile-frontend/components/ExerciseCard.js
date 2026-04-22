@@ -1,18 +1,18 @@
-import { View, Text, Image, StyleSheet, Pressable } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { BASE_IMG } from "../services/exerciseService";
+import { View, Text, Image, StyleSheet, Pressable } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { BASE_IMG } from '../services/exerciseService';
 
 const C = {
-  card: "#161230",
-  border: "#1E1A35",
-  text: "#FFFFFF",
-  sub: "#6B5F8A",
-  accent: "#9D85F5",
+  card: '#161230',
+  border: '#1E1A35',
+  text: '#FFFFFF',
+  sub: '#6B5F8A',
+  accent: '#9D85F5',
 };
 
 export default function ExerciseCard({ navigation, exercise, personalBest }) {
   const imagePath = exercise.images?.[0];
-  const primaryMuscles = exercise.primaryMuscles?.join(", ") || "N/A";
+  const primaryMuscles = exercise.primaryMuscles?.join(', ') || 'N/A';
 
   return (
     <View style={s.card}>
@@ -44,7 +44,7 @@ export default function ExerciseCard({ navigation, exercise, personalBest }) {
             {exercise.instructions}
           </Text>
           <Pressable
-            onPress={() => navigation.navigate("ExerciseInfo", { exercise })}
+            onPress={() => navigation.navigate('ExerciseInfo', { exercise })}
             style={s.seeMoreBtn}
           >
             <Text style={s.seeMoreText}>See More</Text>
@@ -55,11 +55,7 @@ export default function ExerciseCard({ navigation, exercise, personalBest }) {
       <Text style={s.muscles}>Muscles: {primaryMuscles}</Text>
 
       {!!imagePath && (
-        <Image
-          source={{ uri: BASE_IMG + imagePath }}
-          style={s.image}
-          resizeMode="cover"
-        />
+        <Image source={{ uri: BASE_IMG + imagePath }} style={s.image} resizeMode="cover" />
       )}
     </View>
   );
@@ -75,27 +71,40 @@ const s = StyleSheet.create({
     marginBottom: 12,
   },
   cardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 10,
     marginBottom: 8,
   },
-  name: { color: C.text, fontSize: 20, fontWeight: "700" },
+  name: { color: C.text, fontSize: 20, fontWeight: '700' },
   meta: {
     color: C.sub,
     fontSize: 13,
     marginTop: 2,
-    textTransform: "capitalize",
+    textTransform: 'capitalize',
   },
-  description: { color: "#C9C2DF", fontSize: 14, lineHeight: 20, marginTop: 2 },
-  seeMoreBtn: { alignSelf: "flex-start", marginTop: 6, paddingVertical: 4 },
-  seeMoreText: { color: C.accent, fontSize: 13, fontWeight: "600" },
-  muscles:    { color: C.accent, fontSize: 12, marginTop: 8, marginBottom: 10 },
-  pbBadge:    { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#C8F135', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
-  pbBadgeOld: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#C8F135', borderRadius: 6 },
+  description: { color: '#C9C2DF', fontSize: 14, lineHeight: 20, marginTop: 2 },
+  seeMoreBtn: { alignSelf: 'flex-start', marginTop: 6, paddingVertical: 4 },
+  seeMoreText: { color: C.accent, fontSize: 13, fontWeight: '600' },
+  muscles: { color: C.accent, fontSize: 12, marginTop: 8, marginBottom: 10 },
+  pbBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#C8F135',
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+  },
+  pbBadgeOld: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#C8F135',
+    borderRadius: 6,
+  },
   pbBadgeTxt: { fontSize: 10, fontWeight: '800', color: '#000' },
   image: {
-    width: "100%",
+    width: '100%',
     height: 170,
     borderRadius: 12,
     backgroundColor: C.border,

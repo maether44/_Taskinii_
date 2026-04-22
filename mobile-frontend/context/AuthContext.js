@@ -1,8 +1,8 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
-import { supabase } from "../lib/supabase";
-import { getProfile } from "../services/profileService";
-import { getLocalAvatarForUser } from "../lib/avatar";
-import { warn } from "../lib/logger";
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { supabase } from '../lib/supabase';
+import { getProfile } from '../services/profileService';
+import { getLocalAvatarForUser } from '../lib/avatar';
+import { warn } from '../lib/logger';
 
 const AuthContext = createContext();
 
@@ -43,16 +43,14 @@ export function AuthProvider({ children }) {
     // nothing about this call can influence the splash screen. Idempotent
     // per day — safe to call on every session resolve.
     setTimeout(() => {
-      Promise.resolve(
-        supabase.rpc("record_user_visit", { p_user_id: sessionUser.id }),
-      )
+      Promise.resolve(supabase.rpc('record_user_visit', { p_user_id: sessionUser.id }))
         .then((res) => {
           if (res?.error) {
-            warn("[AuthContext] record_user_visit:", res.error.message);
+            warn('[AuthContext] record_user_visit:', res.error.message);
           }
         })
         .catch((e) => {
-          warn("[AuthContext] record_user_visit threw:", e?.message ?? e);
+          warn('[AuthContext] record_user_visit threw:', e?.message ?? e);
         });
     }, 0);
   };
@@ -66,9 +64,7 @@ export function AuthProvider({ children }) {
     // Listen for sign in / sign out events
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_, session) =>
-      resolveUser(session?.user ?? null),
-    );
+    } = supabase.auth.onAuthStateChange((_, session) => resolveUser(session?.user ?? null));
 
     return () => subscription.unsubscribe();
   }, []);
@@ -107,6 +103,6 @@ export function AuthProvider({ children }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) throw new Error("useAuth must be used within an AuthProvider");
+  if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 }

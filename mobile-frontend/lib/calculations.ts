@@ -41,14 +41,12 @@ export function calcBMR({ gender, weight, height, dob }) {
   const a = dobToAge(dob);
   if (!w || !h || !a) return 0;
   return Math.round(
-    gender === 'female'
-      ? 10 * w + 6.25 * h - 5 * a - 161
-      : 10 * w + 6.25 * h - 5 * a + 5
+    gender === 'female' ? 10 * w + 6.25 * h - 5 * a - 161 : 10 * w + 6.25 * h - 5 * a + 5,
   );
 }
 
 export function calcTDEE(bmr, activityId) {
-  const mult = ACTIVITY.find(x => x.id === activityId)?.mult || 1.55;
+  const mult = ACTIVITY.find((x) => x.id === activityId)?.mult || 1.55;
   return bmr ? Math.round(bmr * mult) : 0;
 }
 
@@ -72,10 +70,7 @@ export function calcMacroTargets(calorieTarget, goal) {
     proteinPct = 0.35;
     carbsPct = 0.35;
     fatPct = 0.3;
-  } else if (
-    normalizedGoal === 'gain_muscle' ||
-    normalizedGoal === 'gain_weight'
-  ) {
+  } else if (normalizedGoal === 'gain_muscle' || normalizedGoal === 'gain_weight') {
     proteinPct = 0.3;
     carbsPct = 0.45;
     fatPct = 0.25;
@@ -94,14 +89,15 @@ export function calcProtein(weight) {
 }
 
 export function calcBMI(weight, height) {
-  const w = parseFloat(weight), h = parseFloat(height);
-  return (w && h) ? (w / ((h / 100) ** 2)).toFixed(1) : null;
+  const w = parseFloat(weight),
+    h = parseFloat(height);
+  return w && h ? (w / (h / 100) ** 2).toFixed(1) : null;
 }
 
 export function bmiStatus(bmi) {
   if (!bmi) return '';
   if (bmi < 18.5) return 'Underweight';
-  if (bmi < 25)   return 'Normal weight ✅';
-  if (bmi < 30)   return 'Overweight';
+  if (bmi < 25) return 'Normal weight ✅';
+  if (bmi < 30) return 'Overweight';
   return 'Obese';
 }

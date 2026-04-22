@@ -16,6 +16,7 @@ import { NavigationContainer, createNavigationContainerRef } from '@react-naviga
 import { createStackNavigator } from '@react-navigation/stack';
 import { registerRootComponent } from 'expo';
 import ScheduleScreen from './screens/ScheduleScreen';
+
 // Context & Supabase
 import { supabase } from './lib/supabase';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -42,6 +43,9 @@ import CommunityCenter from './screens/community/CommunityCenter';
 import MessagesInbox from './screens/community/MessagesInbox';
 import DMThread from './screens/community/DMThread';
 import { scheduleStore } from './store/scheduleStore';
+
+// Hooks
+import { useUnreadMessageNotifications } from './hooks/useNotification';
 
 // Global Components
 import YaraAssistant from './components/YaraAssistant';
@@ -97,6 +101,12 @@ function Navigation() {
       )}
     </Stack.Navigator>
   );
+}
+
+function DirectMessageNotifications({ activeRoute }) {
+  const { user } = useAuth();
+  useUnreadMessageNotifications(user?.id, activeRoute);
+  return null;
 }
 
 export default function App() {
@@ -159,6 +169,7 @@ export default function App() {
               >
                 <Navigation />
               </NavigationContainer>
+              <DirectMessageNotifications activeRoute={activeRoute} />
               {showYaraAssistant && (
                 <YaraAssistant onOpenSchedule={() => navigationRef.current?.navigate('Schedule')} />
               )}

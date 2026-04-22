@@ -66,8 +66,18 @@ describe('calcBMR', () => {
 
   it('calculates female BMR (lower than male)', () => {
     const year = new Date().getFullYear();
-    const male = calcBMR({ gender: 'male', weight: '70', height: '170', dob: `01/01/${year - 30}` });
-    const female = calcBMR({ gender: 'female', weight: '70', height: '170', dob: `01/01/${year - 30}` });
+    const male = calcBMR({
+      gender: 'male',
+      weight: '70',
+      height: '170',
+      dob: `01/01/${year - 30}`,
+    });
+    const female = calcBMR({
+      gender: 'female',
+      weight: '70',
+      height: '170',
+      dob: `01/01/${year - 30}`,
+    });
     expect(female).toBeLessThan(male);
   });
 

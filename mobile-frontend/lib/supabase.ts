@@ -13,8 +13,8 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     ...(Platform.OS !== 'web' ? { storage: AsyncStorage } : {}),
-    autoRefreshToken:   true,
-    persistSession:     true,
+    autoRefreshToken: true,
+    persistSession: true,
     detectSessionInUrl: false,
   },
 });
@@ -41,14 +41,14 @@ export async function invokeEdgePublic(functionName: string, body?: unknown) {
     body: JSON.stringify(body ?? {}),
   });
 
-  const payload = await response.json().catch(() => ({} as Record<string, unknown>));
+  const payload = await response.json().catch(() => ({}) as Record<string, unknown>);
   if (!response.ok) {
     const error = new Error(
       String(
         (payload as any)?.reason ||
-        (payload as any)?.error ||
-        (payload as any)?.message ||
-        `Edge function failed with ${response.status}`,
+          (payload as any)?.error ||
+          (payload as any)?.message ||
+          `Edge function failed with ${response.status}`,
       ),
     ) as Error & { status?: number; payload?: unknown };
     error.status = response.status;

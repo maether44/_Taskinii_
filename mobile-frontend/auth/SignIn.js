@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -13,14 +13,14 @@ import {
   TouchableWithoutFeedback,
   Keyboard,
   ActivityIndicator,
-} from "react-native";
-import { useForm, Controller } from "react-hook-form";
-import AuthLayout from "../components/AuthLayout";
-import Input from "../components/register/Input";
-import Button from "../components/register/Button";
-import { Mail, Lock, LogIn } from "lucide-react-native";
-import { useNavigation } from "@react-navigation/native";
-import { supabase } from "../lib/supabase";
+} from 'react-native';
+import { useForm, Controller } from 'react-hook-form';
+import AuthLayout from '../components/AuthLayout';
+import Input from '../components/register/Input';
+import Button from '../components/register/Button';
+import { Mail, Lock, LogIn } from 'lucide-react-native';
+import { useNavigation } from '@react-navigation/native';
+import { supabase } from '../lib/supabase';
 
 const SignIn = () => {
   const navigation = useNavigation();
@@ -32,9 +32,9 @@ const SignIn = () => {
   const [loading, setLoading] = useState(false);
 
   // ── Forgot Password state ──────────────────────────────────────────────────
-  const [fpVisible, setFpVisible]   = useState(false);
-  const [fpEmail, setFpEmail]       = useState("");
-  const [fpSending, setFpSending]   = useState(false);
+  const [fpVisible, setFpVisible] = useState(false);
+  const [fpEmail, setFpEmail] = useState('');
+  const [fpSending, setFpSending] = useState(false);
 
   const onSubmit = async (data) => {
     setLoading(true);
@@ -44,15 +44,15 @@ const SignIn = () => {
     });
     setLoading(false);
     if (error) {
-      Alert.alert("Sign In Error", error.message);
+      Alert.alert('Sign In Error', error.message);
     }
     // Navigation handled automatically by AuthContext
   };
 
   const sendResetEmail = async () => {
     const trimmed = fpEmail.trim();
-    if (!trimmed || !trimmed.includes("@")) {
-      Alert.alert("Invalid email", "Please enter a valid email address.");
+    if (!trimmed || !trimmed.includes('@')) {
+      Alert.alert('Invalid email', 'Please enter a valid email address.');
       return;
     }
     setFpSending(true);
@@ -60,13 +60,10 @@ const SignIn = () => {
       const { error } = await supabase.auth.resetPasswordForEmail(trimmed);
       if (error) throw error;
       setFpVisible(false);
-      setFpEmail("");
-      Alert.alert(
-        "Email sent ✉️",
-        "Check your inbox for a password reset link."
-      );
+      setFpEmail('');
+      Alert.alert('Email sent ✉️', 'Check your inbox for a password reset link.');
     } catch (err) {
-      Alert.alert("Error", err?.message || "Could not send reset email.");
+      Alert.alert('Error', err?.message || 'Could not send reset email.');
     } finally {
       setFpSending(false);
     }
@@ -76,15 +73,13 @@ const SignIn = () => {
     <AuthLayout>
       <View style={styles.header}>
         <Text style={styles.title}>Welcome Back!</Text>
-        <Text style={styles.subtitle}>
-          Sign in to continue your fitness journey
-        </Text>
+        <Text style={styles.subtitle}>Sign in to continue your fitness journey</Text>
       </View>
 
       <View style={styles.form}>
         <Controller
           control={control}
-          rules={{ required: "Email is required" }}
+          rules={{ required: 'Email is required' }}
           render={({ field: { onChange, onBlur, value } }) => (
             <Input
               label="Email"
@@ -102,7 +97,7 @@ const SignIn = () => {
 
         <Controller
           control={control}
-          rules={{ required: "Password is required" }}
+          rules={{ required: 'Password is required' }}
           render={({ field: { onChange, onBlur, value } }) => (
             <Input
               label="Password"
@@ -123,7 +118,7 @@ const SignIn = () => {
         <TouchableOpacity
           style={styles.forgotPassword}
           onPress={() => {
-            setFpEmail("");
+            setFpEmail('');
             setFpVisible(true);
           }}
         >
@@ -131,7 +126,7 @@ const SignIn = () => {
         </TouchableOpacity>
 
         <Button
-          title={loading ? "Signing In..." : "Sign In"}
+          title={loading ? 'Signing In...' : 'Sign In'}
           onPress={handleSubmit(onSubmit)}
           icon={LogIn}
           disabled={loading}
@@ -139,7 +134,7 @@ const SignIn = () => {
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>Don't have an account? </Text>
-          <Pressable onPress={() => navigation.navigate("SignUp")}>
+          <Pressable onPress={() => navigation.navigate('SignUp')}>
             <Text style={styles.link}>Sign Up</Text>
           </Pressable>
         </View>
@@ -157,7 +152,7 @@ const SignIn = () => {
         <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
           <View style={styles.modalBackdrop}>
             <KeyboardAvoidingView
-              behavior={Platform.OS === "ios" ? "padding" : "height"}
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
               style={styles.modalKeyboardWrap}
             >
               <TouchableWithoutFeedback>
@@ -222,106 +217,106 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 32,
-    fontWeight: "bold",
-    color: "white",
+    fontWeight: 'bold',
+    color: 'white',
     marginBottom: 8,
-    fontFamily: "Outfit-Bold",
+    fontFamily: 'Outfit-Bold',
   },
   subtitle: {
     fontSize: 16,
-    color: "rgba(255, 255, 255, 0.7)",
-    fontFamily: "Outfit-Regular",
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontFamily: 'Outfit-Regular',
   },
   form: {
-    width: "100%",
+    width: '100%',
   },
   forgotPassword: {
-    alignSelf: "flex-end",
+    alignSelf: 'flex-end',
     marginBottom: 24,
   },
   forgotPasswordText: {
-    color: "#A38DF2",
+    color: '#A38DF2',
     fontSize: 14,
-    fontFamily: "Outfit-Medium",
+    fontFamily: 'Outfit-Medium',
   },
   footer: {
-    flexDirection: "row",
-    justifyContent: "center",
+    flexDirection: 'row',
+    justifyContent: 'center',
     marginTop: 24,
   },
   footerText: {
-    color: "white",
+    color: 'white',
     fontSize: 14,
-    fontFamily: "Outfit-Regular",
+    fontFamily: 'Outfit-Regular',
   },
   link: {
-    color: "#CDF27E",
+    color: '#CDF27E',
     fontSize: 14,
-    fontWeight: "bold",
-    fontFamily: "Outfit-Bold",
+    fontWeight: 'bold',
+    fontFamily: 'Outfit-Bold',
   },
 
   // ── Modal ────────────────────────────────────────────────────────────────
   modalBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "flex-end",
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
   },
   modalKeyboardWrap: {
-    justifyContent: "flex-end",
+    justifyContent: 'flex-end',
   },
   modalCard: {
-    backgroundColor: "#161230",
+    backgroundColor: '#161230',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingTop: 10,
     paddingHorizontal: 20,
     paddingBottom: 36,
     borderTopWidth: 1,
-    borderColor: "#1E1A35",
+    borderColor: '#1E1A35',
   },
   modalHandle: {
-    alignSelf: "center",
+    alignSelf: 'center',
     width: 44,
     height: 5,
     borderRadius: 999,
-    backgroundColor: "#6B5F8A",
+    backgroundColor: '#6B5F8A',
     opacity: 0.45,
     marginBottom: 20,
   },
   modalTitle: {
-    color: "#FFFFFF",
+    color: '#FFFFFF',
     fontSize: 20,
-    fontWeight: "800",
+    fontWeight: '800',
     marginBottom: 6,
-    fontFamily: "Outfit-Bold",
+    fontFamily: 'Outfit-Bold',
   },
   modalSubtitle: {
-    color: "#6B5F8A",
+    color: '#6B5F8A',
     fontSize: 13,
     marginBottom: 20,
-    fontFamily: "Outfit-Regular",
+    fontFamily: 'Outfit-Regular',
   },
   modalLabel: {
-    color: "#6B5F8A",
+    color: '#6B5F8A',
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: '700',
     marginBottom: 8,
-    fontFamily: "Outfit-Medium",
+    fontFamily: 'Outfit-Medium',
   },
   modalInput: {
-    backgroundColor: "#0F0B1E",
-    color: "#FFFFFF",
+    backgroundColor: '#0F0B1E',
+    color: '#FFFFFF',
     borderWidth: 1,
-    borderColor: "#1E1A35",
+    borderColor: '#1E1A35',
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 13,
     fontSize: 15,
-    fontFamily: "Outfit-Regular",
+    fontFamily: 'Outfit-Regular',
   },
   modalActions: {
-    flexDirection: "row",
+    flexDirection: 'row',
     gap: 10,
     marginTop: 24,
   },
@@ -329,28 +324,28 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 14,
     paddingVertical: 14,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   modalBtnPrimary: {
-    backgroundColor: "#7C5CFC",
+    backgroundColor: '#7C5CFC',
   },
   modalBtnSecondary: {
-    backgroundColor: "#0F0B1E",
+    backgroundColor: '#0F0B1E',
     borderWidth: 1,
-    borderColor: "#1E1A35",
+    borderColor: '#1E1A35',
   },
   modalBtnPrimaryText: {
-    color: "#fff",
+    color: '#fff',
     fontSize: 15,
-    fontWeight: "800",
-    fontFamily: "Outfit-Bold",
+    fontWeight: '800',
+    fontFamily: 'Outfit-Bold',
   },
   modalBtnSecondaryText: {
-    color: "#FFFFFF",
+    color: '#FFFFFF',
     fontSize: 15,
-    fontWeight: "700",
-    fontFamily: "Outfit-Medium",
+    fontWeight: '700',
+    fontFamily: 'Outfit-Medium',
   },
   modalBtnDisabled: {
     opacity: 0.7,

@@ -9,7 +9,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 
-const BASE  = '#1E1A35';
+const BASE = '#1E1A35';
 const SHINE = '#2A2550';
 
 // ── Single shimmer block ──────────────────────────────────────
@@ -19,9 +19,9 @@ function ShimmerBlock({ width = '100%', height = 16, radius = 8, style }) {
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
-        Animated.timing(opacity, { toValue: 1,   duration: 750, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 1, duration: 750, useNativeDriver: true }),
         Animated.timing(opacity, { toValue: 0.4, duration: 750, useNativeDriver: true }),
-      ])
+      ]),
     ).start();
   }, []);
 

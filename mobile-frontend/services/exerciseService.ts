@@ -7,9 +7,7 @@ const GITHUB_URL =
 const fetchWithTimeout = (url: string, ms: number): Promise<Response> =>
   Promise.race([
     fetch(url),
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Request timed out')), ms)
-    ),
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Request timed out')), ms)),
   ]);
 
 export const fetchExercises = async (): Promise<any[]> => {

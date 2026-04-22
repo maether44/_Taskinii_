@@ -1,18 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
-import {
-  Alert,
-  Animated,
-  Easing,
-  FlatList,
-  Image,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Alert, FlatList, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, Fontisto } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import {
   createCommunityPost,
@@ -46,28 +35,6 @@ export default function CommunityCenter({ navigation }) {
   const [commentDraftByPostId, setCommentDraftByPostId] = useState({});
   const [commentsLoadingByPostId, setCommentsLoadingByPostId] = useState({});
   const [commentPostingByPostId, setCommentPostingByPostId] = useState({});
-  const [refreshingFeed, setRefreshingFeed] = useState(false);
-  const refreshSpin = useRef(new Animated.Value(0)).current;
-  const isRefreshing = refreshingFeed || loadingPosts;
-
-  useEffect(() => {
-    if (!isRefreshing) {
-      refreshSpin.setValue(0);
-      return;
-    }
-
-    const loop = Animated.loop(
-      Animated.timing(refreshSpin, {
-        toValue: 1,
-        duration: 700,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      }),
-    );
-
-    loop.start();
-    return () => loop.stop();
-  }, [isRefreshing, refreshSpin]);
 
   const normalizeAvatarUri = (value) => {
     if (typeof value !== 'string') return null;
@@ -362,26 +329,19 @@ export default function CommunityCenter({ navigation }) {
   };
 
   const handleRefreshPress = async () => {
-    if (refreshingFeed) return;
-
-    setRefreshingFeed(true);
     const expandedPostIds = Object.entries(expandedCommentsByPostId)
       .filter(([, isExpanded]) => !!isExpanded)
       .map(([postId]) => postId);
 
-    try {
-      await loadPosts(true);
+    await loadPosts(true);
 
-      // Drop cached comments so refresh always reflects latest DB values.
-      setCommentsByPostId({});
+    // Drop cached comments so refresh always reflects latest DB values.
+    setCommentsByPostId({});
 
-      if (expandedPostIds.length) {
-        await Promise.all(
-          expandedPostIds.map((postId) => loadCommentsForPost(postId, { force: true })),
-        );
-      }
-    } finally {
-      setRefreshingFeed(false);
+    if (expandedPostIds.length) {
+      await Promise.all(
+        expandedPostIds.map((postId) => loadCommentsForPost(postId, { force: true })),
+      );
     }
   };
 
@@ -461,7 +421,7 @@ export default function CommunityCenter({ navigation }) {
                 })
               }
             >
-              <Ionicons name="chatbubble-ellipses-outline" size={14} color="#C8F135" />
+              <Fontisto name="paper-plane" size={14} color="#C8F135" />
               <Text style={styles.messageBtnTxt}>Message</Text>
             </Pressable>
           )}
@@ -531,24 +491,15 @@ export default function CommunityCenter({ navigation }) {
         </Pressable>
         <Text style={styles.title}>Community</Text>
         <View style={styles.headerRightRow}>
-          <Pressable onPress={handleRefreshPress} style={styles.backBtn} disabled={isRefreshing}>
-            <Animated.View
-              style={{
-                transform: [
-                  {
-                    rotate: refreshSpin.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: ['0deg', '360deg'],
-                    }),
-                  },
-                ],
-              }}
-            >
-              <Ionicons name="refresh" size={18} color="#C8F135" />
-            </Animated.View>
-          </Pressable>
           <Pressable onPress={() => navigation.navigate('Messages')} style={styles.backBtn}>
             <Ionicons name="chatbubble-ellipses-outline" size={18} color="#C8F135" />
+            {unreadCount > 0 && (
+              <View style={styles.communityBadge}>
+                <Text style={styles.communityBadgeTxt}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </Text>
+              </View>
+            )}
           </Pressable>
         </View>
       </View>
@@ -601,6 +552,13 @@ export default function CommunityCenter({ navigation }) {
         contentContainerStyle={styles.feed}
         renderItem={renderPost}
         showsVerticalScrollIndicator={false}
+        refreshing={loadingPosts}
+        onRefresh={handleRefreshPress}
+        initialNumToRender={4}
+        maxToRenderPerBatch={4}
+        windowSize={7}
+        updateCellsBatchingPeriod={50}
+        removeClippedSubviews
         ListEmptyComponent={
           !loadingPosts ? (
             <Text style={styles.emptyTxt}>No posts yet. Be the first to share.</Text>
@@ -772,6 +730,26 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   messageBtnTxt: { color: '#C8F135', fontWeight: '700', fontSize: 12 },
+  meaageBadge: {
+    position: 'absolute',
+    right: -4,
+    top: -4,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    backgroundColor: '#FF4D4D',
+    borderWidth: 1,
+    borderColor: '#0F0B1E',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  messageBadgeTxt: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: '900',
+    lineHeight: 12,
+  },
   commentsWrap: {
     marginTop: 10,
     borderTopWidth: 1,

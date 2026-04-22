@@ -1,6 +1,6 @@
-import { Ionicons } from "@expo/vector-icons";
-import { useNavigation, useRoute } from "@react-navigation/native";
-import { useEffect, useMemo, useState } from "react";
+import { Ionicons } from '@expo/vector-icons';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -10,33 +10,36 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-} from "react-native";
-import { searchFoodLibrary } from "../../services/foodScannerApi";
-import { useNutrition } from "../../hooks/useNutrition";
+} from 'react-native';
+import { searchFoodLibrary } from '../../services/foodScannerApi';
+import { useNutrition } from '../../hooks/useNutrition';
 import { error as logError } from '../../lib/logger';
 
 const C = {
-  bg: "#0F0B1E",
-  card: "#181430",
-  cardAlt: "#1B1637",
-  border: "#251E42",
-  purple: "#7C5CFC",
-  lime: "#C8F135",
-  sub: "#8C80B1",
-  dim: "#6B5F8A",
-  text: "#fff",
-  accent: "#9D85F5",
+  bg: '#0F0B1E',
+  card: '#181430',
+  cardAlt: '#1B1637',
+  border: '#251E42',
+  purple: '#7C5CFC',
+  lime: '#C8F135',
+  sub: '#8C80B1',
+  dim: '#6B5F8A',
+  text: '#fff',
+  accent: '#9D85F5',
 };
 
 function calcTotals(added) {
-  return added.reduce((acc, item) => {
-    return {
-      cal: acc.cal + (item.calories || 0),
-      p: Math.round((acc.p + (item.protein || 0)) * 10) / 10,
-      c: Math.round((acc.c + (item.carbs || 0)) * 10) / 10,
-      f: Math.round((acc.f + (item.fat || 0)) * 10) / 10,
-    };
-  }, { cal: 0, p: 0, c: 0, f: 0 });
+  return added.reduce(
+    (acc, item) => {
+      return {
+        cal: acc.cal + (item.calories || 0),
+        p: Math.round((acc.p + (item.protein || 0)) * 10) / 10,
+        c: Math.round((acc.c + (item.carbs || 0)) * 10) / 10,
+        f: Math.round((acc.f + (item.fat || 0)) * 10) / 10,
+      };
+    },
+    { cal: 0, p: 0, c: 0, f: 0 },
+  );
 }
 
 function scaleFood(food, quantity) {
@@ -44,7 +47,7 @@ function scaleFood(food, quantity) {
   return {
     foodId: food.id,
     foodName: food.name,
-    brand: food.brand || "",
+    brand: food.brand || '',
     barcode: food.barcode || null,
     quantity,
     calories: Math.round((Number(food.calories_per_100g) || 0) * ratio),
@@ -58,35 +61,35 @@ function scaleFood(food, quantity) {
 export default function MealLogger() {
   const navigation = useNavigation();
   const route = useRoute();
-  const { mealSlot = { id: "lunch", label: "Lunch", icon: "🌤️" } } = route.params || {};
+  const { mealSlot = { id: 'lunch', label: 'Lunch', icon: '🌤️' } } = route.params || {};
   const { saveMealEntries, refresh } = useNutrition();
 
   const [foods, setFoods] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [search, setSearch] = useState("");
-  const [searchError, setSearchError] = useState("");
+  const [search, setSearch] = useState('');
+  const [searchError, setSearchError] = useState('');
   const [added, setAdded] = useState([]);
-  const [tab, setTab] = useState("search");
+  const [tab, setTab] = useState('search');
 
   useEffect(() => {
     if (!search.trim()) {
       setFoods([]);
-      setSearchError("");
+      setSearchError('');
       setLoading(false);
       return;
     }
 
     setLoading(true);
-    setSearchError("");
+    setSearchError('');
     const timeout = setTimeout(async () => {
       try {
         const results = await searchFoodLibrary(search.trim());
         setFoods(results);
       } catch (error) {
-        logError("MealLogger food library search failed:", error);
+        logError('MealLogger food library search failed:', error);
         setFoods([]);
-        setSearchError(error?.message || "Food library search failed.");
+        setSearchError(error?.message || 'Food library search failed.');
       } finally {
         setLoading(false);
       }
@@ -98,7 +101,7 @@ export default function MealLogger() {
   const uniqueFoods = useMemo(() => {
     const seen = new Map();
     for (const food of foods) {
-      const key = `${food.name?.trim().toLowerCase() || ""}::${(food.brand || "").trim().toLowerCase()}`;
+      const key = `${food.name?.trim().toLowerCase() || ''}::${(food.brand || '').trim().toLowerCase()}`;
       if (!seen.has(key)) seen.set(key, food);
     }
     return Array.from(seen.values());
@@ -106,16 +109,16 @@ export default function MealLogger() {
 
   const filtered = useMemo(() => {
     return uniqueFoods.filter((food) => {
-      const haystack = `${food.name} ${food.brand || ""}`.toLowerCase();
+      const haystack = `${food.name} ${food.brand || ''}`.toLowerCase();
       return haystack.includes(search.toLowerCase());
     });
   }, [uniqueFoods, search]);
 
   const addFood = (food) => {
-    setAdded((prev) => prev.find((item) => item.foodId === food.id)
-      ? prev
-      : [...prev, scaleFood(food, 100)]);
-    setTab("added");
+    setAdded((prev) =>
+      prev.find((item) => item.foodId === food.id) ? prev : [...prev, scaleFood(food, 100)],
+    );
+    setTab('added');
   };
 
   const removeFood = (foodId) => {
@@ -124,11 +127,13 @@ export default function MealLogger() {
 
   const updateQty = (foodId, quantity) => {
     const safeQty = Math.max(1, quantity);
-    setAdded((prev) => prev.map((item) => {
-      if (item.foodId !== foodId) return item;
-      const source = foods.find((food) => food.id === foodId);
-      return source ? scaleFood(source, safeQty) : item;
-    }));
+    setAdded((prev) =>
+      prev.map((item) => {
+        if (item.foodId !== foodId) return item;
+        const source = foods.find((food) => food.id === foodId);
+        return source ? scaleFood(source, safeQty) : item;
+      }),
+    );
   };
 
   const totals = calcTotals(added);
@@ -164,20 +169,26 @@ export default function MealLogger() {
           <Ionicons name="chevron-back" size={20} color={C.text} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={s.title}>{mealSlot.icon} {mealSlot.label}</Text>
+          <Text style={s.title}>
+            {mealSlot.icon} {mealSlot.label}
+          </Text>
           <Text style={s.subtitle}>Build this meal from the food library</Text>
         </View>
-        <TouchableOpacity style={[s.saveBtn, (!added.length || saving) && s.saveBtnOff]} onPress={handleSave} disabled={!added.length || saving}>
-          <Text style={s.saveTxt}>{saving ? "Saving" : "Save"}</Text>
+        <TouchableOpacity
+          style={[s.saveBtn, (!added.length || saving) && s.saveBtnOff]}
+          onPress={handleSave}
+          disabled={!added.length || saving}
+        >
+          <Text style={s.saveTxt}>{saving ? 'Saving' : 'Save'}</Text>
         </TouchableOpacity>
       </View>
 
       <View style={s.totalsBar}>
         {[
-          { val: totals.cal, lbl: "kcal" },
-          { val: `${totals.p}g`, lbl: "protein" },
-          { val: `${totals.c}g`, lbl: "carbs" },
-          { val: `${totals.f}g`, lbl: "fat" },
+          { val: totals.cal, lbl: 'kcal' },
+          { val: `${totals.p}g`, lbl: 'protein' },
+          { val: `${totals.c}g`, lbl: 'carbs' },
+          { val: `${totals.f}g`, lbl: 'fat' },
         ].map((item) => (
           <View key={item.lbl} style={s.totalItem}>
             <Text style={s.totalVal}>{item.val}</Text>
@@ -188,16 +199,20 @@ export default function MealLogger() {
 
       <View style={s.tabs}>
         {[
-          { id: "search", label: "Food library" },
-          { id: "added", label: `Added (${added.length})` },
+          { id: 'search', label: 'Food library' },
+          { id: 'added', label: `Added (${added.length})` },
         ].map((item) => (
-          <TouchableOpacity key={item.id} style={[s.tab, tab === item.id && s.tabActive]} onPress={() => setTab(item.id)}>
+          <TouchableOpacity
+            key={item.id}
+            style={[s.tab, tab === item.id && s.tabActive]}
+            onPress={() => setTab(item.id)}
+          >
             <Text style={[s.tabTxt, tab === item.id && s.tabTxtActive]}>{item.label}</Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      {tab === "search" && (
+      {tab === 'search' && (
         <View style={{ flex: 1 }}>
           <View style={s.searchWrap}>
             <Ionicons name="search-outline" size={16} color={C.sub} />
@@ -209,7 +224,7 @@ export default function MealLogger() {
               placeholderTextColor={C.dim}
             />
             {!!search && (
-              <TouchableOpacity onPress={() => setSearch("")}>
+              <TouchableOpacity onPress={() => setSearch('')}>
                 <Ionicons name="close-outline" size={18} color={C.sub} />
               </TouchableOpacity>
             )}
@@ -227,21 +242,31 @@ export default function MealLogger() {
               data={filtered}
               keyExtractor={(item) => String(item.id)}
               contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
-              ListEmptyComponent={(
+              ListEmptyComponent={
                 <View style={s.emptyState}>
-                  <Text style={s.emptyTitle}>{search ? "No matching foods" : "Search our food library"}</Text>
-                  <Text style={s.emptySub}>{search ? "Try a different food name or brand." : "Tap a suggestion or type a food to search OpenFoodFacts."}</Text>
+                  <Text style={s.emptyTitle}>
+                    {search ? 'No matching foods' : 'Search our food library'}
+                  </Text>
+                  <Text style={s.emptySub}>
+                    {search
+                      ? 'Try a different food name or brand.'
+                      : 'Tap a suggestion or type a food to search OpenFoodFacts.'}
+                  </Text>
                   {!search && (
                     <View style={s.suggestionRow}>
-                      {["Banana", "Greek Yogurt", "Chicken Breast", "Oats", "Eggs"].map((term) => (
-                        <TouchableOpacity key={term} style={s.suggestionChip} onPress={() => setSearch(term)}>
+                      {['Banana', 'Greek Yogurt', 'Chicken Breast', 'Oats', 'Eggs'].map((term) => (
+                        <TouchableOpacity
+                          key={term}
+                          style={s.suggestionChip}
+                          onPress={() => setSearch(term)}
+                        >
                           <Text style={s.suggestionTxt}>{term}</Text>
                         </TouchableOpacity>
                       ))}
                     </View>
                   )}
                 </View>
-              )}
+              }
               renderItem={({ item }) => {
                 const isAdded = added.some((addedItem) => addedItem.foodId === item.id);
                 return (
@@ -249,11 +274,17 @@ export default function MealLogger() {
                     <View style={{ flex: 1 }}>
                       <Text style={s.foodName}>{item.name}</Text>
                       <Text style={s.foodMeta}>
-                        {Math.round(item.calories_per_100g || 0)} kcal per 100g • {Math.round(item.protein_per_100g || 0)}g P • {Math.round(item.carbs_per_100g || 0)}g C • {Math.round(item.fat_per_100g || 0)}g F
+                        {Math.round(item.calories_per_100g || 0)} kcal per 100g •{' '}
+                        {Math.round(item.protein_per_100g || 0)}g P •{' '}
+                        {Math.round(item.carbs_per_100g || 0)}g C •{' '}
+                        {Math.round(item.fat_per_100g || 0)}g F
                       </Text>
                     </View>
-                    <TouchableOpacity style={[s.addBtn, isAdded && s.addBtnDone]} onPress={() => isAdded ? removeFood(item.id) : addFood(item)}>
-                      <Text style={s.addBtnTxt}>{isAdded ? "✓" : "+"}</Text>
+                    <TouchableOpacity
+                      style={[s.addBtn, isAdded && s.addBtnDone]}
+                      onPress={() => (isAdded ? removeFood(item.id) : addFood(item))}
+                    >
+                      <Text style={s.addBtnTxt}>{isAdded ? '✓' : '+'}</Text>
                     </TouchableOpacity>
                   </View>
                 );
@@ -263,26 +294,36 @@ export default function MealLogger() {
         </View>
       )}
 
-      {tab === "added" && (
+      {tab === 'added' && (
         <ScrollView contentContainerStyle={s.addedScroll}>
           {!added.length ? (
             <View style={s.emptyState}>
               <Text style={s.emptyTitle}>No foods added yet</Text>
-              <Text style={s.emptySub}>Search your saved foods and build this meal piece by piece.</Text>
+              <Text style={s.emptySub}>
+                Search your saved foods and build this meal piece by piece.
+              </Text>
             </View>
           ) : (
             added.map((item) => (
               <View key={item.foodId} style={s.addedRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={s.foodName}>{item.foodName}</Text>
-                  <Text style={s.foodMeta}>{item.calories} kcal • {item.protein}g P • {item.carbs}g C • {item.fat}g F</Text>
+                  <Text style={s.foodMeta}>
+                    {item.calories} kcal • {item.protein}g P • {item.carbs}g C • {item.fat}g F
+                  </Text>
                 </View>
                 <View style={s.qtyControl}>
-                  <TouchableOpacity style={s.qtyBtn} onPress={() => updateQty(item.foodId, item.quantity - 25)}>
+                  <TouchableOpacity
+                    style={s.qtyBtn}
+                    onPress={() => updateQty(item.foodId, item.quantity - 25)}
+                  >
                     <Ionicons name="remove" size={14} color={C.accent} />
                   </TouchableOpacity>
                   <Text style={s.qtyVal}>{item.quantity}g</Text>
-                  <TouchableOpacity style={s.qtyBtn} onPress={() => updateQty(item.foodId, item.quantity + 25)}>
+                  <TouchableOpacity
+                    style={s.qtyBtn}
+                    onPress={() => updateQty(item.foodId, item.quantity + 25)}
+                  >
                     <Ionicons name="add" size={14} color={C.accent} />
                   </TouchableOpacity>
                 </View>
@@ -300,10 +341,10 @@ export default function MealLogger() {
 
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
-  centered: { flex: 1, alignItems: "center", justifyContent: "center" },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
     paddingHorizontal: 20,
     paddingTop: 54,
@@ -318,20 +359,38 @@ const s = StyleSheet.create({
     backgroundColor: C.cardAlt,
     borderWidth: 1,
     borderColor: C.border,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  title: { color: C.text, fontSize: 20, fontWeight: "800" },
+  title: { color: C.text, fontSize: 20, fontWeight: '800' },
   subtitle: { color: C.sub, fontSize: 12, marginTop: 3 },
-  saveBtn: { backgroundColor: C.purple, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10 },
+  saveBtn: {
+    backgroundColor: C.purple,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
   saveBtnOff: { opacity: 0.45 },
-  saveTxt: { color: "#fff", fontSize: 13, fontWeight: "800" },
-  suggestionRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 12, paddingHorizontal: 8 },
-  suggestionChip: { backgroundColor: "#1B1637", borderRadius: 14, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: "#2D2850" },
-  suggestionTxt: { color: "#C8F135", fontSize: 12, fontWeight: "700" },
+  saveTxt: { color: '#fff', fontSize: 13, fontWeight: '800' },
+  suggestionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 12,
+    paddingHorizontal: 8,
+  },
+  suggestionChip: {
+    backgroundColor: '#1B1637',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#2D2850',
+  },
+  suggestionTxt: { color: '#C8F135', fontSize: 12, fontWeight: '700' },
   totalsBar: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
@@ -339,7 +398,7 @@ const s = StyleSheet.create({
   },
   totalItem: {
     flex: 1,
-    alignItems: "center",
+    alignItems: 'center',
     backgroundColor: C.card,
     borderWidth: 1,
     borderColor: C.border,
@@ -347,12 +406,12 @@ const s = StyleSheet.create({
     paddingVertical: 10,
     marginHorizontal: 4,
   },
-  totalVal: { color: C.text, fontSize: 16, fontWeight: "800" },
+  totalVal: { color: C.text, fontSize: 16, fontWeight: '800' },
   totalLbl: { color: C.sub, fontSize: 11, marginTop: 3 },
-  tabs: { flexDirection: "row", paddingHorizontal: 16, paddingTop: 14, gap: 10 },
+  tabs: { flexDirection: 'row', paddingHorizontal: 16, paddingTop: 14, gap: 10 },
   tab: {
     flex: 1,
-    alignItems: "center",
+    alignItems: 'center',
     paddingVertical: 11,
     borderRadius: 14,
     backgroundColor: C.cardAlt,
@@ -360,11 +419,11 @@ const s = StyleSheet.create({
     borderColor: C.border,
   },
   tabActive: { backgroundColor: `${C.purple}20`, borderColor: `${C.purple}35` },
-  tabTxt: { color: C.sub, fontSize: 13, fontWeight: "700" },
+  tabTxt: { color: C.sub, fontSize: 13, fontWeight: '700' },
   tabTxtActive: { color: C.text },
   searchWrap: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     margin: 16,
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -375,14 +434,14 @@ const s = StyleSheet.create({
     gap: 8,
   },
   searchInput: { flex: 1, color: C.text, fontSize: 15 },
-  searchError: { color: "#FF8787", fontSize: 12, marginHorizontal: 16, marginTop: 8 },
+  searchError: { color: '#FF8787', fontSize: 12, marginHorizontal: 16, marginTop: 8 },
   loadingTxt: { color: C.sub, fontSize: 13, marginTop: 10 },
-  emptyState: { alignItems: "center", paddingTop: 48, paddingHorizontal: 24 },
-  emptyTitle: { color: C.text, fontSize: 17, fontWeight: "700", textAlign: "center" },
-  emptySub: { color: C.sub, fontSize: 13, lineHeight: 19, marginTop: 6, textAlign: "center" },
+  emptyState: { alignItems: 'center', paddingTop: 48, paddingHorizontal: 24 },
+  emptyTitle: { color: C.text, fontSize: 17, fontWeight: '700', textAlign: 'center' },
+  emptySub: { color: C.sub, fontSize: 13, lineHeight: 19, marginTop: 6, textAlign: 'center' },
   foodRow: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
     backgroundColor: C.card,
     borderWidth: 1,
@@ -392,22 +451,22 @@ const s = StyleSheet.create({
     marginBottom: 10,
   },
   foodRowAdded: { borderColor: `${C.purple}40`, backgroundColor: `${C.purple}10` },
-  foodName: { color: C.text, fontSize: 14, fontWeight: "700" },
+  foodName: { color: C.text, fontSize: 14, fontWeight: '700' },
   foodMeta: { color: C.sub, fontSize: 11, marginTop: 4, lineHeight: 16 },
   addBtn: {
     width: 34,
     height: 34,
     borderRadius: 17,
     backgroundColor: C.purple,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   addBtnDone: { backgroundColor: C.lime },
-  addBtnTxt: { color: "#fff", fontSize: 18, fontWeight: "800" },
+  addBtnTxt: { color: '#fff', fontSize: 18, fontWeight: '800' },
   addedScroll: { padding: 16 },
   addedRow: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
     backgroundColor: C.card,
     borderWidth: 1,
@@ -416,7 +475,7 @@ const s = StyleSheet.create({
     padding: 14,
     marginBottom: 10,
   },
-  qtyControl: { flexDirection: "row", alignItems: "center", gap: 8 },
+  qtyControl: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   qtyBtn: {
     width: 28,
     height: 28,
@@ -424,9 +483,9 @@ const s = StyleSheet.create({
     backgroundColor: C.cardAlt,
     borderWidth: 1,
     borderColor: C.border,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  qtyVal: { color: C.text, fontSize: 13, fontWeight: "700", minWidth: 46, textAlign: "center" },
+  qtyVal: { color: C.text, fontSize: 13, fontWeight: '700', minWidth: 46, textAlign: 'center' },
   deleteBtn: { padding: 4 },
 });

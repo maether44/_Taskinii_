@@ -1,31 +1,23 @@
-import {
-  View,
-  Text,
-  ScrollView,
-  Image,
-  StyleSheet,
-  TouchableOpacity,
-} from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { BASE_IMG } from "../services/exerciseService";
-
+import { View, Text, ScrollView, Image, StyleSheet, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { BASE_IMG } from '../services/exerciseService';
 
 const C = {
-  bg: "#0F0B1E",
-  card: "#161230",
-  border: "#1E1A35",
-  purple: "#7C5CFC",
-  text: "#FFFFFF",
-  sub: "#6B5F8A",
-  accent: "#9D85F5",
-  muted: "#4A4160",
+  bg: '#0F0B1E',
+  card: '#161230',
+  border: '#1E1A35',
+  purple: '#7C5CFC',
+  text: '#FFFFFF',
+  sub: '#6B5F8A',
+  accent: '#9D85F5',
+  muted: '#4A4160',
 };
 
 export default function ExerciseInfo({ route, navigation }) {
   const { exercise } = route.params;
 
-  const primaryMuscles = exercise.primaryMuscles?.join(", ") || "N/A";
-  const secondaryMuscles = exercise.secondaryMuscles?.join(", ") || "None";
+  const primaryMuscles = exercise.primaryMuscles?.join(', ') || 'N/A';
+  const secondaryMuscles = exercise.secondaryMuscles?.join(', ') || 'None';
 
   return (
     <View style={s.container}>
@@ -38,10 +30,7 @@ export default function ExerciseInfo({ route, navigation }) {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView
-        contentContainerStyle={s.scroll}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
         {/* Exercise Name */}
         <Text style={s.name}>{exercise.name}</Text>
 
@@ -65,11 +54,7 @@ export default function ExerciseInfo({ route, navigation }) {
         {(exercise.images || []).length > 0 && (
           <View style={s.section}>
             <Text style={s.sectionTitle}>Visual Guide</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={s.imageScroll}
-            >
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.imageScroll}>
               {(exercise.images || []).map((img, i) => (
                 <Image
                   key={i}
@@ -133,7 +118,9 @@ export default function ExerciseInfo({ route, navigation }) {
       <View style={s.footer}>
         <TouchableOpacity
           style={s.mainActionBtn}
-          onPress={() => navigation.navigate('WorkoutActive', { exerciseKey: exercise.name.toLowerCase() })}
+          onPress={() =>
+            navigation.navigate('WorkoutActive', { exerciseKey: exercise.name.toLowerCase() })
+          }
         >
           <Text style={s.mainActionTxt}>START AI POSTURE COACH</Text>
         </TouchableOpacity>
@@ -145,9 +132,9 @@ export default function ExerciseInfo({ route, navigation }) {
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingTop: 56,
     paddingBottom: 16,
@@ -158,19 +145,19 @@ const s = StyleSheet.create({
   backBtn: {
     width: 40,
     height: 40,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  headerTitle: { color: C.text, fontSize: 18, fontWeight: "700" },
+  headerTitle: { color: C.text, fontSize: 18, fontWeight: '700' },
   scroll: { padding: 16 },
   name: {
     color: C.text,
     fontSize: 28,
-    fontWeight: "900",
+    fontWeight: '900',
     letterSpacing: -0.6,
     marginBottom: 16,
   },
-  metaRow: { flexDirection: "row", gap: 12, marginBottom: 24 },
+  metaRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },
   metaItem: {
     flex: 1,
     backgroundColor: C.card,
@@ -179,18 +166,18 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: C.border,
   },
-  metaLabel: { color: C.sub, fontSize: 11, fontWeight: "600", marginBottom: 4 },
+  metaLabel: { color: C.sub, fontSize: 11, fontWeight: '600', marginBottom: 4 },
   metaValue: {
     color: C.text,
     fontSize: 14,
-    fontWeight: "700",
-    textTransform: "capitalize",
+    fontWeight: '700',
+    textTransform: 'capitalize',
   },
   section: { marginBottom: 24 },
   sectionTitle: {
     color: C.text,
     fontSize: 18,
-    fontWeight: "800",
+    fontWeight: '800',
     marginBottom: 12,
   },
   imageScroll: { marginHorizontal: -16 },
@@ -209,26 +196,26 @@ const s = StyleSheet.create({
     borderColor: C.border,
   },
   muscleRow: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
     marginBottom: 8,
   },
-  muscleLabel: { color: C.sub, fontSize: 13, fontWeight: "600", width: 80 },
+  muscleLabel: { color: C.sub, fontSize: 13, fontWeight: '600', width: 80 },
   musclePrimary: {
     color: C.accent,
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: '700',
     flex: 1,
-    textTransform: "capitalize",
+    textTransform: 'capitalize',
   },
   muscleSecondary: {
     color: C.text,
     fontSize: 14,
     flex: 1,
-    textTransform: "capitalize",
+    textTransform: 'capitalize',
   },
-  instructions: { color: "#C9C2DF", fontSize: 15, lineHeight: 24 },
+  instructions: { color: '#C9C2DF', fontSize: 15, lineHeight: 24 },
   infoCard: {
     backgroundColor: C.card,
     borderRadius: 14,
@@ -237,16 +224,16 @@ const s = StyleSheet.create({
     borderColor: C.border,
   },
   infoRow: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
     marginBottom: 8,
   },
-  infoLabel: { color: C.sub, fontSize: 13, fontWeight: "600", width: 80 },
+  infoLabel: { color: C.sub, fontSize: 13, fontWeight: '600', width: 80 },
   infoValue: {
     color: C.text,
     fontSize: 14,
-    textTransform: "capitalize",
+    textTransform: 'capitalize',
     flex: 1,
   },
   footer: {

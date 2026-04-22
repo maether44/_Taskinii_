@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import { callYara }                    from '../lib/groqAPI';
+import { callYara } from '../lib/groqAPI';
 import { getChatHistory, saveMessage } from '../services/chatService';
-import { useAuth }                     from '../context/AuthContext';
-import { error as logError }           from '../lib/logger';
-import { scheduleStore }               from '../store/scheduleStore';
+import { useAuth } from '../context/AuthContext';
+import { error as logError } from '../lib/logger';
+import { scheduleStore } from '../store/scheduleStore';
 
 function fmtTime() {
   return new Date().toLocaleTimeString('en-US', {
-    hour: 'numeric', minute: '2-digit', hour12: true,
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
   });
 }
 
@@ -18,15 +20,25 @@ function buildWelcome(profile) {
 }
 
 const SCHEDULE_KEYWORDS = [
-  'weekly schedule', 'weekly plan', 'week plan', 'my schedule',
-  'workout plan', 'meal plan', 'weekly routine', 'plan my week',
-  'generate schedule', 'create schedule', 'make me a plan',
-  'full plan', 'training plan', 'give me a plan',
+  'weekly schedule',
+  'weekly plan',
+  'week plan',
+  'my schedule',
+  'workout plan',
+  'meal plan',
+  'weekly routine',
+  'plan my week',
+  'generate schedule',
+  'create schedule',
+  'make me a plan',
+  'full plan',
+  'training plan',
+  'give me a plan',
 ];
 
 const isScheduleRequest = (text) => {
   const lower = text.toLowerCase();
-  return SCHEDULE_KEYWORDS.some(k => lower.includes(k));
+  return SCHEDULE_KEYWORDS.some((k) => lower.includes(k));
 };
 
 // Appended to the system prompt when user asks for a schedule
@@ -66,19 +78,22 @@ NEVER use COMMAND: syntax. NEVER output anything except the JSON object.
 `;
 
 export function useYaraChat(profile, onScheduleReady) {
-  const { user }                 = useAuth();
-  const [messages,  setMessages] = useState([]);
-  const [input,     setInput]    = useState('');
-  const [typing,    setTyping]   = useState(false);
-  const [open,      setOpen]     = useState(false);
-  const apiHistory               = useRef([]);
+  const { user } = useAuth();
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+  const [typing, setTyping] = useState(false);
+  const [open, setOpen] = useState(false);
+  const apiHistory = useRef([]);
 
   // Load persisted chat history on mount
   useEffect(() => {
     const loadHistory = async () => {
       const welcome = { from: 'yara', text: buildWelcome(profile), time: fmtTime() };
 
-      if (!user) { setMessages([welcome]); return; }
+      if (!user) {
+        setMessages([welcome]);
+        return;
+      }
 
       try {
         const history = await getChatHistory(user.id);
@@ -86,7 +101,7 @@ export function useYaraChat(profile, onScheduleReady) {
         if (safeHistory.length === 0) {
           setMessages([welcome]);
         } else {
-          const uiMessages = safeHistory.map(m => ({
+          const uiMessages = safeHistory.map((m) => ({
             from: m.role === 'assistant' ? 'yara' : 'user',
             text: m.content,
             time: '',
@@ -108,7 +123,7 @@ export function useYaraChat(profile, onScheduleReady) {
 
     setInput('');
     setTyping(true);
-    setMessages(prev => [...prev, { from: 'user', text: msg, time: fmtTime() }]);
+    setMessages((prev) => [...prev, { from: 'user', text: msg, time: fmtTime() }]);
 
     const isSchedule = isScheduleRequest(msg);
 
@@ -136,14 +151,20 @@ export function useYaraChat(profile, onScheduleReady) {
             });
             // Show the text response + schedule card marker
             const responseText = parsed.response || "Here's your weekly plan!";
-            apiHistory.current = [...apiHistory.current, { role: 'assistant', content: responseText }];
+            apiHistory.current = [
+              ...apiHistory.current,
+              { role: 'assistant', content: responseText },
+            ];
             if (user) await saveMessage(user.id, 'assistant', responseText).catch(console.error);
-            setMessages(prev => [...prev, {
-              from: 'yara',
-              text: responseText,
-              time: fmtTime(),
-              schedule: parsed.schedule, // triggers preview card in UI
-            }]);
+            setMessages((prev) => [
+              ...prev,
+              {
+                from: 'yara',
+                text: responseText,
+                time: fmtTime(),
+                schedule: parsed.schedule, // triggers preview card in UI
+              },
+            ]);
             onScheduleReady?.(); // optional callback to navigate
             return;
           }
@@ -155,16 +176,18 @@ export function useYaraChat(profile, onScheduleReady) {
       // Normal text reply
       apiHistory.current = [...apiHistory.current, { role: 'assistant', content: reply }];
       if (user) await saveMessage(user.id, 'assistant', reply).catch(console.error);
-      setMessages(prev => [...prev, { from: 'yara', text: reply, time: fmtTime() }]);
-
+      setMessages((prev) => [...prev, { from: 'yara', text: reply, time: fmtTime() }]);
     } catch (err) {
       logError('Yara error:', err);
       apiHistory.current = apiHistory.current.slice(0, -1);
-      setMessages(prev => [...prev, {
-        from: 'yara',
-        text: 'Sorry, connection issue. Try again!',
-        time: fmtTime(),
-      }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          from: 'yara',
+          text: 'Sorry, connection issue. Try again!',
+          time: fmtTime(),
+        },
+      ]);
     } finally {
       setTyping(false);
     }

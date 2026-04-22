@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
@@ -84,17 +84,20 @@ export default function MessagesInbox({ navigation, route }) {
         const openPeer = route?.params?.openPeer;
         if (!openPeer || !user?.id) return;
 
-        const thread = await ensureThread(user.id, openPeer, {
-          initialPeerMessage: `Hey, this is ${openPeer.name}. Thanks for reaching out.`,
-        });
+        try {
+          const thread = await ensureThread(user.id, openPeer);
 
-        navigation.setParams?.({ openPeer: undefined });
-        navigation.navigate('DMThread', {
-          threadId: thread.id,
-          peerName: thread.peerName,
-          peerHandle: thread.peerHandle,
-          peerAvatarUri: thread.peerAvatarUri || null,
-        });
+          navigation.setParams?.({ openPeer: undefined });
+          navigation.navigate('DMThread', {
+            threadId: thread.id,
+            peerName: thread.peerName,
+            peerHandle: thread.peerHandle,
+            peerAvatarUri: thread.peerAvatarUri || null,
+          });
+        } catch (error) {
+          navigation.setParams?.({ openPeer: undefined });
+          Alert.alert('DM unavailable', error?.message || 'Could not open this conversation.');
+        }
       };
 
       maybeOpenPeer();

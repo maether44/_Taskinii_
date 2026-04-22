@@ -27,7 +27,10 @@ export function useDashboard() {
 
   // Load the RPC snapshot + profile (dashboard-specific, not duplicated elsewhere)
   const loadSnapshot = useCallback(async () => {
-    if (!userId) { setIsLoading(false); return; }
+    if (!userId) {
+      setIsLoading(false);
+      return;
+    }
     try {
       // Only show the global spinner the first time we fetch for this user.
       if (loadedForUserRef.current !== userId) setIsLoading(true);
@@ -70,7 +73,9 @@ export function useDashboard() {
     }
   }, [userId]);
 
-  useEffect(() => { loadSnapshot(); }, [loadSnapshot]);
+  useEffect(() => {
+    loadSnapshot();
+  }, [loadSnapshot]);
 
   // Combine: refresh both the snapshot and TodayContext
   const refresh = useCallback(async () => {
@@ -78,7 +83,14 @@ export function useDashboard() {
   }, [loadSnapshot, today.refresh]);
 
   // Read shared state from TodayContext
-  const { waterMl, sleepHours, caloriesBurned: workoutCals, muscleFatigue, goals, steps: todaySteps } = today;
+  const {
+    waterMl,
+    sleepHours,
+    caloriesBurned: workoutCals,
+    muscleFatigue,
+    goals,
+    steps: todaySteps,
+  } = today;
 
   return {
     isLoading: isLoading || today.loading,
@@ -86,15 +98,18 @@ export function useDashboard() {
     user: snapshot?.user || { name: 'User', goal: 'maintain', avatar_url: null },
     stats: {
       calories: {
-        eaten:   snapshot?.calories?.eaten || 0,
-        target:  snapshot?.calories?.target || goals.calorie_target,
-        burned:  workoutCals,
-        remaining: (snapshot?.calories?.target || goals.calorie_target) - (snapshot?.calories?.eaten || 0) + workoutCals,
+        eaten: snapshot?.calories?.eaten || 0,
+        target: snapshot?.calories?.target || goals.calorie_target,
+        burned: workoutCals,
+        remaining:
+          (snapshot?.calories?.target || goals.calorie_target) -
+          (snapshot?.calories?.eaten || 0) +
+          workoutCals,
       },
       macros: snapshot?.macros || {
         protein: { current: 0, target: goals.protein_target },
         carbs: { current: 0, target: goals.carbs_target },
-        fat: { current: 0, target: goals.fat_target }
+        fat: { current: 0, target: goals.fat_target },
       },
       water: { current: waterMl, target: goals.water_target_ml },
       steps: todaySteps,
@@ -104,16 +119,21 @@ export function useDashboard() {
     workoutCalories: workoutCals,
     muscleFatigue,
     yaraInsight: (() => {
-      const top = muscleFatigue.find(m => m.fatigue_pct >= 70);
+      const top = muscleFatigue.find((m) => m.fatigue_pct >= 70);
       if (top) {
         const recovery = RECOVERY_MAP[top.muscle_name] ?? 'a different muscle group';
         return `I noticed your ${top.muscle_name} fatigue is high (${top.fatigue_pct}%). Tomorrow, we will focus on ${recovery} for recovery.`;
       }
-      return snapshot?.insight || "You're doing great! Stay consistent and the results will follow.";
+      return (
+        snapshot?.insight || "You're doing great! Stay consistent and the results will follow."
+      );
     })(),
-    logSleep: useCallback(async (hours) => {
-      await today.logSleep({ hours });
-    }, [today.logSleep]),
+    logSleep: useCallback(
+      async (hours) => {
+        await today.logSleep({ hours });
+      },
+      [today.logSleep],
+    ),
     logWater: today.logWater,
     refresh,
   };

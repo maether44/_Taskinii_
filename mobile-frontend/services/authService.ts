@@ -1,4 +1,4 @@
-import { supabase } from "../lib/supabase";
+import { supabase } from '../lib/supabase';
 import { log } from '../lib/logger';
 
 export const signUpUser = async (email, password, fullName) => {
@@ -11,20 +11,20 @@ export const signUpUser = async (email, password, fullName) => {
   });
 
   if (authError) throw new Error(authError.message);
-  if (!authData.user) throw new Error("Failed to create user");
+  if (!authData.user) throw new Error('Failed to create user');
 
-  const { error: profileError } = await supabase.from("profiles").upsert(
+  const { error: profileError } = await supabase.from('profiles').upsert(
     {
       id: authData.user.id,
       full_name: fullName.trim(),
       updated_at: new Date().toISOString(),
     },
-    { onConflict: "id" },
+    { onConflict: 'id' },
   );
 
   if (profileError) throw new Error(profileError.message);
 
-  log("✅ User created with ID:", authData.user.id);
+  log('✅ User created with ID:', authData.user.id);
   return authData;
 };
 

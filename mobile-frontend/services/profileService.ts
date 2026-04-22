@@ -1,11 +1,11 @@
-import { supabase } from "../lib/supabase";
-import { calcMacroTargets, dobToISO, normalizeGoal } from "../lib/calculations";
+import { supabase } from '../lib/supabase';
+import { calcMacroTargets, dobToISO, normalizeGoal } from '../lib/calculations';
 
 export const getProfile = async (userId) => {
   const { data, error } = await supabase
-    .from("profiles")
-    .select("goal, onboarded, date_of_birth, preferred_workout_time, workout_days_per_week")
-    .eq("id", userId)
+    .from('profiles')
+    .select('goal, onboarded, date_of_birth, preferred_workout_time, workout_days_per_week')
+    .eq('id', userId)
     .single();
 
   if (error) throw new Error(error.message);
@@ -14,7 +14,7 @@ export const getProfile = async (userId) => {
 
 export const saveOnboardingProfile = async (userId, answers) => {
   const normalizedGoal = normalizeGoal(answers.goal);
-  const { error } = await supabase.from("profiles").upsert({
+  const { error } = await supabase.from('profiles').upsert({
     id: userId,
     gender: answers.gender,
     date_of_birth: dobToISO(answers.dob),
@@ -40,13 +40,13 @@ export const saveOnboardingProfile = async (userId, answers) => {
 export const saveCalorieTargets = async (userId, { calTarget, protein, goal }) => {
   const dailyCalories = parseInt(calTarget);
   const macroTargets = calcMacroTargets(dailyCalories, goal);
-  const { error } = await supabase.from("calorie_targets").insert({
+  const { error } = await supabase.from('calorie_targets').insert({
     user_id: userId,
     daily_calories: dailyCalories,
     protein_target: parseInt(protein) || macroTargets.protein_target,
     carbs_target: macroTargets.carbs_target,
     fat_target: macroTargets.fat_target,
-    effective_from: new Date().toISOString().split("T")[0],
+    effective_from: new Date().toISOString().split('T')[0],
   });
 
   if (error) throw new Error(error.message);

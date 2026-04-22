@@ -1,22 +1,12 @@
-import { useRef, useState } from "react";
-import { Animated } from "react-native";
-import { generateAIPlan } from "../lib/groqAPI";
-import {
-  calcBMR,
-  calcTDEE,
-  calcCalTarget,
-  calcProtein,
-  calcBMI,
-} from "../lib/calculations";
-import { STEPS } from "../constants/onBoardingData";
+import { useRef, useState } from 'react';
+import { Animated } from 'react-native';
+import { generateAIPlan } from '../lib/groqAPI';
+import { calcBMR, calcTDEE, calcCalTarget, calcProtein, calcBMI } from '../lib/calculations';
+import { STEPS } from '../constants/onBoardingData';
 
-import {
-  getProfile,
-  saveOnboardingProfile,
-  saveCalorieTargets,
-} from "../services/profileService";
-import { supabase } from "../lib/supabase";
-import { useAuth } from "../context/AuthContext";
+import { getProfile, saveOnboardingProfile, saveCalorieTargets } from '../services/profileService';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
 import { error as logError } from '../lib/logger';
 
 export function useOnboarding() {
@@ -33,10 +23,10 @@ export function useOnboarding() {
   // Step answers
   const [goal, setGoal] = useState(null);
   const [gender, setGender] = useState(null);
-  const [dob, setDob] = useState("");
-  const [height, setHeight] = useState("");
-  const [weight, setWeight] = useState("");
-  const [targetW, setTargetW] = useState("");
+  const [dob, setDob] = useState('');
+  const [height, setHeight] = useState('');
+  const [weight, setWeight] = useState('');
+  const [targetW, setTargetW] = useState('');
   const [activity, setActivity] = useState(null);
   const [experience, setExperience] = useState(null);
   const [injuries, setInjuries] = useState([]);
@@ -58,25 +48,19 @@ export function useOnboarding() {
 
   // Multi-select toggles
   const toggleInjury = (id) => {
-    if (id === "none") {
-      setInjuries(["none"]);
+    if (id === 'none') {
+      setInjuries(['none']);
       return;
     }
     setInjuries((p) =>
-      p.filter((x) => x !== "none").includes(id)
+      p.filter((x) => x !== 'none').includes(id)
         ? p.filter((x) => x !== id)
-        : [...p.filter((x) => x !== "none"), id],
+        : [...p.filter((x) => x !== 'none'), id],
     );
   };
 
   const toggleFocus = (id) => {
-    setFocus((p) =>
-      p.includes(id)
-        ? p.filter((x) => x !== id)
-        : p.length < 3
-          ? [...p, id]
-          : p,
-    );
+    setFocus((p) => (p.includes(id) ? p.filter((x) => x !== id) : p.length < 3 ? [...p, id] : p));
   };
 
   // Per-step validation
@@ -141,7 +125,7 @@ export function useOnboarding() {
       const plan = await generateAIPlan(getAnswers());
       setAiPlan(plan);
     } catch {
-      setLoadError("Still having trouble. Check your connection.");
+      setLoadError('Still having trouble. Check your connection.');
     } finally {
       setLoading(false);
     }
@@ -156,8 +140,8 @@ export function useOnboarding() {
         const plan = await generateAIPlan(getAnswers());
         setAiPlan(plan);
       } catch (err) {
-        logError("AI plan error:", err);
-        setLoadError("Could not generate your plan. Tap retry.");
+        logError('AI plan error:', err);
+        setLoadError('Could not generate your plan. Tap retry.');
       } finally {
         setLoading(false);
       }
@@ -174,7 +158,7 @@ export function useOnboarding() {
     setLoadError(null);
     try {
       if (!authUser) {
-        throw new Error("No authenticated user found");
+        throw new Error('No authenticated user found');
       }
       const user = authUser;
 
@@ -195,10 +179,8 @@ export function useOnboarding() {
 
       onComplete?.();
     } catch (err) {
-      logError("Failed to save onboarding:", err);
-      setLoadError(
-        err.message || "Failed to save your profile. Please try again.",
-      );
+      logError('Failed to save onboarding:', err);
+      setLoadError(err.message || 'Failed to save your profile. Please try again.');
     } finally {
       setSavingProfile(false);
     }
@@ -206,7 +188,7 @@ export function useOnboarding() {
 
   const progressWidth = progress.interpolate({
     inputRange: [0, 1],
-    outputRange: ["0%", "100%"],
+    outputRange: ['0%', '100%'],
   });
 
   return {

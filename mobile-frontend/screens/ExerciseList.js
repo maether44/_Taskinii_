@@ -1,21 +1,35 @@
-import { View, Text, FlatList, StyleSheet, ActivityIndicator,
-         TouchableOpacity, RefreshControl, TextInput } from 'react-native';
+import {
+  View,
+  Text,
+  FlatList,
+  StyleSheet,
+  ActivityIndicator,
+  TouchableOpacity,
+  RefreshControl,
+  TextInput,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
 import { useExercises } from '../hooks/useExercises';
-import ExerciseCard    from '../components/ExerciseCard';
-import { supabase }   from '../lib/supabase';
-import { useAuth }    from '../context/AuthContext';
+import ExerciseCard from '../components/ExerciseCard';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
 
 const C = {
-  bg: '#0F0B1E', card: '#161230', border: '#1E1A35',
-  purple: '#7C5CFC', text: '#FFFFFF', sub: '#6B5F8A', red: '#FF3B30',
+  bg: '#0F0B1E',
+  card: '#161230',
+  border: '#1E1A35',
+  purple: '#7C5CFC',
+  text: '#FFFFFF',
+  sub: '#6B5F8A',
+  red: '#FF3B30',
 };
 
 export default function ExerciseList() {
   const navigation = useNavigation();
-  const { filtered, loading, refreshing, error, query, setQuery, onRefresh, retry } = useExercises();
+  const { filtered, loading, refreshing, error, query, setQuery, onRefresh, retry } =
+    useExercises();
   const { user: authUser } = useAuth();
   const authUserId = authUser?.id ?? null;
 
@@ -33,23 +47,27 @@ export default function ExerciseList() {
 
     const bests = {};
     for (const s of sessions) {
-      const keyMatch  = s.notes?.match(/^(\S+)/);
+      const keyMatch = s.notes?.match(/^(\S+)/);
       const formMatch = s.notes?.match(/(\d+)%\s*form/i);
       if (!keyMatch || !formMatch) continue;
-      const key  = keyMatch[1].toLowerCase();
+      const key = keyMatch[1].toLowerCase();
       const form = parseInt(formMatch[1]);
       if (!bests[key] || form > bests[key].score) {
         bests[key] = {
           score: form,
           // "new" = logged within last 24h and score ≥ 90
-          isNew: form >= 90 && (Date.now() - new Date(s.created_at).getTime()) < 86400000,
+          isNew: form >= 90 && Date.now() - new Date(s.created_at).getTime() < 86400000,
         };
       }
     }
     setPersonalBests(bests);
   }, [authUserId]);
 
-  useFocusEffect(useCallback(() => { loadPersonalBests(); }, [loadPersonalBests]));
+  useFocusEffect(
+    useCallback(() => {
+      loadPersonalBests();
+    }, [loadPersonalBests]),
+  );
 
   if (loading) {
     return (
@@ -96,7 +114,7 @@ export default function ExerciseList() {
         keyExtractor={(item, i) => item.id || `${item.name}-${i}`}
         renderItem={({ item }) => {
           const key = item.name?.toLowerCase().replace(/\s+/g, '');
-          const pb  = personalBests[key] || null;
+          const pb = personalBests[key] || null;
           return <ExerciseCard exercise={item} navigation={navigation} personalBest={pb} />;
         }}
         contentContainerStyle={s.listContent}
@@ -117,20 +135,44 @@ export default function ExerciseList() {
 }
 
 const s = StyleSheet.create({
-  container:   { flex: 1, backgroundColor: C.bg },
-  header:      { paddingHorizontal: 16, paddingTop: 56, paddingBottom: 14 },
-  title:       { color: C.text, fontSize: 28, fontWeight: '800', letterSpacing: -0.4 },
-  subtitle:    { color: C.sub, fontSize: 12, marginTop: 4 },
-  searchWrap:  { marginHorizontal: 16, marginBottom: 12, backgroundColor: C.card, borderColor: C.border, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, height: 46, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  container: { flex: 1, backgroundColor: C.bg },
+  header: { paddingHorizontal: 16, paddingTop: 56, paddingBottom: 14 },
+  title: { color: C.text, fontSize: 28, fontWeight: '800', letterSpacing: -0.4 },
+  subtitle: { color: C.sub, fontSize: 12, marginTop: 4 },
+  searchWrap: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    backgroundColor: C.card,
+    borderColor: C.border,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 46,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   searchInput: { flex: 1, color: C.text, fontSize: 14 },
   listContent: { paddingHorizontal: 16, paddingBottom: 24 },
-  center:      { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg, padding: 20 },
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: C.bg,
+    padding: 20,
+  },
   loadingText: { marginTop: 10, color: C.sub, fontSize: 14 },
-  errorText:   { marginTop: 14, color: C.text, fontSize: 18, fontWeight: '700' },
-  errorMsg:    { marginTop: 8, color: C.sub, textAlign: 'center', fontSize: 13 },
-  retryBtn:    { marginTop: 16, backgroundColor: C.purple, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10 },
-  retryTxt:    { color: '#fff', fontWeight: '700', fontSize: 13 },
-  empty:       { alignItems: 'center', justifyContent: 'center', paddingVertical: 70 },
-  emptyText:   { marginTop: 12, color: C.text, fontSize: 16, fontWeight: '700' },
-  emptySub:    { marginTop: 4, color: C.sub, fontSize: 12 },
+  errorText: { marginTop: 14, color: C.text, fontSize: 18, fontWeight: '700' },
+  errorMsg: { marginTop: 8, color: C.sub, textAlign: 'center', fontSize: 13 },
+  retryBtn: {
+    marginTop: 16,
+    backgroundColor: C.purple,
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  retryTxt: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  empty: { alignItems: 'center', justifyContent: 'center', paddingVertical: 70 },
+  emptyText: { marginTop: 12, color: C.text, fontSize: 16, fontWeight: '700' },
+  emptySub: { marginTop: 4, color: C.sub, fontSize: 12 },
 });

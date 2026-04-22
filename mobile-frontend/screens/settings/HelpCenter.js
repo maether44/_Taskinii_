@@ -89,7 +89,6 @@ export default function HelpCenter() {
             ))}
           </View>
         </View>
-
       </ScrollView>
     </View>
   );

@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "react";
-import { Animated, StyleSheet, Text, View } from "react-native";
+import { useEffect, useRef } from 'react';
+import { Animated, StyleSheet, Text, View } from 'react-native';
 
 /**
  * MacroBar
@@ -11,14 +11,7 @@ import { Animated, StyleSheet, Text, View } from "react-native";
  *   showGoal bool    — show "x / y g" (default true)
  *   trigger  any     — when this changes, animation replays
  */
-export default function MacroBar({
-  label,
-  eaten,
-  goal,
-  color,
-  showGoal = true,
-  trigger,
-}) {
+export default function MacroBar({ label, eaten, goal, color, showGoal = true, trigger }) {
   const anim = useRef(new Animated.Value(0)).current;
   const pct = Math.min(eaten / (goal || 1), 1);
 
@@ -33,7 +26,7 @@ export default function MacroBar({
 
   const width = anim.interpolate({
     inputRange: [0, 1],
-    outputRange: ["0%", "100%"],
+    outputRange: ['0%', '100%'],
   });
   const over = eaten > goal;
 
@@ -50,10 +43,7 @@ export default function MacroBar({
       </View>
       <View style={styles.track}>
         <Animated.View
-          style={[
-            styles.fill,
-            { width, backgroundColor: over ? "#FF6B6B" : color },
-          ]}
+          style={[styles.fill, { width, backgroundColor: over ? '#FF6B6B' : color }]}
         />
       </View>
     </View>
@@ -63,19 +53,19 @@ export default function MacroBar({
 const styles = StyleSheet.create({
   wrap: { marginBottom: 12 },
   labelRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     marginBottom: 5,
   },
-  label: { color: "#9D85F5", fontSize: 12, fontWeight: "600" },
-  value: { fontSize: 12, fontWeight: "700", color: "#fff" },
-  valueOver: { color: "#FF6B6B" },
-  valueSub: { color: "#6B5F8A", fontWeight: "400" },
+  label: { color: '#9D85F5', fontSize: 12, fontWeight: '600' },
+  value: { fontSize: 12, fontWeight: '700', color: '#fff' },
+  valueOver: { color: '#FF6B6B' },
+  valueSub: { color: '#6B5F8A', fontWeight: '400' },
   track: {
     height: 6,
-    backgroundColor: "#251E42",
+    backgroundColor: '#251E42',
     borderRadius: 3,
-    overflow: "hidden",
+    overflow: 'hidden',
   },
   fill: { height: 6, borderRadius: 3 },
 });

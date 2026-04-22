@@ -61,8 +61,8 @@ export async function generatePlan(userId: string): Promise<AIPlan> {
       .from('profiles')
       .select(
         'goal, gender, date_of_birth, height_cm, weight_kg, target_weight_kg, ' +
-        'activity_level, experience, equipment, sleep_quality, stress_level, ' +
-        'diet_pref, workout_days_per_week, preferred_workout_time'
+          'activity_level, experience, equipment, sleep_quality, stress_level, ' +
+          'diet_pref, workout_days_per_week, preferred_workout_time',
       )
       .eq('id', userId)
       .single(),
@@ -83,25 +83,25 @@ export async function generatePlan(userId: string): Promise<AIPlan> {
 
   // 2. Build answers object matching edge function expectations
   const answers = {
-    goal:       profile.goal ?? 'maintain',
-    gender:     profile.gender ?? 'other',
+    goal: profile.goal ?? 'maintain',
+    gender: profile.gender ?? 'other',
     age,
-    height:     profile.height_cm ?? 170,
-    weight:     profile.weight_kg ?? 70,
-    targetW:    profile.target_weight_kg ?? null,
-    activity:   profile.activity_level ?? 'moderate',
+    height: profile.height_cm ?? 170,
+    weight: profile.weight_kg ?? 70,
+    targetW: profile.target_weight_kg ?? null,
+    activity: profile.activity_level ?? 'moderate',
     experience: profile.experience ?? 'beginner',
-    injuries:   ['none'],
-    days:       profile.workout_days_per_week ?? 3,
-    duration:   30,
-    timeOfDay:  profile.preferred_workout_time ?? 'any',
-    equipment:  profile.equipment ?? 'bodyweight',
-    focus:      ['balanced'],
-    sleep:      profile.sleep_quality ?? 'ok',
-    stress:     profile.stress_level ?? 'medium',
-    diet:       profile.diet_pref ?? 'anything',
-    calTarget:  targets?.daily_calories ?? 2000,
-    protein:    targets?.protein_target ?? 120,
+    injuries: ['none'],
+    days: profile.workout_days_per_week ?? 3,
+    duration: 30,
+    timeOfDay: profile.preferred_workout_time ?? 'any',
+    equipment: profile.equipment ?? 'bodyweight',
+    focus: ['balanced'],
+    sleep: profile.sleep_quality ?? 'ok',
+    stress: profile.stress_level ?? 'medium',
+    diet: profile.diet_pref ?? 'anything',
+    calTarget: targets?.daily_calories ?? 2000,
+    protein: targets?.protein_target ?? 120,
   };
 
   // 3. Call edge function
