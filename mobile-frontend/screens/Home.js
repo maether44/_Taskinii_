@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -101,7 +101,10 @@ export default function Home({ navigation }) {
             <Text style={styles.subGreeting}>Let's hit your {user.goal?.replace('_', ' ')} goal.</Text>
           </View>
           <Pressable style={styles.avatar} onPress={() => navigation.navigate('Profile')}>
-            <Text style={styles.avatarTxt}>{user.name?.charAt(0)}</Text>
+            {user.avatar_url
+              ? <Image source={{ uri: user.avatar_url }} style={styles.avatarImg} />
+              : <Text style={styles.avatarTxt}>{user.name?.charAt(0)?.toUpperCase()}</Text>
+            }
           </Pressable>
         </View>
 

@@ -65,7 +65,7 @@ function FatigueRow({ muscle }) {
 
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
-export default function Insights() {
+export default function Insights({ navigation }) {
   const [period, setPeriod] = useState('Week');
 
   const {
@@ -282,7 +282,12 @@ export default function Insights() {
             ))
           : aiInsights.length > 0
             ? aiInsights.map((ins, i) => (
-                <View key={i} style={[st.insightCard, { borderLeftColor: ins.color }]}>
+                <TouchableOpacity 
+                  key={i} 
+                  style={[st.insightCard, { borderLeftColor: ins.color }]} 
+                  activeOpacity={0.7}
+                  onPress={() => navigation.navigate('InsightDetail', { insight: ins })}
+                >
                   <View style={st.insightHeader}>
                     <Text style={st.insightIcon}>{ins.icon}</Text>
                     <View style={st.insightMeta}>
@@ -291,7 +296,8 @@ export default function Insights() {
                     </View>
                   </View>
                   <Text style={st.insightText}>{ins.text}</Text>
-                </View>
+                  <Text style={st.learnMoreText}>Learn more →</Text>
+                </TouchableOpacity>
               ))
             : (
                 <View style={[st.card, { alignItems: 'center', paddingVertical: 24 }]}>
@@ -326,22 +332,30 @@ export default function Insights() {
         </View>
 
         {/* ── Recent AI Coaching ── */}
-        {aiHistory?.length > 0 && (
-          <>
-            <Text style={st.sectionTitle}>Recent AI Coaching</Text>
-            {aiHistory.slice(0, 5).map((item, i) => (
-              <View key={i} style={st.coachCard}>
-                <View style={st.coachHeader}>
-                  <Text style={st.coachType}>{item.insight_type?.toUpperCase()}</Text>
-                  <Text style={st.coachDate}>
-                    {new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                  </Text>
+        {aiHistory?.length > 0 && (() => {
+          const VALID_COACH_TYPES = ['nutrition', 'workout', 'recovery', 'habit', 'general'];
+          const filtered = aiHistory.filter(item =>
+            VALID_COACH_TYPES.includes((item.insight_type ?? '').toLowerCase()) &&
+            item.message && !item.message.includes('|')
+          ).slice(0, 5);
+          if (!filtered.length) return null;
+          return (
+            <>
+              <Text style={st.sectionTitle}>Recent AI Coaching</Text>
+              {filtered.map((item, i) => (
+                <View key={i} style={st.coachCard}>
+                  <View style={st.coachHeader}>
+                    <Text style={st.coachType}>{item.insight_type?.toUpperCase()}</Text>
+                    <Text style={st.coachDate}>
+                      {new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </Text>
+                  </View>
+                  <Text style={st.coachText} numberOfLines={4} ellipsizeMode="tail">{item.message}</Text>
                 </View>
-                <Text style={st.coachText}>{item.message}</Text>
-              </View>
-            ))}
-          </>
-        )}
+              ))}
+            </>
+          );
+        })()}
 
         <View style={{ height: 20 }} />
       </ScrollView>
@@ -429,6 +443,7 @@ const st = StyleSheet.create({
   insightTag:    { fontSize: FS.label, fontWeight: '700', letterSpacing: 1, marginBottom: 2 },
   insightTitle:  { color: '#fff', fontSize: FS.btnPrimary, fontWeight: '700' },
   insightText:   { color: '#C8BFEE', fontSize: FS.body, lineHeight: 19 },
+  learnMoreText: { color: '#A38DF2', fontSize: FS.label, fontWeight: '700', marginTop: 12, textAlign: 'right' },
 
   // Heatmap
   heatRow:          { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },

@@ -140,7 +140,13 @@ export default function AlexiAssistant() {
         .eq('user_id', uid)
         .order('created_at', { ascending: false })
         .limit(4);
-      if (!error && data) setUserInsights(data);
+      if (!error && data) {
+        const VALID = ['Activity','Nutrition','Sleep','Training','Progress','Mindset'];
+        const clean = data.filter(ins => VALID.includes(ins.insight_type));
+        setUserInsights(clean);
+        // If no valid insights, trigger a refresh to regenerate from edge function
+        if (clean.length === 0 && data.length > 0) refreshInsights();
+      }
     } catch (e) {
       console.error('AlexiAssistant: fetchUserInsights error', e);
     } finally {
@@ -417,7 +423,9 @@ export default function AlexiAssistant() {
             </TouchableOpacity>
           )}
 
-          {!insightsLoading && userInsights.map((ins, i) => (
+          {!insightsLoading && userInsights
+            .filter(ins => ['Activity','Nutrition','Sleep','Training','Progress','Mindset'].includes(ins.insight_type))
+            .map((ins, i) => (
             <View key={i} style={[s.insightCard, { borderLeftColor: ins.color }]}>
               <View style={s.insightCardHead}>
                 <Text style={s.insightCardIcon}>{ins.icon}</Text>

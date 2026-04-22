@@ -9,7 +9,7 @@ import { useTheme } from "../context/ThemeContext";
 import Home from "../screens/Home";
 import Nutrition from "../screens/Nutrition";
 import Insights from "../screens/Insights";
-import Profile from "../screens/Profile";
+import Profile from "../screens/Profile.jsx";
 import Settings from "../screens/Settings";
 import Training from "../screens/Training";
 import ExerciseList from "../screens/ExerciseList";

@@ -157,7 +157,7 @@ export default function Profile({ replayTour }) {
   const [xpInfo, setXpInfo] = useState({ level: 1, xp_current: 0, xp_total: 0, xp_needed: 100 });
   const [achievements, setAchievements] = useState([]);
   const [achievementPopup, setAchievementPopup] = useState(null);
-  const [showAllAchievements, setShowAllAchievements] = useState(false);
+  const [showAllAchievements, setShowAllAchievements] = useState(true);
 
   const [editForm, setEditForm] = useState({
     full_name: '',

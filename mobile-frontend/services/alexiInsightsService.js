@@ -16,6 +16,9 @@
 import { supabase } from '../lib/supabase';
 
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
+const MAX_INSIGHT_CARDS = 4;
+const MAX_TITLE_LENGTH = 42;
+const MAX_TEXT_LENGTH = 180;
 
 // Deduplication map: prevents concurrent calls for the same user+period
 // from each independently missing the cache and both calling Groq.
@@ -60,6 +63,124 @@ function normalizeTag(raw) {
   return 'Performance';
 }
 
+function trimSentence(text = '', maxLength = MAX_TEXT_LENGTH) {
+  const clean = String(text).replace(/\s+/g, ' ').trim();
+  if (clean.length <= maxLength) return clean;
+  const clipped = clean.slice(0, maxLength);
+  const lastPunctuation = Math.max(clipped.lastIndexOf('.'), clipped.lastIndexOf('!'), clipped.lastIndexOf('?'));
+  if (lastPunctuation >= Math.floor(maxLength * 0.55)) return clipped.slice(0, lastPunctuation + 1).trim();
+  const lastSpace = clipped.lastIndexOf(' ');
+  const final = clipped.slice(0, lastSpace > 35 ? lastSpace : maxLength).trim();
+  // Always end with proper punctuation, never ellipsis
+  return final.endsWith('.') || final.endsWith('!') ? final : `${final}.`;
+}
+
+function sanitizeInsightTitle(title = '', tag = 'Performance') {
+  const clean = String(title)
+    .replace(/[_|]+/g, ' ')
+    .replace(/[.…]+$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // ✅ Only use complete full titles that actually fit
+  if (!clean || clean.length > MAX_TITLE_LENGTH) {
+    // Return proper professional titles by category instead of cutting sentences
+    const fallbackTitles = {
+      Performance: 'Training Performance',
+      Recovery: 'Recovery Progress',
+      Nutrition: 'Nutrition Insights',
+      Optimization: 'Daily Optimization',
+      Prediction: 'Trend Forecast',
+      Correlation: 'Habit Correlation',
+    };
+    return fallbackTitles[tag] || tag;
+  }
+  
+  // Ensure professional capitalization
+  let normalized = clean.charAt(0).toUpperCase() + clean.slice(1);
+
+  // No trailing punctuation on titles
+  return normalized.replace(/[.,!?…]+$/g, '').trim();
+}
+
+function sanitizeInsightText(text = '', tag = 'Performance') {
+  const clean = String(text)
+    .replace(/[_|]+/g, ' ')
+    .replace(/\b(nutrition|performance|recovery|optimization|prediction|correlation)\s*:\s*/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // ✅ Filter out LLM garbage, apologies and error responses completely
+  const invalidPatterns = [
+    /i'?m not sure/i,
+    /i don'?t (know|understand)/i,
+    /sorry/i,
+    /apologize/i,
+    /what you mean/i,
+    /i cannot/i,
+    /unable to/i,
+    /as an ai/i,
+    /i don'?t have/i,
+    /^\s*i\s+/i,
+  ];
+
+  const isInvalid = invalidPatterns.some(pattern => pattern.test(clean)) 
+    || clean.length < 20 
+    || /^[a-z\s]+$/i.test(clean) && clean.split(' ').some(word => word.length > 12 && !/[aeiou]/i.test(word));
+
+  if (!clean || isInvalid) {
+    const fallbackByTag = {
+      Performance: 'Your training trend is moving in the right direction.',
+      Recovery: 'Recovery is the best lever to improve your next session.',
+      Nutrition: 'Small nutrition adjustments will help your consistency.',
+      Optimization: 'A small routine change can improve your day.',
+      Prediction: 'Your current trend suggests steady progress.',
+      Correlation: 'Your habits are shaping how you feel and perform.',
+    };
+    return fallbackByTag[tag] || 'You are building steady progress.';
+  }
+
+  return trimSentence(clean);
+}
+
+function normalizeInsight(ins) {
+  const tag = normalizeTag(ins?.tag);
+  return {
+    icon: ICON_MAP[tag] ?? '💡',
+    title: sanitizeInsightTitle(ins?.title, tag),
+    text: sanitizeInsightText(ins?.text, tag),
+    tag,
+    color: INSIGHT_COLORS[tag] ?? '#6F4BF2',
+  };
+}
+
+function dedupeInsights(insights = []) {
+  const seenTags = new Set();
+  const seenContent = new Set();
+  const result = [];
+
+  for (const insight of insights) {
+    if (!insight?.title || !insight?.text) continue;
+
+    const contentKey = `${insight.title.toLowerCase()}|${insight.text.toLowerCase()}`;
+    if (seenContent.has(contentKey)) continue;
+
+    if (seenTags.has(insight.tag)) {
+      const existingIndex = result.findIndex(item => item.tag === insight.tag);
+      if (existingIndex >= 0 && result[existingIndex].text.length >= insight.text.length) continue;
+      if (existingIndex >= 0) result.splice(existingIndex, 1);
+    }
+
+    seenTags.add(insight.tag);
+    seenContent.add(contentKey);
+    result.push(insight);
+
+    if (result.length >= MAX_INSIGHT_CARDS) break;
+  }
+
+  return result.slice(0, MAX_INSIGHT_CARDS);
+}
+
 
 // =============================================================================
 // rowToInsight(row)
@@ -68,16 +189,13 @@ function normalizeTag(raw) {
 // =============================================================================
 function rowToInsight(row) {
   const pipeIdx = row.message.indexOf('|');
-  const title   = pipeIdx === -1 ? row.message         : row.message.slice(0, pipeIdx);
-  const text    = pipeIdx === -1 ? ''                  : row.message.slice(pipeIdx + 1);
-  const tag     = normalizeTag(row.insight_type);
-  return {
-    icon:  ICON_MAP[tag]         ?? '💡',
+  const title = pipeIdx === -1 ? row.message : row.message.slice(0, pipeIdx);
+  const text = pipeIdx === -1 ? '' : row.message.slice(pipeIdx + 1);
+  return normalizeInsight({
+    tag: row.insight_type,
     title,
     text,
-    tag,
-    color: INSIGHT_COLORS[tag]  ?? '#6F4BF2',
-  };
+  });
 }
 
 
@@ -137,9 +255,15 @@ async function _generateAndCacheInsights(userId, rawStats, period) {
       console.log('[alexiInsightsService] Cache returned', cached?.length ?? 0, 'rows');
     }
 
-    if (cached?.length >= 4) {
-      console.log('[alexiInsightsService] Cache HIT — returning', cached.length, 'cached insights');
-      return cached.slice(0, 4).map(rowToInsight);
+    if (cached?.length >= 1) {
+      const uniqueTags = new Set(cached.map(r => r.insight_type));
+      // Stale cache: all rows have same tag (old all-Nutrition bug) → regenerate
+      if (cached.length >= 3 && uniqueTags.size === 1) {
+        console.log('[alexiInsightsService] Cache stale (all same tag) — regenerating');
+      } else {
+        console.log('[alexiInsightsService] Cache HIT — returning', cached.length, 'cached insights');
+        return dedupeInsights(cached.map(rowToInsight));
+      }
     }
 
     // ── Step 2: Generate via Edge Function ────────────────────────────────
@@ -151,32 +275,26 @@ async function _generateAndCacheInsights(userId, rawStats, period) {
     }
 
     // ── Step 3: Persist to ai_insights ───────────────────────────────────
-    const rows = rawInsights.map(ins => ({
-      user_id:      userId,
+    const cleanedInsights = dedupeInsights(rawInsights.map(normalizeInsight));
+    const rows = cleanedInsights.map(ins => ({
+      user_id: userId,
       insight_type: normalizeTag(ins.tag),
-      message:      `${ins.title}|${ins.text}`,
+      message: `${ins.title}|${ins.text}`,
       period,
-      source:       'alexi',
+      source: 'alexi',
     }));
     // Delete previous rows for this user+period before inserting fresh ones
     await supabase.from('ai_insights').delete().eq('user_id', userId).eq('period', period).eq('source', 'alexi');
     console.log('[alexiInsightsService] Inserting', rows.length, 'rows into ai_insights');
-    const { error: insertErr } = await supabase.from('ai_insights').insert(rows);
+    const { error: insertErr } = rows.length
+      ? await supabase.from('ai_insights').insert(rows)
+      : { error: null };
     if (insertErr) {
       console.error('[alexiInsightsService] Insert error (non-fatal):', insertErr);
     }
 
     // ── Step 4: Return formatted cards ───────────────────────────────────
-    const cards = rawInsights.map(ins => {
-      const tag = normalizeTag(ins.tag);
-      return {
-        icon:  ICON_MAP[tag]         ?? '💡',
-        title: ins.title,
-        text:  ins.text,
-        tag,
-        color: INSIGHT_COLORS[tag]  ?? '#6F4BF2',
-      };
-    });
+    const cards = cleanedInsights;
     console.log('[alexiInsightsService] Returning', cards.length, 'fresh insight cards');
     return cards;
 

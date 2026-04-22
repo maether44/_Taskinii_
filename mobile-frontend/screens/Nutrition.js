@@ -98,6 +98,13 @@ async function extractEdgeFunctionMessage(error) {
   return error?.message || "";
 }
 
+const INTERNAL_LINE_RE = /^[^\n]*(COMMAND\s*:|MEMORIES\s*:|log_water|water_log|log_sleep|log_weight|log_food|log_workout|log_meal|meal_log|meal_planning|gain_weight|lose_weight|forget_fact|navigate)[^\n]*$/gim;
+
+function cleanAiResponse(text) {
+  if (!text) return text;
+  return text.replace(INTERNAL_LINE_RE, "").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 async function invokeYaraPlan(body) {
   try {
     const { data, error } = await supabase.functions.invoke("ai-assistant", { body });
@@ -108,7 +115,7 @@ async function invokeYaraPlan(body) {
     return data;
   } catch (error) {
     const message = error?.message || "";
-    if (/invalid jwt/i.test(message) || /non-2xx/i.test(message)) {
+    if (/invalid jwt/i.test(message) || /non-2xx/i.test(message) || /unsupported jwt/i.test(message) || /ES256/i.test(message)) {
       return invokeEdgePublic("ai-assistant", body);
     }
     throw error;
@@ -196,13 +203,13 @@ export default function Nutrition({ navigation }) {
         resolvedData = await invokeYaraPlan({ query: prompt, clientContext });
       }
       if (resolvedData?.fallback) {
-        setMealPlan(resolvedData?.response || fallbackMealPlan);
+        setMealPlan(cleanAiResponse(resolvedData?.response) || fallbackMealPlan);
         setMealPlanError(resolvedData?.reason
           ? `Yara is using fallback mode right now: ${resolvedData.reason}`
           : "Yara is using fallback mode right now.");
         return;
       }
-      setMealPlan(resolvedData?.response || "");
+      setMealPlan(cleanAiResponse(resolvedData?.response) || "");
     } catch (error) {
       const detail = await extractEdgeFunctionMessage(error);
       setMealPlan(fallbackMealPlan);

@@ -71,19 +71,40 @@ const PLAYBACK_MODE = {
 const REC_OPTIONS = Audio.RecordingOptionsPresets.HIGH_QUALITY;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const CHUNK_MS          = 3000;   // passive loop recording window
-const CMD_LISTEN_MS     = 5000;   // command window after bare "Alexi"
-const ALEXI_AUTOHIDE_MS = 7000;
-const MIN_VISIBLE_MS    = 4000;
-const MUTE_KEY          = '@alexi_muted';
-const DEBUG_OVERLAY     = false;
+const CHUNK_MS              = 1000;   // Short 1s chunks for VAD
+const VAD_THRESHOLD         = -35;    // dB level threshold for speech detection
+const VAD_CONSECUTIVE_HITS  = 2;      // Require 2 consecutive speech frames
+const CMD_LISTEN_MS         = 5000;   // command window after bare "Alexi"
+const ALEXI_AUTOHIDE_MS     = 7000;
+const MIN_VISIBLE_MS        = 4000;
+const DUPLICATE_CMD_WINDOW  = 4500;
+const MUTE_KEY              = '@alexi_muted';
+const DEBUG_OVERLAY         = false;
 
-// Fuzzy wake word — includes Whisper hallucination variants:
-//   "election" = Whisper hears "Alexi" as "Election"
-//   "i legacy" = Whisper hears "Alexi" as "I legacy" / "I Lexi"
-//   "a lexi"   = split transcription artefact
-const WAKE_RE       = /\b(alexi|alexie|alexey|alexy|alexis|alex|lexi|lex|alexa|election|a lexi)\b|i legacy|i lexi/i;
-const WAKE_SPLIT_RE = /\b(alexi|alexie|alexey|alexy|alexis|alex|lexi|lex|alexa|election)\b|i legacy|i lexi/i;
+/*
+ * Wake-word policy:
+ * Passive listening must only react when the user explicitly starts the
+ * utterance with Alexi's name. This prevents random navigation from loose
+ * fuzzy matches inside background speech.
+ *
+ * Accepted lead-ins stay intentionally narrow:
+ *   "Alexi ..."
+ *   "Hey Alexi ..."
+ *   close Whisper spellings of Alexi only
+ *
+ * Rejected on purpose:
+ *   alex, lex, alexa, election
+ * These caused too many false wakes and random page opens.
+ */
+const WAKE_PREFIX_RE = /^\s*(?:hey\s+)?(?:alexi|alexie|alexey|alexy)\b[\s,!?-]*/i;
+
+function extractCommandAfterWake(text) {
+  const source = String(text || '').trim();
+  const match = source.match(WAKE_PREFIX_RE);
+  if (!match) return { woke: false, command: '' };
+  const command = source.slice(match[0].length).replace(/^[,.\s!?-]+/, '').trim();
+  return { woke: true, command };
+}
 
 const { width: SW, height: SH } = Dimensions.get('window');
 
@@ -283,7 +304,7 @@ function parseCommand(text) {
     const isNavAlias = Object.values(APP_MAP).flat().some(a => a === ex);
     if (!isNavAlias) {
       console.log('[Alexi] Exercise intent detected:', ex);
-      return { type: 'NAVIGATE', screen: 'WorkoutActive', params: { exercise: ex } };
+      return { type: 'NAVIGATE', screen: 'WorkoutActive', params: { exerciseName: ex } };
     }
   }
 
@@ -331,6 +352,7 @@ export function AlexiVoiceProvider({ children }) {
   const loopGenRef        = useRef(0);
   const pausedRef         = useRef(false);
   const appStateRef       = useRef(AppState.currentState);
+  const lastCommandRef    = useRef({ text: '', at: 0 });
 
   // ── Animations ──────────────────────────────────────────────────────────────
   const pulseAnim   = useRef(new Animated.Value(1)).current;
@@ -478,6 +500,18 @@ export function AlexiVoiceProvider({ children }) {
   // ── executeCommand ────────────────────────────────────────────────────────────
   const executeCommand = useCallback(async (commandText) => {
     if (!commandText?.trim()) return;
+    const normalizedCommand = commandText.toLowerCase().trim().replace(/\s+/g, ' ');
+    const now = Date.now();
+    if (
+      normalizedCommand &&
+      lastCommandRef.current.text === normalizedCommand &&
+      now - lastCommandRef.current.at < DUPLICATE_CMD_WINDOW
+    ) {
+      setDebugLog(`Ignored duplicate: "${normalizedCommand}"`);
+      return;
+    }
+    lastCommandRef.current = { text: normalizedCommand, at: now };
+
     const cmd = parseCommand(commandText);
     setDebugLog(`CMD: ${cmd.type}`);
     AlexiEvents.emit('command', cmd);
@@ -553,7 +587,7 @@ export function AlexiVoiceProvider({ children }) {
           FoodScanner: 'the food scanner', MealLogger: 'the meal logger',
           SleepLog: 'sleep log',
         };
-        const exercise = cmd.params?.exercise;
+        const exercise = cmd.params?.exerciseName || cmd.params?.exerciseKey || cmd.params?.exercise;
         const label    = labels[cmd.screen] ?? cmd.screen.toLowerCase();
         const phrase   = exercise ? `Let's do ${exercise}. Starting your workout.` : `Opening ${label}.`;
         await speak(phrase);
@@ -680,7 +714,8 @@ export function AlexiVoiceProvider({ children }) {
             break;
           }
           if (ai.navigateTo) {
-            AlexiEvents.emit('navigate', { screen: ai.navigateTo });
+            const navArgs = resolveNavigation(ai.navigateTo);
+            AlexiEvents.emit('navigate', navArgs);
             await speak(`Opening ${ai.navigateTo.toLowerCase()}.`);
             hideAlexiAfter(3000);
             break;
@@ -739,6 +774,8 @@ export function AlexiVoiceProvider({ children }) {
     setDebugLog('Listening…');
     console.log('[Alexi] Starting while loop. Muted:', mutedRef.current);
 
+    let consecutiveErrors = 0;
+
     while (alive()) {
       // ── Paused (app backgrounded) ───────────────────────────────────────────
       if (pausedRef.current) {
@@ -747,44 +784,65 @@ export function AlexiVoiceProvider({ children }) {
         continue;
       }
 
-      let uri = null;
+       let uri = null;
+       let metering = [];
+       let speechDetected = false;
 
       try {
         // ── Set mic audio session ─────────────────────────────────────────────
         try { await Audio.setAudioModeAsync(RECORDING_MODE); } catch (_) {}
 
         // ── Start recording ───────────────────────────────────────────────────
-        console.log('[Alexi] Attempting to start hardware...');
         const { recording } = await Audio.Recording.createAsync(REC_OPTIONS);
         _rec = recording;
+        consecutiveErrors = 0; // reset on success
 
-        // ── Hold for 3 seconds ────────────────────────────────────────────────
-        await new Promise(r => setTimeout(r, CHUNK_MS));
-        if (!alive()) { await stopAnyRecording(); break; }
+        // ── VAD: Sample volume every 100ms ────────────────────────────────────
+        for (let i = 0; i < 10; i++) {
+          await new Promise(r => setTimeout(r, 100));
+          if (!alive()) break;
+          try {
+            const status = await recording.getStatusAsync();
+            if (status.metering != null) {
+              metering.push(status.metering);
+            }
+          } catch (_) {}
+        }
 
-        // ── Stop and retrieve URI ─────────────────────────────────────────────
+        // ── Voice Activity Detection ─────────────────────────────────────────
+        const loudFrames = metering.filter(db => db > VAD_THRESHOLD).length;
+        speechDetected = loudFrames >= VAD_CONSECUTIVE_HITS;
+
+        // ── Stop recording ───────────────────────────────────────────────────
         _rec = null;
         try {
           await recording.stopAndUnloadAsync();
-          await new Promise(r => setTimeout(r, 500)); // mandatory iOS hardware gap
+          await new Promise(r => setTimeout(r, 200));
           uri = recording.getURI();
         } catch (_) {
-          await new Promise(r => setTimeout(r, 500));
+          await new Promise(r => setTimeout(r, 200));
           continue;
         }
 
       } catch (e) {
-        // Any mic error → clean up + 3s before retry (avoids error spam)
-        console.error('[Alexi] passive loop error:', e?.message);
+        // Exponential backoff: 3s, 6s, 12s, 30s cap — avoids hammering iOS audio session
+        consecutiveErrors++;
+        const backoff = Math.min(3000 * Math.pow(2, consecutiveErrors - 1), 30000);
+        console.error('[Alexi] passive loop error:', e?.message, `(retry in ${backoff / 1000}s)`);
         await stopAnyRecording();
         setPassiveState('listening');
-        await new Promise(r => setTimeout(r, 3000));
+        await new Promise(r => setTimeout(r, backoff));
         continue;
       }
 
       if (!uri) continue;
 
-      // ── Transcribe every chunk (no silence gate) ──────────────────────────
+      // ── ONLY transcribe if speech was actually detected ───────────────────
+      if (!speechDetected) {
+        setPassiveState('listening');
+        continue;
+      }
+
       setPassiveState('transcribing');
       // transcribeURI never throws — returns '' on any error so the loop retries
       const raw = await transcribeURI(uri);
@@ -796,9 +854,9 @@ export function AlexiVoiceProvider({ children }) {
       // ── L1: hallucination fix ─────────────────────────────────────────────
       const fixed = applyHallucMap(raw);
 
-      // ── Wake-word check (fuzzy) ───────────────────────────────────────────
-      const hasWake = WAKE_RE.test(fixed);
-      if (!hasWake && !isAlexiVisibleRef.current) {
+      // ── Wake-word check — must START with Alexi's name ────────────────────
+      const wakeResult = extractCommandAfterWake(fixed);
+      if (!wakeResult.woke) {
         setPassiveState('listening');
         continue;
       }
@@ -816,15 +874,11 @@ export function AlexiVoiceProvider({ children }) {
           await new Promise(r => setTimeout(r, MIN_VISIBLE_MS - elapsed));
       };
 
-      // ── Extract inline command (text after wake word) ─────────────────────
-      const wakeMatch = fixed.match(WAKE_SPLIT_RE);
-      const cmdRaw = wakeMatch
-        ? fixed.split(WAKE_SPLIT_RE).pop().replace(/^[,.\s!?]+/, '').trim()
-        : fixed;
-      const cmdText = snapShortTranscript(cmdRaw);
+      // ── Extract inline command only from text after the wake word ─────────
+      const cmdText = snapShortTranscript(wakeResult.command);
 
-      if (cmdText && cmdText.split(/\s+/).filter(Boolean).length >= 2) {
-        // Inline: "Alexi, go to training" — execute immediately
+      if (cmdText && cmdText.split(/\s+/).filter(Boolean).length >= 1) {
+        // Inline: "Alexi, go to training" or "Alexi home" — execute immediately
         console.log('[Alexi] Inline command:', cmdText);
         await executeCommand(cmdText);
         await ensureMinVisible();
@@ -946,12 +1000,9 @@ export function AlexiVoiceProvider({ children }) {
 
     console.log('[Alexi] wakeAlexi heard:', raw);
 
-    const fixed  = applyHallucMap(raw);
-    const wm     = fixed.match(WAKE_SPLIT_RE);
-    const cmdRaw = wm
-      ? fixed.split(WAKE_SPLIT_RE).pop().replace(/^[,.\s!?]+/, '').trim()
-      : fixed;
-    const cmdText = snapShortTranscript(cmdRaw) || snapShortTranscript(fixed);
+    const fixed = applyHallucMap(raw);
+    const wakeResult = extractCommandAfterWake(fixed);
+    const cmdText = snapShortTranscript(wakeResult.woke ? wakeResult.command : fixed);
 
     if (cmdText) {
       console.log('[Alexi] wakeAlexi command:', cmdText);
