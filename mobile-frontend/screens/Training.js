@@ -966,14 +966,29 @@ export default function Training({ navigation }) {
             ))}
 
             {/* Start CTA */}
-            <TouchableOpacity
-              style={s.startBtn}
-              onPress={() => navigation.navigate('WorkoutActive', { exerciseName: todayPlan[0]?.key ?? recommendation.exerciseKey })}
-              activeOpacity={0.85}
-            >
-              <Text style={s.startBtnTxt}>Start Workout</Text>
-              <Ionicons name="arrow-forward" size={16} color="#000" />
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity
+                style={[s.startBtn, { flex: 1 }]}
+                onPress={() => navigation.navigate('WorkoutActive', { 
+                  exerciseName: todayPlan[0]?.key ?? recommendation.exerciseKey,
+                  manualMode: true 
+                })}
+                activeOpacity={0.85}
+              >
+                <Text style={s.startBtnTxt}>Manual Workout</Text>
+                <Ionicons name="fitness-outline" size={16} color="#000" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.startBtn, { backgroundColor: '#7C5CFC' }]}
+                onPress={() => navigation.navigate('WorkoutActive', { 
+                  exerciseName: todayPlan[0]?.key ?? recommendation.exerciseKey 
+                })}
+                activeOpacity={0.85}
+              >
+                <Text style={s.startBtnTxt}>AI Coach</Text>
+                <Ionicons name="sparkles" size={16} color="#000" />
+              </TouchableOpacity>
+            </View>
           </LinearGradient>
         </Reanimated.View>
 

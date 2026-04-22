@@ -36,6 +36,13 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      // [
+      //   "apple-health",
+      //   {
+      //     "healthSharePermission": "Allow BodyQ to read your Apple Health data, including step count.",
+      //     "healthUpdatePermission": "Allow BodyQ to write health data when needed."
+      //   }
+      // ],
       [
         "expo-sensors",
         {

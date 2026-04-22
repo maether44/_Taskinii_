@@ -22,6 +22,12 @@ function todayString() {
   return new Date().toISOString().split('T')[0];
 }
 
+function startOfToday() {
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  return now;
+}
+
 function normalizeGoals(row, weightKg) {
   const waterTarget = computeWaterTarget(weightKg);
   if (!row) return { ...DEFAULT_TARGETS, water_target_ml: waterTarget };
@@ -118,7 +124,7 @@ export function TodayProvider({ children }) {
       setCaloriesBurned(activity?.calories_burned || 0);
       setSleepHours(activity?.sleep_hours ?? null);
       setSleepQuality(activity?.sleep_quality ?? null);
-      setDbSteps(activity?.steps || 0);
+      setDbSteps((prev) => Math.max(prev, activity?.steps || 0));
       setMuscleFatigue(fatigue ?? []);
       loadedForUserRef.current = userId;
     } catch (error) {
@@ -153,18 +159,39 @@ export function TodayProvider({ children }) {
   }, [loadToday]);
 
   // ── Pedometer: shared step source for Home + Fuel ───────────────
-  // Subscribes to the device pedometer, batches DB syncs every 30s.
+  // On iPhone, seed today's total from the device pedometer so the UI matches
+  // Apple Health / CoreMotion totals even if the app was opened mid-day.
+  // Then keep the total live with watchStepCount and batch DB syncs every 30s.
   useEffect(() => {
     let sub = null;
+    let active = true;
 
     (async () => {
       const available = await Pedometer.isAvailableAsync().catch(() => false);
+      if (!active) return;
       setPedometerAvailable(available);
+
+      // Apple Health integration disabled in app.json plugin config
+      // Fall back to Pedometer API for step tracking
+
       if (!available) return;
 
       const { status } = await Pedometer.requestPermissionsAsync().catch(() => ({ status: 'denied' }));
+      if (!active) return;
       setPedometerPermission(status);
       if (status !== 'granted') return;
+
+      if (Platform.OS === 'ios' && typeof Pedometer.getStepCountAsync === 'function') {
+        const deviceTotal = await Pedometer.getStepCountAsync(startOfToday(), new Date())
+          .then((result) => result?.steps ?? 0)
+          .catch(() => 0);
+
+        if (!active) return;
+
+        pendingSyncRef.current = 0;
+        setLiveSteps(0);
+        setDbSteps((prev) => Math.max(prev, deviceTotal));
+      }
 
       sub = Pedometer.watchStepCount(({ steps: count }) => {
         setLiveSteps(count);
@@ -172,13 +199,16 @@ export function TodayProvider({ children }) {
       });
     })();
 
-    return () => { if (sub) sub.remove(); };
+    return () => {
+      active = false;
+      if (sub) sub.remove();
+    };
   }, []);
 
   // Batch sync live steps to DB every 30 seconds
   useEffect(() => {
     if (!userId) return;
-    const timer = setInterval(() => {
+    const timer = globalThis.setInterval(() => {
       const pending = pendingSyncRef.current;
       if (pending <= 0) return;
       const today = todayString();
@@ -195,7 +225,7 @@ export function TodayProvider({ children }) {
       });
     }, 30000);
     syncTimerRef.current = timer;
-    return () => clearInterval(timer);
+    return () => globalThis.clearInterval(timer);
   }, [userId]);
 
   // Total steps = persisted DB steps + live (unsynced) pedometer steps

@@ -316,6 +316,7 @@ export default function WorkoutActive({ route, navigation }) {
   const { pausePassive, resumePassive } = useAlexiVoice();
   const rawKey      = route.params?.exerciseKey || route.params?.exerciseName || 'squat';
   const isPostureMode = rawKey === 'posture_check' || route.params?.mode === 'posture';
+  const manualMode  = route.params?.manualMode || false;
   const htmlKey     = isPostureMode ? 'posture_check' : resolveHtmlKey(rawKey);
   const displayName = isPostureMode ? 'POSTURE SCAN' : rawKey.replace(/_/g, ' ').toUpperCase();
 
@@ -376,6 +377,8 @@ export default function WorkoutActive({ route, navigation }) {
   const [isHelpVisible,   setIsHelpVisible]  = useState(false);
   // Whether SpeechRecognition is supported in this WebView
   const [srSupported,     setSrSupported]    = useState(true);
+  // Whether the AI coach WebView failed to load
+  const [webViewError,    setWebViewError]   = useState(false);
 
   // ── Global Alexi passive loop — pause immediately, resume after camera releases ─
   // Pausing prevents Alexi's recorder racing the WebView camera init (iOS only
@@ -521,7 +524,9 @@ export default function WorkoutActive({ route, navigation }) {
       if (i >= steps.length) {
         setIsCountingDown(false);
         setCountStep(null);
-        webViewRef.current?.injectJavaScript('window.startCamera && window.startCamera(); true;');
+        if (!webViewError) {
+          webViewRef.current?.injectJavaScript('window.startCamera && window.startCamera(); true;');
+        }
         startTimeRef.current = Date.now();
         setTimerRunning(true);
         // Smooth fade-in instead of abrupt opacity flip
@@ -553,7 +558,15 @@ export default function WorkoutActive({ route, navigation }) {
     showStep();
   }, [countScaleAnim, countOpacityAnim]);
 
-  useEffect(() => { startCountdown(); }, [startCountdown]);
+  useEffect(() => { 
+    if (!webViewError && !manualMode) {
+      startCountdown(); 
+    } else if (manualMode) {
+      setIsCountingDown(false);
+      setTimerRunning(true);
+      startTimeRef.current = Date.now();
+    }
+  }, [startCountdown, webViewError, manualMode]);
 
   // ── WebView message bridge ──────────────────────────────────
   const onMessage = useCallback((e) => {
@@ -706,8 +719,37 @@ export default function WorkoutActive({ route, navigation }) {
   }, [navigation, displayName, htmlKey, rawKey, user, updateSync, syncScaleAnim]);
 
   const handleFinish = useCallback(() => {
-    webViewRef.current?.injectJavaScript('if (window.getSessionState) window.getSessionState(); true;');
-  }, []);
+    if (manualMode) {
+      // Manual mode - save session directly
+      const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+      const calories = Math.max(1, repCount * 5);
+      
+      (async () => {
+        let sessionId = null;
+        if (user?.id) {
+          sessionId = await saveWorkoutSession({
+            userId: user.id,
+            exerciseKey: htmlKey ?? rawKey,
+            exerciseName: displayName,
+            reps: repCount,
+            postureScore: 85, // Default good score for manual
+            caloriesBurned: calories,
+          });
+        }
+        
+        navigation.replace('WorkoutSummary', {
+          exerciseName: displayName,
+          repCount: repCount,
+          formScore: 85,
+          elapsed,
+          sessionId,
+        });
+      })();
+    } else {
+      // AI mode - get session state from WebView
+      webViewRef.current?.injectJavaScript('if (window.getSessionState) window.getSessionState(); true;');
+    }
+  }, [manualMode, user, htmlKey, rawKey, displayName, repCount, navigation]);
 
   // ── Double-tap camera area → finish ──────────────────────────
   const handleDoubleTap = useCallback(() => {
@@ -740,6 +782,63 @@ export default function WorkoutActive({ route, navigation }) {
     );
   }
 
+  if (manualMode) {
+    // Manual workout mode - skip AI coach and camera
+    return (
+      <View style={s.container}>
+        <StatusBar hidden />
+        
+        {/* Manual workout interface */}
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <Text style={{ fontSize: 48, marginBottom: 16 }}>💪</Text>
+          <Text style={{ color: '#FFF', fontSize: 24, fontWeight: '900', marginBottom: 16 }}>
+            Manual Workout
+          </Text>
+          <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 16, textAlign: 'center', marginBottom: 40 }}>
+            Track your {displayName.toLowerCase()} workout manually.{'\n'}Use the buttons below to count reps.
+          </Text>
+          
+          <View style={{ alignItems: 'center', marginBottom: 40 }}>
+            <Text style={{ color: '#C8F135', fontSize: 72, fontWeight: '900' }}>{repCount}</Text>
+            <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 16 }}>REPS</Text>
+          </View>
+          
+          <View style={{ flexDirection: 'row', gap: 20 }}>
+            <TouchableOpacity 
+              style={{ 
+                width: 80, height: 80, borderRadius: 40, 
+                backgroundColor: '#C8F135', alignItems: 'center', justifyContent: 'center' 
+              }}
+              onPress={() => setRepCount(prev => Math.max(0, prev - 1))}
+            >
+              <Ionicons name="remove" size={32} color="#000" />
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={{ 
+                width: 80, height: 80, borderRadius: 40, 
+                backgroundColor: '#7C5CFC', alignItems: 'center', justifyContent: 'center' 
+              }}
+              onPress={() => setRepCount(prev => prev + 1)}
+            >
+              <Ionicons name="add" size={32} color="#FFF" />
+            </TouchableOpacity>
+          </View>
+          
+          <TouchableOpacity 
+            style={{ 
+              marginTop: 40, paddingHorizontal: 32, paddingVertical: 16, 
+              backgroundColor: '#FF3355', borderRadius: 12 
+            }}
+            onPress={handleFinish}
+          >
+            <Text style={{ color: '#FFF', fontSize: 18, fontWeight: '900' }}>Finish Workout</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   if (hasPermission === false) {
     return (
       <View style={[s.container, s.center]}>
@@ -752,12 +851,26 @@ export default function WorkoutActive({ route, navigation }) {
     );
   }
 
+  if (webViewError) {
+    return (
+      <View style={[s.container, s.center]}>
+        <StatusBar hidden />
+        <Text style={{ fontSize: 48, marginBottom: 16 }}>⚠️</Text>
+        <Text style={s.errorTitle}>AI Coach Unavailable</Text>
+        <Text style={s.errorSub}>Real-time tracking requires a development build.{'\n'}Try manual workout mode instead.</Text>
+        <TouchableOpacity style={s.backLink} onPress={() => navigation.goBack()}>
+          <Text style={s.backLinkTxt}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <View style={s.container}>
       <StatusBar hidden />
 
       {/* ══ FULL-SCREEN AI CAMERA ══════════════════════════════ */}
-      {htmlContent && (
+      {htmlContent && !webViewError && (
         <Reanimated.View style={[StyleSheet.absoluteFillObject, cameraStyle]}>
           <WebView
             ref={webViewRef}
@@ -783,6 +896,7 @@ export default function WorkoutActive({ route, navigation }) {
             scrollEnabled={false}
             bounces={false}
             onMessage={onMessage}
+            onError={() => setWebViewError(true)}
           />
         </Reanimated.View>
       )}

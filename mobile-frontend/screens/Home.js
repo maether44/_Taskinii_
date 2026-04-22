@@ -7,7 +7,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 
 import { useDashboard } from '../hooks/useDashboard';
-import { useShakySteps } from '../hooks/useShakySteps';
 import WaterTracker from '../components/home/WaterTracker'; // Your interactive cup component
 import { COLORS } from '../constants/colors';
 import { supabase } from '../lib/supabase';
@@ -26,8 +25,7 @@ const BentoCard = ({ children, style, delay = 0 }) => (
 
 export default function Home({ navigation }) {
   const { isLoading, error, user, stats, logWater, logSleep, refresh, yaraInsight, muscleFatigue } = useDashboard();
-  const { steps: liveSteps } = useShakySteps(user?.id);
-  const totalSteps = (stats?.steps || 0) + liveSteps;
+  const totalSteps = stats?.steps || 0;
   const [displayCal, setDisplayCal] = useState(0);
   const [lastSession, setLastSession] = useState(null);
 
@@ -61,12 +59,12 @@ export default function Home({ navigation }) {
     let start = 0;
     const end = stats.calories.remaining;
     const increment = end / (1000 / 16);
-    const timer = setInterval(() => {
+    const timer = globalThis.setInterval(() => {
       start += increment;
-      if (start >= end) { setDisplayCal(Math.floor(end)); clearInterval(timer); }
+      if (start >= end) { setDisplayCal(Math.floor(end)); globalThis.clearInterval(timer); }
       else { setDisplayCal(Math.floor(start)); }
     }, 16);
-    return () => clearInterval(timer);
+    return () => globalThis.clearInterval(timer);
   }, [isLoading, error, stats?.calories?.remaining]);
 
   if (error) {
