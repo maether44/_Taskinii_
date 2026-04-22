@@ -112,7 +112,7 @@ const { width: SW, height: SH } = Dimensions.get('window');
 // ONE Audio.Recording exists at a time, tracked here at module level.
 let _rec = null;
 
-async function stopAnyRecording() {
+export async function stopAnyRecording() {
   const r = _rec;
   _rec = null;
   if (r) {

@@ -1461,6 +1461,9 @@ async function startCamera() {
 
   } catch (err) {
     console.error('[BodyQ] Camera error:', err);
+    if (window.ReactNativeWebView) {
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'CAMERA_ERROR', error: err.message }));
+    }
     cueBox.textContent = '⚠ Camera access denied. Please allow permissions and reload.';
     cueBox.className   = '';
   }

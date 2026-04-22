@@ -16,7 +16,8 @@ import { BlurView } from 'expo-blur';
 import { useAuth } from '../../context/AuthContext';
 import { saveWorkoutSession } from '../../services/workoutService';
 import { supabase } from '../../lib/supabase';
-import { useAlexiVoice, AlexiEvents } from '../../context/AlexiVoiceContext';
+import * as Speech from 'expo-speech';
+import { useAlexiVoice, AlexiEvents, stopAnyRecording } from '../../context/AlexiVoiceContext';
 import { AppEvents, emit } from '../../lib/eventBus';
 import { error as logError, log } from '../../lib/logger';
 
@@ -320,7 +321,7 @@ export default function WorkoutActive({ route, navigation }) {
   const { pausePassive, resumePassive } = useAlexiVoice();
   // speakYara: lightweight TTS wrapper (replaces old Yara voice system)
   const speakYara = useCallback((text) => {
-    try { require('expo-speech').speak(text, { language: 'en-US', rate: 1.0 }); } catch (_) {}
+    try { Speech.speak(text, { language: 'en-US', rate: 1.0 }); } catch (_) {}
   }, []);
   const rawKey      = route.params?.exerciseKey || route.params?.exerciseName || 'squat';
   const isPostureMode = rawKey === 'posture_check' || route.params?.mode === 'posture';
@@ -402,7 +403,8 @@ export default function WorkoutActive({ route, navigation }) {
   // allows one audio session owner at a time).  On unmount we wait 2 s before
   // resumePassive so the camera codec fully releases before Alexi opens the mic.
   useEffect(() => {
-    pausePassive();
+    // Force-kill the mic before WebView camera starts (iOS allows only one audio session)
+    stopAnyRecording().catch(() => {}).finally(() => pausePassive());
     return () => { setTimeout(() => resumePassive(), 2000); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -433,10 +435,14 @@ export default function WorkoutActive({ route, navigation }) {
 
   // ── Hide tab bar ────────────────────────────────────────────
   useEffect(() => {
-    navigation.getParent()?.setOptions({ tabBarStyle: { display: 'none' } });
-    return () => navigation.getParent()?.setOptions({
-      tabBarStyle: { backgroundColor: '#0F0B1E', borderTopColor: '#1E1A35', height: 85, paddingBottom: 20 },
-    });
+    const parent = navigation.getParent();
+    if (parent) {
+      parent.setOptions({ tabBarStyle: { display: 'none' } });
+    }
+    return () => {
+      const p = navigation.getParent();
+      if (p) p.setOptions({ tabBarStyle: { backgroundColor: '#0F0B1E', borderTopColor: '#1E1A35', height: 85, paddingBottom: 20 } });
+    };
   }, [navigation]);
 
   // ── Camera permission + HTML preload ────────────────────────
