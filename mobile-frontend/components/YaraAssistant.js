@@ -9,17 +9,21 @@ import {
   TouchableOpacity, View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Audio } from 'expo-av';
-import * as FileSystem from 'expo-file-system';
 import * as Speech from 'expo-speech';
 import { registerTourRef } from './onBoarding/tourRefs';
 import { useProfile } from '../hooks/useProfile';
 import { useToday } from '../context/TodayContext';
 import { callYaraCoach } from '../lib/groqAPI';
-import { log, error as logError } from '../lib/logger';
+import { error as logError } from '../lib/logger';
 import { scheduleStore } from '../store/scheduleStore';
+import {
+  getAiAssistantErrorMessage,
+  invokeAiAssistant,
+  sanitizeAiAssistantText,
+} from '../services/aiAssistantService';
 
 const SIDEBAR_W   = 272;
 const STORAGE_KEY = '@yara_conversations';
@@ -87,6 +91,91 @@ const fmtDate = (iso) => {
   if (d.toDateString() === yest.toDateString()) return 'Yesterday';
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
+
+const getLocalDateKey = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+function buildYaraClientContext({ profile, targets, today }) {
+  const mealList = (today?.foodLogs ?? [])
+    .map((log) => ({
+      meal_type: log.meal_type,
+      foods: log?.foods?.name || 'Food item',
+      calories: log?.foods?.calories_per_100g && log?.quantity_grams
+        ? Math.round((Number(log.foods.calories_per_100g) || 0) * (Math.max(1, Number(log.quantity_grams) || 100) / 100))
+        : undefined,
+    }));
+
+  const mergedMeals = Object.values(
+    mealList.reduce((acc, meal) => {
+      const key = meal.meal_type || 'snack';
+      const existing = acc[key];
+      if (existing) {
+        existing.foods = `${existing.foods}, ${meal.foods}`;
+        existing.calories = (existing.calories || 0) + (meal.calories || 0);
+      } else {
+        acc[key] = { ...meal };
+      }
+      return acc;
+    }, {}),
+  );
+
+  return {
+    profile: profile ? {
+      full_name: profile.full_name,
+      goal: profile.goal,
+      activity_level: profile.activity_level,
+      height_cm: profile.height_cm,
+      weight_kg: profile.weight_kg,
+      gender: profile.gender,
+      assistant_tone: profile.assistant_tone,
+      experience: profile.experience,
+      equipment: profile.equipment,
+      diet_pref: profile.diet_pref,
+      sleep_quality: profile.sleep_quality,
+      stress_level: profile.stress_level,
+    } : null,
+    today: {
+      date: getLocalDateKey(),
+      calories_eaten: today?.totals?.calories || 0,
+      calorie_target: targets?.daily_calories ?? today?.goals?.calorie_target ?? 2000,
+      protein_eaten: today?.totals?.protein || 0,
+      protein_target: targets?.protein_target ?? today?.goals?.protein_target ?? 150,
+      carbs_eaten: today?.totals?.carbs || 0,
+      carbs_target: targets?.carbs_target ?? today?.goals?.carbs_target ?? 250,
+      fat_eaten: today?.totals?.fat || 0,
+      fat_target: targets?.fat_target ?? today?.goals?.fat_target ?? 65,
+      water_ml: today?.waterMl || 0,
+      water_target_ml: today?.goals?.water_target_ml || 2500,
+      sleep_hours: today?.sleepHours ?? null,
+      sleep_quality: today?.sleepQuality ?? null,
+      calories_burned: today?.caloriesBurned || 0,
+      muscle_fatigue: today?.muscleFatigue || [],
+      meals: mergedMeals,
+    },
+    nutrition: {
+      avg_calories: today?.totals?.calories || 0,
+      avg_protein_g: today?.totals?.protein || 0,
+      avg_carbs_g: today?.totals?.carbs || 0,
+      avg_fat_g: today?.totals?.fat || 0,
+      logged_days: mergedMeals.length ? 1 : 0,
+      daily_calorie_target: targets?.daily_calories ?? today?.goals?.calorie_target ?? 2000,
+      protein_target: targets?.protein_target ?? today?.goals?.protein_target ?? 150,
+      carbs_target: targets?.carbs_target ?? today?.goals?.carbs_target ?? 250,
+      fat_target: targets?.fat_target ?? today?.goals?.fat_target ?? 65,
+      recent_meals: mergedMeals.map((meal) => ({ ...meal, date: getLocalDateKey() })),
+    },
+    activity: {
+      avg_water_ml: today?.waterMl || 0,
+      calories_burned: today?.caloriesBurned || 0,
+      avg_sleep_hours: today?.sleepHours ?? null,
+      steps: today?.steps || 0,
+    },
+  };
+}
 
 const WORKOUT_COLOR_MAP = {
   push: '#7B61FF', pull: '#FF6B6B', legs: '#C6FF33',
@@ -199,9 +288,46 @@ const getGreeting = (profile, name) => profile
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function YaraAssistant({ onOpenSchedule }) {
-  const { profile, name, userId, goals } = useProfile();
-  const { sleepHours, sleepQuality, muscleFatigue } = useToday();
+  const { profile, name, userId, targets } = useProfile();
+  const {
+    goals,
+    foodLogs,
+    waterMl,
+    sleepHours,
+    sleepQuality,
+    caloriesBurned,
+    muscleFatigue,
+    steps,
+  } = useToday();
   const insets = useSafeAreaInsets();
+  const nutritionTotals = useMemo(() => (
+    (foodLogs ?? []).reduce((acc, log) => {
+      const quantity = Math.max(1, Number(log?.quantity_grams) || 100);
+      const ratio = quantity / 100;
+      const food = log?.foods || {};
+      return {
+        calories: acc.calories + Math.round((Number(food.calories_per_100g) || 0) * ratio),
+        protein: acc.protein + ((Number(food.protein_per_100g) || 0) * ratio),
+        carbs: acc.carbs + ((Number(food.carbs_per_100g) || 0) * ratio),
+        fat: acc.fat + ((Number(food.fat_per_100g) || 0) * ratio),
+      };
+    }, { calories: 0, protein: 0, carbs: 0, fat: 0 })
+  ), [foodLogs]);
+  const aiClientContext = useMemo(() => buildYaraClientContext({
+    profile,
+    targets,
+    today: {
+      goals,
+      foodLogs,
+      waterMl,
+      sleepHours,
+      sleepQuality,
+      caloriesBurned,
+      muscleFatigue,
+      steps,
+      totals: nutritionTotals,
+    },
+  }), [profile, targets, goals, foodLogs, waterMl, sleepHours, sleepQuality, caloriesBurned, muscleFatigue, steps, nutritionTotals]);
 
   const [open,          setOpen]          = useState(false);
   const [input,         setInput]         = useState('');
@@ -458,7 +584,17 @@ export default function YaraAssistant({ onOpenSchedule }) {
 
     try {
       // ✅ Pass isSchedule as 4th arg — groqAPI handles model/tokens/json_object
-      const reply = await callYaraCoach(historyToSend, profile, goals, isSchedule);
+      let reply = '';
+      if (isSchedule) {
+        reply = await callYaraCoach(historyToSend, profile, targets, true);
+      } else {
+        const payload = await invokeAiAssistant({
+          userId,
+          query: msg,
+          clientContext: aiClientContext,
+        });
+        reply = sanitizeAiAssistantText(payload?.response || '');
+      }
 
       // Save to history using original message
       apiHistoryRef.current[activeConvId] = [
@@ -473,7 +609,8 @@ export default function YaraAssistant({ onOpenSchedule }) {
           // response_format: json_object guarantees valid JSON — just parse it
           const parsed = JSON.parse(reply);
           if (parsed?.schedule?.days) {
-await scheduleStore.set({ ...parsed.schedule, generated_at: new Date().toISOString() });            const responseText = parsed.response || "Here's your weekly plan!";
+            await scheduleStore.set({ ...parsed.schedule, generated_at: new Date().toISOString() });
+            const responseText = parsed.response || "Here's your weekly plan!";
             setAndPersist(prev => prev.map(c => c.id !== activeConvId ? c : {
               ...c,
               messages: [...c.messages, {
@@ -499,10 +636,15 @@ await scheduleStore.set({ ...parsed.schedule, generated_at: new Date().toISOStri
       }));
 
     } catch (err) {
-      logError('Yara error:', err.message);
+      const detail = await getAiAssistantErrorMessage(err);
+      logError('Yara error:', detail || err?.message || err);
       setAndPersist(prev => prev.map(c => c.id !== activeConvId ? c : {
         ...c,
-        messages: [...c.messages, { from: 'yara', text: "Connection issue — try again!", time: fmtTime() }],
+        messages: [...c.messages, {
+          from: 'yara',
+          text: detail || "I couldn't reach live coaching right now. Try again in a moment.",
+          time: fmtTime(),
+        }],
       }));
     } finally {
       setTyping(false);

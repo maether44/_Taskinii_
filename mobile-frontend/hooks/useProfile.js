@@ -108,6 +108,7 @@ export function useProfile() {
         loading,
         profile,
         targets,
+        goals: targets,
         userId,
         // Helpers
         name,

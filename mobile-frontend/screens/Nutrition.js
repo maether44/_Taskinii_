@@ -17,8 +17,12 @@ import RingProgress from "../components/shared/RingProgress";
 import { StepCounter } from "../components/StepCounter";
 import { useNutrition } from "../hooks/useNutrition";
 import { useProfile } from "../hooks/useProfile";
-import { invokeEdgePublic, supabase } from "../lib/supabase";
 import { DEFAULT_TARGETS } from "../constants/targets";
+import {
+  getAiAssistantErrorMessage,
+  invokeAiAssistant,
+  sanitizeAiAssistantText,
+} from "../services/aiAssistantService";
 
 const C = {
   bg: "#0F0B1E",
@@ -48,20 +52,40 @@ function buildFallbackMealPlan({ goals, eaten, protein, carbs, fat, mealSections
   const remainingProtein = Math.max((goals?.protein_target || 0) - (protein || 0), 0);
   const remainingCarbs = Math.max((goals?.carbs_target || 0) - (carbs || 0), 0);
   const remainingFat = Math.max((goals?.fat_target || 0) - (fat || 0), 0);
-  const emptyMeals = (mealSections || []).filter((meal) => !meal.logged).map((meal) => meal.label.toLowerCase());
-  const nextMeals = emptyMeals.length ? emptyMeals.join(", ") : "your next meal";
+  const mealSectionsList = mealSections || [];
+  const loggedMeals = mealSectionsList.filter((meal) => meal.logged).map((meal) => meal.label.toLowerCase());
+  const emptyMeals = mealSectionsList.filter((meal) => !meal.logged).map((meal) => meal.label.toLowerCase());
+  const coreMealsDone = ["breakfast", "lunch", "dinner"].every((slot) =>
+    mealSectionsList.some((meal) => meal.id === slot && meal.logged),
+  );
   const plan = [];
 
+  if (coreMealsDone) {
+    if (remainingCalories > 250) {
+      plan.push(`Breakfast, lunch, and dinner are already logged, so the rest of today should be a smart snack instead of another full meal.`);
+    } else {
+      plan.push(`Your main meals are already covered today, so only add something small if you're genuinely hungry.`);
+    }
+  } else if (emptyMeals.length > 0) {
+    plan.push(`The only meal slots still open today are ${emptyMeals.join(", ")}, so focus there instead of repeating meals you've already logged.`);
+  }
+
   if (remainingProtein > 35) {
-    plan.push(`Protein is the main gap, so make ${nextMeals} center around chicken, tuna, Greek yogurt, eggs, or tofu.`);
+    plan.push(coreMealsDone
+      ? "Protein is still the main gap, so a high-protein snack like Greek yogurt, eggs, tuna, cottage cheese, or tofu would make the biggest difference."
+      : "Protein is the main gap, so build the next open meal around chicken, tuna, Greek yogurt, eggs, or tofu.");
   } else {
-    plan.push("Protein is in a decent place, so keep the next meals balanced instead of over-correcting.");
+    plan.push("Protein is in a decent place, so keep the rest of the day balanced instead of over-correcting.");
   }
 
   if (remainingCalories > 600) {
-    plan.push(`You still have about ${remainingCalories} kcal left, so you can fit a proper meal plus a snack.`);
+    plan.push(coreMealsDone
+      ? `You still have about ${remainingCalories} kcal left, so you can fit one satisfying evening snack and still stay on plan.`
+      : `You still have about ${remainingCalories} kcal left, so you can fit the remaining meal slots plus a snack.`);
   } else if (remainingCalories > 250) {
-    plan.push(`You have about ${remainingCalories} kcal left, so one balanced meal should finish the day well.`);
+    plan.push(coreMealsDone
+      ? `You have about ${remainingCalories} kcal left, so one controlled snack should finish the day well.`
+      : `You have about ${remainingCalories} kcal left, so one balanced remaining meal should finish the day well.`);
   } else {
     plan.push("Calories are already close to target, so keep the rest of the day light and satisfying.");
   }
@@ -72,67 +96,57 @@ function buildFallbackMealPlan({ goals, eaten, protein, carbs, fat, mealSections
     plan.push("Healthy fats are still low, so avocado, olive oil, nuts, or salmon would balance things nicely.");
   }
 
-  plan.push("Fun version: build one easy plate with a protein, one smart carb, and one colorful fruit or vegetable so Yara has even better data tomorrow.");
+  if (loggedMeals.length > 0) {
+    plan.push(`You already logged ${loggedMeals.join(", ")}, so use that pattern to guide the rest of the day instead of restarting it.`);
+  }
+
+  plan.push(coreMealsDone
+    ? "Best move now: keep the night simple, protein-first, and easy to log so Yara can learn from a clean finish."
+    : "Best move now: finish the open meal slots cleanly with a protein, a smart carb, and something fresh so Yara gets better data.");
 
   return plan.join(" ");
 }
 
-async function extractEdgeFunctionMessage(error) {
-  if (!error) return "";
-
-  if (error?.context) {
-    try {
-      const payload = await error.context.json();
-      if (payload?.reason) return payload.reason;
-      if (payload?.error) return payload.error;
-      if (payload?.message) return payload.message;
-    } catch {
-      try {
-        const text = await error.context.text();
-        if (text) return text;
-      } catch {
-        // Ignore secondary parsing failures.
-      }
-    }
-  }
-
-  return error?.message || "";
-}
-
-const INTERNAL_LINE_RE = /^[^\n]*(COMMAND\s*:|MEMORIES\s*:|log_water|log_sleep|log_weight|log_food|log_workout|forget_fact|navigate)[^\n]*$/gim;
-
-function cleanAiResponse(text) {
-  if (!text) return text;
-  return text.replace(INTERNAL_LINE_RE, "").replace(/\n{3,}/g, "\n\n").trim();
-}
-
-async function invokeYaraPlan(body) {
-  try {
-    const { data, error } = await supabase.functions.invoke("ai-assistant", { body });
-    if (error) {
-      const detail = await extractEdgeFunctionMessage(error);
-      throw new Error(detail || error.message);
-    }
-    return data;
-  } catch (error) {
-    const message = error?.message || "";
-    if (/invalid jwt/i.test(message) || /non-2xx/i.test(message) || /unsupported jwt/i.test(message) || /ES256/i.test(message)) {
-      return invokeEdgePublic("ai-assistant", body);
-    }
-    throw error;
-  }
+function getLocalDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function buildClientNutritionContext({ goals, eaten, protein, carbs, fat, waterMl, caloriesBurned, mealSections }) {
+  const loggedMeals = (mealSections || [])
+    .filter((meal) => meal.logged)
+    .map((meal) => meal.id);
+  const openMeals = (mealSections || [])
+    .filter((meal) => !meal.logged)
+    .map((meal) => meal.id);
   const recentMeals = (mealSections || [])
     .filter((meal) => meal.logged)
     .map((meal) => ({
-      date: new Date().toISOString().slice(0, 10),
+      date: getLocalDateKey(),
       meal_type: meal.id,
       foods: meal.items.map((item) => item.name).join(", "),
     }));
 
   return {
+    today: {
+      date: getLocalDateKey(),
+      calories_eaten: eaten || 0,
+      calorie_target: goals?.calorie_target || DEFAULT_TARGETS.calorie_target,
+      protein_eaten: protein || 0,
+      protein_target: goals?.protein_target || DEFAULT_TARGETS.protein_target,
+      carbs_eaten: carbs || 0,
+      carbs_target: goals?.carbs_target || DEFAULT_TARGETS.carbs_target,
+      fat_eaten: fat || 0,
+      fat_target: goals?.fat_target || DEFAULT_TARGETS.fat_target,
+      water_ml: waterMl || 0,
+      water_target_ml: goals?.water_target_ml || DEFAULT_TARGETS.water_target_ml,
+      calories_burned: caloriesBurned || 0,
+      meals: recentMeals,
+      logged_meal_types: loggedMeals,
+      open_meal_types: openMeals,
+    },
     nutrition: {
       avg_calories: eaten || 0,
       avg_protein_g: protein || 0,
@@ -143,6 +157,12 @@ function buildClientNutritionContext({ goals, eaten, protein, carbs, fat, waterM
       protein_target: goals?.protein_target || DEFAULT_TARGETS.protein_target,
       carbs_target: goals?.carbs_target || DEFAULT_TARGETS.carbs_target,
       fat_target: goals?.fat_target || DEFAULT_TARGETS.fat_target,
+      remaining_calories: Math.max((goals?.calorie_target || DEFAULT_TARGETS.calorie_target) - (eaten || 0), 0),
+      remaining_protein_g: Math.max((goals?.protein_target || DEFAULT_TARGETS.protein_target) - (protein || 0), 0),
+      remaining_carbs_g: Math.max((goals?.carbs_target || DEFAULT_TARGETS.carbs_target) - (carbs || 0), 0),
+      remaining_fat_g: Math.max((goals?.fat_target || DEFAULT_TARGETS.fat_target) - (fat || 0), 0),
+      logged_meal_types: loggedMeals,
+      open_meal_types: openMeals,
       recent_meals: recentMeals,
     },
     activity: {
@@ -194,25 +214,27 @@ export default function Nutrition({ navigation }) {
       const prompt = [
         "Use my real recent meals, calorie target, macro target, and goal.",
         "Give me a short enjoyable meal plan for today.",
-        "Mention breakfast, lunch, dinner, and snack if useful.",
-        "Focus on what I should repeat, swap, or add based on my actual logs.",
+        "Only mention breakfast, lunch, or dinner if that meal has not already been logged today.",
+        "If breakfast, lunch, and dinner are already logged, do not tell me to eat them again; focus on whether I need a snack, a light add-on, or nothing else tonight.",
+        "Use my remaining calories and macros for the rest of today, not a generic full-day template.",
+        "Focus on what I should repeat, swap, or add based on my actual logs and what time of day the remaining eating should realistically happen.",
         "Keep it concise, practical, and fun.",
       ].join(" ");
 
-      let resolvedData = await invokeYaraPlan({ userId, query: prompt, clientContext });
+      let resolvedData = await invokeAiAssistant({ userId, query: prompt, clientContext });
       if (!resolvedData?.response) {
-        resolvedData = await invokeYaraPlan({ query: prompt, clientContext });
+        resolvedData = await invokeAiAssistant({ query: prompt, clientContext });
       }
       if (resolvedData?.fallback) {
-        setMealPlan(cleanAiResponse(resolvedData?.response) || fallbackMealPlan);
+        setMealPlan(sanitizeAiAssistantText(resolvedData?.response) || fallbackMealPlan);
         setMealPlanError(resolvedData?.reason
           ? `Yara is using fallback mode right now: ${resolvedData.reason}`
           : "Yara is using fallback mode right now.");
         return;
       }
-      setMealPlan(cleanAiResponse(resolvedData?.response) || "");
+      setMealPlan(sanitizeAiAssistantText(resolvedData?.response) || "");
     } catch (error) {
-      const detail = await extractEdgeFunctionMessage(error);
+      const detail = await getAiAssistantErrorMessage(error);
       setMealPlan(fallbackMealPlan);
       setMealPlanError(
         detail
@@ -304,7 +326,7 @@ export default function Nutrition({ navigation }) {
 
         <View style={s.summaryCard}>
           <View style={s.summaryTop}>
-            <View>
+            <View style={s.summaryCopy}>
               <Text style={s.cardLabel}>TODAY</Text>
               <Text style={s.cardTitle}>Calorie budget</Text>
               <Text style={s.cardSub}>
@@ -313,12 +335,14 @@ export default function Nutrition({ navigation }) {
                   : "Track meals to help Yara coach you better"}
               </Text>
             </View>
-            <RingProgress size={116} stroke={10} progress={calPct} color={eaten > adjustedGoal ? "#FF6B6B" : C.lime}>
-              <View style={{ alignItems: "center" }}>
-                <Text style={s.ringValue}>{eaten}</Text>
-                <Text style={s.ringLabel}>eaten</Text>
-              </View>
-            </RingProgress>
+            <View style={s.summaryRingWrap}>
+              <RingProgress size={116} stroke={10} progress={calPct} color={eaten > adjustedGoal ? "#FF6B6B" : C.lime}>
+                <View style={s.ringContent}>
+                  <Text style={s.ringValue}>{eaten}</Text>
+                  <Text style={s.ringLabel}>eaten</Text>
+                </View>
+              </RingProgress>
+            </View>
           </View>
 
           <View style={s.summaryStats}>
@@ -528,12 +552,35 @@ const s = StyleSheet.create({
     padding: 18,
     marginBottom: 20,
   },
-  summaryTop: { flexDirection: "row", justifyContent: "space-between", gap: 16, alignItems: "center" },
+  summaryTop: { flexDirection: "row", justifyContent: "space-between", gap: 12, alignItems: "center" },
+  summaryCopy: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 4,
+  },
+  summaryRingWrap: {
+    flexShrink: 0,
+    width: 122,
+    alignItems: "flex-start",
+    marginLeft: -6,
+  },
   cardLabel: { color: C.sub, fontSize: FS.badge, fontWeight: "800", letterSpacing: 1.1 },
   cardTitle: { color: C.text, fontSize: FS.sectionTitle, fontWeight: "800", marginTop: 6 },
   cardSub: { color: C.dim, fontSize: FS.btnSecondary, lineHeight: 20, marginTop: 6 },
-  ringValue: { color: C.text, fontSize: FS.sectionTitle, fontWeight: "900" },
-  ringLabel: { color: C.sub, fontSize: FS.badge },
+  ringContent: {
+    width: 70,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  ringValue: {
+    color: C.text,
+    fontSize: FS.sectionTitle,
+    fontWeight: "900",
+    textAlign: "center",
+    includeFontPadding: false,
+  },
+  ringLabel: { color: C.sub, fontSize: FS.badge, textAlign: "center" },
   summaryStats: {
     flexDirection: "row",
     marginTop: 18,

@@ -7,7 +7,7 @@
  * All hooks that previously fetched these independently now read from here.
  */
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import { Pedometer } from 'expo-sensors';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
@@ -18,8 +18,29 @@ import { error as logError } from '../lib/logger';
 
 const TodayContext = createContext(null);
 
-function todayString() {
-  return new Date().toISOString().split('T')[0];
+function getLocalDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getTodayWindow(date = new Date()) {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(date);
+  end.setHours(23, 59, 59, 999);
+  return {
+    dateKey: getLocalDateKey(date),
+    startIso: start.toISOString(),
+    endIso: end.toISOString(),
+  };
+}
+
+function getStartOfDay(date = new Date()) {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  return start;
 }
 
 function normalizeGoals(row, weightKg) {
@@ -53,7 +74,12 @@ export function TodayProvider({ children }) {
   const [pedometerAvailable, setPedometerAvailable] = useState(true);
   const [pedometerPermission, setPedometerPermission] = useState(null);
   const pendingSyncRef = useRef(0);
-  const syncTimerRef = useRef(null);
+  const dbStepsRef = useRef(0);
+  const lastSyncedReadingRef = useRef(0);
+  const lastObservedReadingRef = useRef(0);
+  const iosDeviceStepsAtSubscribeRef = useRef(0);
+  const isFlushingStepsRef = useRef(false);
+  const appStateRef = useRef(AppState.currentState);
   // Tracks the user id we've already completed an initial fetch for. We only
   // flip the global `loading` flag when we've never loaded data for the
   // current user — subsequent refreshes (focus, event bus, write-backs) must
@@ -67,7 +93,7 @@ export function TodayProvider({ children }) {
     // Only show the global loader on the very first fetch for this user.
     // Refreshes after that update state in place.
     if (loadedForUserRef.current !== userId) setLoading(true);
-    const today = todayString();
+    const { dateKey, startIso, endIso } = getTodayWindow();
 
     try {
       const [
@@ -95,14 +121,14 @@ export function TodayProvider({ children }) {
             )
           `)
           .eq('user_id', userId)
-          .gte('consumed_at', `${today}T00:00:00.000Z`)
-          .lte('consumed_at', `${today}T23:59:59.999Z`)
+          .gte('consumed_at', startIso)
+          .lte('consumed_at', endIso)
           .order('consumed_at', { ascending: true }),
         supabase
           .from('daily_activity')
           .select('water_ml, calories_burned, sleep_hours, sleep_quality, steps')
           .eq('user_id', userId)
-          .eq('date', today)
+          .eq('date', dateKey)
           .maybeSingle(),
         supabase
           .from('profiles')
@@ -131,6 +157,18 @@ export function TodayProvider({ children }) {
   // Load on mount / user change
   useEffect(() => { loadToday(); }, [loadToday]);
 
+  useEffect(() => {
+    dbStepsRef.current = dbSteps;
+  }, [dbSteps]);
+
+  const updateUnsyncedStepsFromAbsolute = useCallback((absoluteReading) => {
+    const normalizedReading = Math.max(0, Math.floor(Number(absoluteReading) || 0));
+    lastObservedReadingRef.current = normalizedReading;
+    const unsynced = Math.max(0, normalizedReading - lastSyncedReadingRef.current);
+    pendingSyncRef.current = unsynced;
+    setLiveSteps(unsynced);
+  }, []);
+
   // Subscribe to EventBus refresh signals.
   //
   // NOTE: we deliberately do NOT listen to WATER_LOGGED / SLEEP_LOGGED here,
@@ -155,48 +193,171 @@ export function TodayProvider({ children }) {
   // ── Pedometer: shared step source for Home + Fuel ───────────────
   // Subscribes to the device pedometer, batches DB syncs every 30s.
   useEffect(() => {
+    if (!userId || loading) return undefined;
+
     let sub = null;
+    let cancelled = false;
 
     (async () => {
       const available = await Pedometer.isAvailableAsync().catch(() => false);
+      if (cancelled) return;
       setPedometerAvailable(available);
       if (!available) return;
 
       const { status } = await Pedometer.requestPermissionsAsync().catch(() => ({ status: 'denied' }));
+      if (cancelled) return;
       setPedometerPermission(status);
       if (status !== 'granted') return;
 
+      if (Platform.OS === 'ios') {
+        const initialTodaySteps = await Pedometer
+          .getStepCountAsync(getStartOfDay(), new Date())
+          .then((result) => result?.steps ?? 0)
+          .catch(() => 0);
+
+        iosDeviceStepsAtSubscribeRef.current = initialTodaySteps;
+        lastSyncedReadingRef.current = Math.min(initialTodaySteps, dbStepsRef.current);
+        updateUnsyncedStepsFromAbsolute(initialTodaySteps);
+      } else {
+        lastSyncedReadingRef.current = 0;
+        updateUnsyncedStepsFromAbsolute(0);
+      }
+
       sub = Pedometer.watchStepCount(({ steps: count }) => {
-        setLiveSteps(count);
-        pendingSyncRef.current = count;
+        const normalizedCount = Math.max(0, count || 0);
+
+        if (Platform.OS === 'ios') {
+          const absoluteTodaySteps = iosDeviceStepsAtSubscribeRef.current + normalizedCount;
+          updateUnsyncedStepsFromAbsolute(absoluteTodaySteps);
+          return;
+        }
+
+        updateUnsyncedStepsFromAbsolute(normalizedCount);
       });
     })();
 
-    return () => { if (sub) sub.remove(); };
-  }, []);
+    return () => {
+      cancelled = true;
+      if (sub) sub.remove();
+    };
+  }, [userId, loading, updateUnsyncedStepsFromAbsolute]);
+
+  const reconcileIosTodaySteps = useCallback(async () => {
+    if (!userId || Platform.OS !== 'ios' || pedometerPermission !== 'granted') return;
+
+    try {
+      const deviceTodaySteps = await Pedometer
+        .getStepCountAsync(getStartOfDay(), new Date())
+        .then((result) => result?.steps ?? 0);
+
+      if (deviceTodaySteps < dbStepsRef.current) {
+        setDbSteps(deviceTodaySteps);
+        dbStepsRef.current = deviceTodaySteps;
+      }
+
+      lastSyncedReadingRef.current = Math.min(deviceTodaySteps, dbStepsRef.current);
+      updateUnsyncedStepsFromAbsolute(deviceTodaySteps);
+    } catch (error) {
+      logError('[TodayContext] reconcileIosTodaySteps error:', error);
+    }
+  }, [userId, pedometerPermission, updateUnsyncedStepsFromAbsolute]);
+
+  const flushPendingSteps = useCallback(async () => {
+    if (!userId || isFlushingStepsRef.current) return false;
+
+    const pending = Math.max(0, Math.floor(pendingSyncRef.current));
+    const absoluteTotal = Platform.OS === 'ios'
+      ? Math.max(0, Math.floor(lastObservedReadingRef.current))
+      : Math.max(0, Math.floor(dbStepsRef.current + pending));
+
+    if (pending <= 0 && absoluteTotal <= 0) return true;
+
+    isFlushingStepsRef.current = true;
+
+    try {
+      let totalSteps = absoluteTotal;
+
+      const { data: syncData, error: syncError } = await supabase.rpc('sync_step_total', {
+        p_user_id: userId,
+        p_total_steps: absoluteTotal,
+        p_date: getLocalDateKey(),
+      });
+
+      if (syncError?.code === 'PGRST205' || syncError?.code === '42883') {
+        const { data, error } = await supabase.rpc('increment_steps', {
+          p_user_id: userId,
+          p_steps: pending,
+          p_date: getLocalDateKey(),
+        });
+
+        if (error) {
+          logError('[TodayContext] increment_steps error:', error);
+          return false;
+        }
+
+        totalSteps = Number.isFinite(Number(data?.total_steps))
+          ? Number(data.total_steps)
+          : dbStepsRef.current + pending;
+        lastSyncedReadingRef.current += pending;
+      } else if (syncError) {
+        logError('[TodayContext] sync_step_total error:', syncError);
+        return false;
+      } else {
+        totalSteps = Number.isFinite(Number(syncData?.total_steps))
+          ? Number(syncData.total_steps)
+          : absoluteTotal;
+        lastSyncedReadingRef.current = totalSteps;
+      }
+
+      setDbSteps(totalSteps);
+      dbStepsRef.current = totalSteps;
+      updateUnsyncedStepsFromAbsolute(lastObservedReadingRef.current);
+      return true;
+    } catch (error) {
+      logError('[TodayContext] flushPendingSteps error:', error);
+      return false;
+    } finally {
+      isFlushingStepsRef.current = false;
+    }
+  }, [userId, updateUnsyncedStepsFromAbsolute]);
 
   // Batch sync live steps to DB every 30 seconds
   useEffect(() => {
     if (!userId) return;
-    const timer = setInterval(() => {
-      const pending = pendingSyncRef.current;
-      if (pending <= 0) return;
-      const today = todayString();
-      supabase.rpc('increment_steps', {
-        p_user_id: userId,
-        p_steps: pending,
-        p_date: today,
-      }).then(({ error }) => {
-        if (!error) {
-          setDbSteps(prev => prev + pending);
-          pendingSyncRef.current = 0;
-          setLiveSteps(0);
-        }
-      });
+    const timer = globalThis.setInterval(() => {
+      flushPendingSteps();
     }, 30000);
-    syncTimerRef.current = timer;
-    return () => clearInterval(timer);
-  }, [userId]);
+    return () => globalThis.clearInterval(timer);
+  }, [userId, flushPendingSteps]);
+
+  // Flush before backgrounding so we do not lose the in-memory foreground delta.
+  // On iOS, also reconcile from the device when returning to the foreground to
+  // catch steps taken while the app was not active.
+  useEffect(() => {
+    if (!userId) return;
+
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      const prevState = appStateRef.current;
+      appStateRef.current = nextState;
+
+      if (prevState === 'active' && /inactive|background/.test(nextState)) {
+        flushPendingSteps();
+        return;
+      }
+
+      if (/inactive|background/.test(prevState) && nextState === 'active') {
+        reconcileIosTodaySteps();
+      }
+    });
+
+    return () => subscription.remove();
+  }, [userId, flushPendingSteps, reconcileIosTodaySteps]);
+
+  useEffect(() => {
+    if (Platform.OS === 'ios' && userId && pedometerPermission === 'granted') {
+      reconcileIosTodaySteps();
+    }
+  }, [userId, pedometerPermission, dbSteps, reconcileIosTodaySteps]);
 
   // Total steps = persisted DB steps + live (unsynced) pedometer steps
   const steps = dbSteps + liveSteps;
@@ -214,7 +375,7 @@ export function TodayProvider({ children }) {
       const { data: newMl, error } = await supabase.rpc('log_water_ml', {
         p_user_id: userId,
         p_delta:   mlDelta,
-        p_date:    todayString(),
+        p_date:    getLocalDateKey(),
       });
       if (error) {
         logError('[TodayContext] log_water_ml error:', error);
@@ -239,7 +400,7 @@ export function TodayProvider({ children }) {
         p_user_id: userId,
         p_hours:   hours,
         p_quality: quality ?? null,
-        p_date:    todayString(),
+        p_date:    getLocalDateKey(),
       });
       if (error) {
         logError('[TodayContext] log_sleep_data error:', error);

@@ -168,7 +168,7 @@ export default function WorkoutSummary({ route, navigation }) {
     ]).start();
 
     // Stats card slides up 200ms later
-    setTimeout(() => {
+    globalThis.setTimeout(() => {
       Animated.parallel([
         Animated.spring(cardSlide,   { toValue: 0, tension: 60, friction: 9, useNativeDriver: true }),
         Animated.timing(cardOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
@@ -176,7 +176,7 @@ export default function WorkoutSummary({ route, navigation }) {
     }, 200);
 
     // Yara card 400ms later
-    setTimeout(() => {
+    globalThis.setTimeout(() => {
       Animated.parallel([
         Animated.spring(yaraSlide,   { toValue: 0, tension: 60, friction: 9, useNativeDriver: true }),
         Animated.timing(yaraOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
@@ -184,7 +184,7 @@ export default function WorkoutSummary({ route, navigation }) {
     }, 400);
 
     // Actions 600ms later
-    setTimeout(() => {
+    globalThis.setTimeout(() => {
       Animated.timing(actionsOpacity, { toValue: 1, duration: 350, useNativeDriver: true }).start();
     }, 600);
   }
@@ -199,6 +199,7 @@ export default function WorkoutSummary({ route, navigation }) {
     );
 
   const goAgain = () => navigation.goBack();
+  const goFlappyBird = () => navigation.navigate('FlappyBirdGame');
 
   // ── Loading screen while DB confirms save ──────────────────
   if (dbLoading) {
@@ -303,6 +304,10 @@ export default function WorkoutSummary({ route, navigation }) {
 
         {/* ── ACTIONS ── */}
         <Animated.View style={[s.actionsWrap, { opacity: actionsOpacity }]}>
+          <TouchableOpacity style={s.gameBtn} onPress={goFlappyBird}>
+            <Ionicons name="game-controller" size={15} color={C.lime} style={{ marginRight: 8 }} />
+            <Text style={s.gameBtnTxt}>Play Flappy Bird</Text>
+          </TouchableOpacity>
           <TouchableOpacity style={[s.homeBtn, GLOW(C.purple, 14)]} onPress={goHome}>
             <Ionicons name="home" size={16} color="#fff" style={{ marginRight: 8 }} />
             <Text style={s.homeBtnTxt}>Back to Home</Text>
@@ -391,6 +396,17 @@ const s = StyleSheet.create({
 
   // ── Actions ──────────────────────────────────────────────────
   actionsWrap: { width: '100%', gap: 10 },
+  gameBtn: {
+    backgroundColor: C.card,
+    borderRadius: 16,
+    paddingVertical: 15,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: `${C.lime}55`,
+  },
+  gameBtnTxt: { color: C.lime, fontSize: FS.btnPrimary, fontWeight: '800' },
   homeBtn:     {
     backgroundColor: C.purple, borderRadius: 16, paddingVertical: 17,
     alignItems: 'center', flexDirection: 'row', justifyContent: 'center',

@@ -20,6 +20,7 @@ import ScheduleScreen from './screens/ScheduleScreen';
 import { supabase } from './lib/supabase';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { TodayProvider } from './context/TodayContext';
+import { MilestoneProvider, useMilestones } from './context/MilestoneContext';
 
 // ✅ Custom splash screen
 import CustomSplashScreen from './components/CustomSplashScreen';
@@ -38,13 +39,19 @@ import FoodDetail from './screens/nutrition/FoodDetail';
 import SleepLog from './screens/sleep/SleepLog';
 import FoodScannerScreen from './components/food-scanner/FoodScannerScreen';
 import WorkoutSummary from './screens/workout/WorkoutSummary';
+import FlappyBirdGame from './screens/workout/FlappyBirdGame';
 import CustomMealBuilder from './screens/nutrition/CustomMealBuilder';
+import CommunityCenter from './screens/community/CommunityCenter';
+import MessagesInbox from './screens/community/MessagesInbox';
+import DMThread from './screens/community/DMThread';
 import { scheduleStore } from './store/scheduleStore';
+import { useUnreadMessageNotifications } from './hooks/useNotification';
 
 // Global Components
 import YaraAssistant from './components/YaraAssistant';
 import AppTour from './components/onBoarding/AppTour';
 import CelebrationOverlay from './components/CelebrationOverlay';
+import CelebrationInterstitial from './components/reports/CelebrationInterstitial';
 import { warn } from './lib/logger';
 
 SplashScreen.preventAutoHideAsync();
@@ -58,6 +65,24 @@ function getActiveRouteName(state) {
   const route = state.routes[state.index ?? 0];
   if (route.state) return getActiveRouteName(route.state);
   return route.name;
+}
+
+function MilestoneCelebrationOverlay() {
+  const { pendingCelebration, claimMilestone, dismissCelebration } = useMilestones();
+
+  if (!pendingCelebration) return null;
+
+  return (
+    <CelebrationInterstitial
+      visible={!!pendingCelebration}
+      milestone={pendingCelebration}
+      onClaim={() => claimMilestone(pendingCelebration.milestone_type, false)}
+      onSkip={() => {
+        claimMilestone(pendingCelebration.milestone_type, true);
+        dismissCelebration();
+      }}
+    />
+  );
 }
 
 function Navigation() {
@@ -88,12 +113,22 @@ function Navigation() {
           <Stack.Screen name="SleepLog" component={SleepLog} />
           <Stack.Screen name="FoodScanner" component={FoodScannerScreen} />
           <Stack.Screen name="WorkoutSummary" component={WorkoutSummary} />
+          <Stack.Screen name="FlappyBirdGame" component={FlappyBirdGame} />
+          <Stack.Screen name="Community" component={CommunityCenter} />
+          <Stack.Screen name="Messages" component={MessagesInbox} />
+          <Stack.Screen name="DMThread" component={DMThread} />
           <Stack.Screen name="Schedule" component={ScheduleScreen} />
           <Stack.Screen name="CustomMealBuilder" component={CustomMealBuilder} />
         </>
       )}
     </Stack.Navigator>
   );
+}
+
+function DirectMessageNotifications({ activeRoute }) {
+  const { user } = useAuth();
+  useUnreadMessageNotifications(user?.id, activeRoute);
+  return null;
 }
 
 export default function App() {
@@ -148,17 +183,26 @@ export default function App() {
       <SafeAreaProvider>
         <AuthProvider>
           <TodayProvider>
-            <View style={styles.container} onLayout={onLayoutRootView}>
-              <StatusBar style="light" />
-              <NavigationContainer ref={navigationRef} onStateChange={(state) => setActiveRoute(getActiveRouteName(state))}>
-                <Navigation />
-              </NavigationContainer>
-              {showYaraAssistant && (
-                <YaraAssistant onOpenSchedule={() => navigationRef.current?.navigate('Schedule')} />
-              )}
-              <AppTour activeTab={activeTab} onTabPress={setActiveTab} showOnMount={true} />
-              <CelebrationOverlay />
-            </View>
+            <MilestoneProvider>
+              <View style={styles.container} onLayout={onLayoutRootView}>
+                <StatusBar style="light" />
+                <NavigationContainer
+                  ref={navigationRef}
+                  onStateChange={(state) => setActiveRoute(getActiveRouteName(state))}
+                >
+                  <Navigation />
+                </NavigationContainer>
+                <DirectMessageNotifications activeRoute={activeRoute} />
+                {showYaraAssistant && (
+                  <YaraAssistant
+                    onOpenSchedule={() => navigationRef.current?.navigate('Schedule')}
+                  />
+                )}
+                <AppTour activeTab={activeTab} onTabPress={setActiveTab} showOnMount={true} />
+                <CelebrationOverlay />
+                <MilestoneCelebrationOverlay />
+              </View>
+            </MilestoneProvider>
           </TodayProvider>
         </AuthProvider>
       </SafeAreaProvider>

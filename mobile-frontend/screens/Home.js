@@ -1,13 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  Image,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -18,12 +10,12 @@ import motivationalQuotes from '../data/motivationalQuotes.json';
 import TodayScheduleWidget from '../components/home/TodayScheduleWidget';
 
 import useNotification from '../hooks/useNotification';
+import { useUnreadMessageSummary } from '../hooks/useNotification';
 import { useDashboard } from '../hooks/useDashboard';
 import WaterTracker from '../components/home/WaterTracker';
 import { COLORS } from '../constants/colors';
 import { FS } from '../constants/typography';
 import { supabase } from '../lib/supabase';
-import { getLocalAvatarForUser } from '../lib/avatar';
 import { useAuth } from '../context/AuthContext';
 const NOTIFICATION_PREFS_KEY = 'bodyq_notification_prefs';
 
@@ -39,13 +31,23 @@ const BentoCard = ({ children, style, delay = 0 }) => (
 );
 
 export default function Home({ navigation }) {
-  const { isLoading, error, user, stats, logWater, logSleep, refresh, yaraInsight, muscleFatigue } =
-    useDashboard();
-  const { profileAvatarUri } = useAuth();
+  const {
+    isLoading,
+    error,
+    user,
+    stats,
+    logWater,
+    logSleep,
+    refresh,
+    yaraInsight: _yaraInsight,
+    muscleFatigue,
+  } = useDashboard();
+  const { user: authUser } = useAuth();
   const totalSteps = stats?.steps || 0;
+  const remainingCalories = Math.max(0, Number(stats?.calories?.remaining) || 0);
   const [displayCal, setDisplayCal] = useState(0);
+  const displayCalRef = useRef(0);
   const [lastSession, setLastSession] = useState(null);
-  const [headerAvatarUri, setHeaderAvatarUri] = useState(null);
   const [quoteOfTheDay, setQuoteOfTheDay] = useState('');
   const [notificationPrefs, setNotificationPrefs] = useState({
     workout: true,
@@ -53,7 +55,8 @@ export default function Home({ navigation }) {
     meal: false,
   });
 
-  const authUserId = useAuth().user?.id;
+  const authUserId = authUser?.id;
+  const { unreadCount } = useUnreadMessageSummary(authUserId);
 
   useEffect(() => {
     let mounted = true;
@@ -87,8 +90,6 @@ export default function Home({ navigation }) {
       refresh();
       if (!authUserId) return;
       (async () => {
-        const localAvatar = await getLocalAvatarForUser(authUserId).catch(() => null);
-        setHeaderAvatarUri(localAvatar);
         const { data } = await supabase
           .from('workout_sessions')
           .select('notes, calories_burned, started_at')
@@ -121,21 +122,30 @@ export default function Home({ navigation }) {
 
   // Count-up effect for calories — only runs once data is ready
   useEffect(() => {
+    displayCalRef.current = displayCal;
+  }, [displayCal]);
+
+  useEffect(() => {
     if (isLoading || error || !stats) return;
-    let start = 0;
-    const end = stats.calories.remaining;
-    const increment = end / (1000 / 16);
-    const timer = setInterval(() => {
-      start += increment;
-      if (start >= end) {
+    let current = Number(displayCalRef.current) || 0;
+    const end = remainingCalories;
+    if (current === end) return undefined;
+
+    const delta = end - current;
+    const increment = delta / (1000 / 16);
+    const timer = globalThis.setInterval(() => {
+      current += increment;
+      const next = current;
+      const hasReachedTarget = increment >= 0 ? next >= end : next <= end;
+      if (hasReachedTarget) {
         setDisplayCal(Math.floor(end));
-        clearInterval(timer);
+        globalThis.clearInterval(timer);
       } else {
-        setDisplayCal(Math.floor(start));
+        setDisplayCal(Math.floor(next));
       }
     }, 16);
-    return () => clearInterval(timer);
-  }, [isLoading, error, stats?.calories?.remaining]);
+    return () => globalThis.clearInterval(timer);
+  }, [error, isLoading, remainingCalories, stats]);
 
   if (error) {
     return (
@@ -168,14 +178,14 @@ export default function Home({ navigation }) {
               Let's hit your {user.goal?.replace('_', ' ')} goal.
             </Text>
           </View>
-          <Pressable style={styles.avatar} onPress={() => navigation.navigate('Profile')}>
-            {profileAvatarUri || headerAvatarUri || user.avatar_url ? (
-              <Image
-                source={{ uri: profileAvatarUri || headerAvatarUri || user.avatar_url }}
-                style={styles.avatarImg}
-              />
-            ) : (
-              <Text style={styles.avatarTxt}>{user.name?.charAt(0)}</Text>
+          <Pressable style={styles.communityBtn} onPress={() => navigation.navigate('Community')}>
+            <Ionicons name="people" size={20} color="#0F0B1E" />
+            {unreadCount > 0 && (
+              <View style={styles.communityBadge}>
+                <Text style={styles.communityBadgeTxt}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </Text>
+              </View>
             )}
           </Pressable>
         </View>
@@ -344,7 +354,7 @@ export default function Home({ navigation }) {
             ))}
           </BentoCard>
         )}
-              <TodayScheduleWidget navigation={navigation} />
+        <TodayScheduleWidget navigation={navigation} />
 
         {/* 6. LAST SESSION / GO TRAIN */}
         <BentoCard delay={700} style={styles.workoutCard}>
@@ -416,18 +426,37 @@ const styles = StyleSheet.create({
   },
   greeting: { color: '#FFF', fontSize: FS.screenTitle, fontWeight: '900' },
   subGreeting: { color: '#6B5F8A', fontSize: FS.body, marginTop: 4 },
-  avatar: {
+  communityBtn: {
+    position: 'relative',
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#7C5CFC',
+    backgroundColor: '#C8F135',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWeight: 2,
-    borderColor: '#C8F135',
+    borderWidth: 1,
+    borderColor: '#E6FF7A',
   },
-  avatarImg: { width: '100%', height: '100%', borderRadius: 22 },
-  avatarTxt: { color: '#FFF', fontSize: FS.cardTitle, fontWeight: 'bold' },
+  communityBadge: {
+    position: 'absolute',
+    right: -4,
+    top: -4,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    backgroundColor: '#FF4D4D',
+    borderWidth: 1,
+    borderColor: '#0F0B1E',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  communityBadgeTxt: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: '900',
+    lineHeight: 12,
+  },
 
   cardBase: {
     backgroundColor: '#161230',
@@ -445,7 +474,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 10,
   },
-  aiTitle: { color: 'rgba(255,255,255,0.6)', fontSize: FS.label, fontWeight: '900', letterSpacing: 1 },
+  aiTitle: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: FS.label,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
   liveDot: {
     width: 8,
     height: 8,
