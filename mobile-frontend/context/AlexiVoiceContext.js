@@ -42,6 +42,21 @@ import * as Haptics from 'expo-haptics';
 import * as Speech from 'expo-speech';
 import { supabase } from '../lib/supabase';
 
+// ─── Cross-screen event bus — declared FIRST so every importer gets the same ref ──
+export const AlexiEvents = {
+  _listeners: {},
+  on(event, fn) {
+    if (!this._listeners[event]) this._listeners[event] = [];
+    this._listeners[event].push(fn);
+    return () => {
+      this._listeners[event] = (this._listeners[event] || []).filter(f => f !== fn);
+    };
+  },
+  emit(event, data) {
+    (this._listeners[event] || []).forEach(fn => fn(data));
+  },
+};
+
 // ─── Audio modes ───────────────────────────────────────────────────────────────
 // DoNotMix during recording  → mic gets a clean signal, no bleed.
 // allowsRecordingIOS: false during playback → forces TTS to main speaker
@@ -117,21 +132,6 @@ async function playConfirmSound() {
     });
   } catch (_) {}
 }
-
-// ─── Cross-screen event bus ────────────────────────────────────────────────────
-export const AlexiEvents = {
-  _listeners: {},
-  on(event, fn) {
-    if (!this._listeners[event]) this._listeners[event] = [];
-    this._listeners[event].push(fn);
-    return () => {
-      this._listeners[event] = (this._listeners[event] || []).filter(f => f !== fn);
-    };
-  },
-  emit(event, data) {
-    (this._listeners[event] || []).forEach(fn => fn(data));
-  },
-};
 
 // ─── L1: Phonetic snap ────────────────────────────────────────────────────────
 // Fixes short (≤ 3-word) Whisper hallucinations before command parsing.
