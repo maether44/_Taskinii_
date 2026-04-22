@@ -41,10 +41,10 @@ export default function MessagesInbox({ navigation, route }) {
   const { user } = useAuth();
   const [threads, setThreads] = useState([]);
 
-  const me = useMemo(() => {
-    const meta = user?.user_metadata || {};
-    return meta.full_name || meta.name || user?.email?.split('@')?.[0] || 'You';
-  }, [user]);
+  // const me = useMemo(() => {
+  //   const meta = user?.user_metadata || {};
+  //   return meta.full_name || meta.name || user?.email?.split('@')?.[0] || 'You';
+  // }, [user]);
 
   const loadThreads = useCallback(async () => {
     if (!user?.id) {

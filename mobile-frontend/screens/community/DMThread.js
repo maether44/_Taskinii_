@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
   Image,
+  InteractionManager,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -57,8 +58,17 @@ export default function DMThread({ navigation, route }) {
   const [text, setText] = useState('');
   const [resolvedPeerAvatarUri, setResolvedPeerAvatarUri] = useState(null);
   const flatListRef = React.useRef(null);
+  const initialScrollDoneRef = React.useRef(false);
 
   const title = useMemo(() => `${peerName}`, [peerName]);
+
+  const scrollToLatest = useCallback((animated = false) => {
+    if (!flatListRef.current) return;
+
+    requestAnimationFrame(() => {
+      flatListRef.current?.scrollToEnd({ animated });
+    });
+  }, []);
 
   const loadMessages = useCallback(async () => {
     if (!ownerId || !threadId) return;
@@ -66,6 +76,10 @@ export default function DMThread({ navigation, route }) {
     setMessages(rows);
     await markThreadRead(ownerId, threadId);
   }, [ownerId, threadId]);
+
+  useEffect(() => {
+    initialScrollDoneRef.current = false;
+  }, [threadId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -93,14 +107,15 @@ export default function DMThread({ navigation, route }) {
     };
   }, [ownerId, threadId]);
 
-  // Scroll to bottom when messages change
+  // Keep view pinned to latest message as messages are loaded/updated.
   useEffect(() => {
     if (messages.length > 0 && flatListRef.current) {
-      setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
-      }, 100);
+      const interactionTask = InteractionManager.runAfterInteractions(() => {
+        scrollToLatest(false);
+      });
+      return () => interactionTask.cancel();
     }
-  }, [messages]);
+  }, [messages, scrollToLatest]);
 
   useEffect(() => {
     if (!threadId || !ownerId) return;
@@ -201,7 +216,17 @@ export default function DMThread({ navigation, route }) {
         renderItem={renderMessage}
         contentContainerStyle={styles.messagesList}
         ListEmptyComponent={<Text style={styles.empty}>No messages yet. Say hi.</Text>}
-        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+        onContentSizeChange={() => {
+          if (!messages.length) return;
+
+          if (!initialScrollDoneRef.current) {
+            scrollToLatest(false);
+            initialScrollDoneRef.current = true;
+            return;
+          }
+
+          scrollToLatest(true);
+        }}
       />
 
       <View style={styles.composer}>
