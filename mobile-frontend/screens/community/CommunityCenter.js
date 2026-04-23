@@ -12,7 +12,6 @@ import {
 } from '../../services/communityService';
 import { useUnreadMessageSummary } from '../../hooks/useNotification';
 
-
 function formatDate(iso) {
   const d = new Date(iso);
   return d.toLocaleString(undefined, {
@@ -110,7 +109,6 @@ export default function CommunityCenter({ navigation }) {
     setPickedImageAsset(asset);
     setPickedImageUri(asset?.uri || null);
   };
-
 
   const takePhoto = async () => {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
@@ -223,8 +221,8 @@ export default function CommunityCenter({ navigation }) {
           .map((post) => [
             post.authorId,
             {
-              author: post.author || 'User',
-              handle: post.handle || '@user',
+              author: post.author,
+              handle: post.handle,
               authorAvatarUri: normalizeAvatarUri(post.authorAvatarUri),
             },
           ]),
@@ -518,9 +516,7 @@ export default function CommunityCenter({ navigation }) {
             <Ionicons name="chatbubble-ellipses-outline" size={18} color="#C8F135" />
             {unreadCount > 0 && (
               <View style={styles.messageBadge}>
-                <Text style={styles.messageBadgeTxt}>
-                  {unreadCount > 99 ? '99+' : unreadCount}
-                </Text>
+                <Text style={styles.messageBadgeTxt}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
               </View>
             )}
           </Pressable>

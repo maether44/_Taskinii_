@@ -2,6 +2,7 @@ import * as FileSystemLegacy from 'expo-file-system/legacy';
 import { decode } from 'base64-arraybuffer';
 import { supabase } from '../lib/supabase';
 import { AVATAR_BUCKET } from '../lib/avatar';
+import { getProfilesByIds } from './profileService';
 
 const POST_MEDIA_BUCKET = 'post-media';
 
@@ -116,7 +117,7 @@ export async function listCommunityPosts(currentUserId) {
         media_urls: p.media_urls,
         created_at: p.created_at,
         author_id: p.user_id,
-        author_name: profile?.full_name || (p.user_id === currentUserId ? 'You' : 'User'),
+        author_name: profile?.full_name ,
         author_avatar: profile?.avatar_url || null,
       };
     });
@@ -246,17 +247,8 @@ export async function listPostComments({ postId, limit = 50 }) {
   let feedAuthorMap = new Map();
 
   if (authorIds.length) {
-    const { data: profileRows, error: profileError } = await supabase
-      .from('profiles')
-      .select('id, full_name, avatar_url')
-      .in('id', authorIds);
-
-    if (profileError) {
-      const detail = [profileError?.message, profileError?.details].filter(Boolean).join(' | ');
-      throw new Error(detail || 'Could not load comment author profiles.');
-    }
-
-    profileMap = new Map((profileRows || []).map((row) => [row.id, row]));
+    // Use the profile service to fetch user profiles in batch
+    profileMap = await getProfilesByIds(authorIds);
 
     const missingAuthorIds = authorIds.filter((id) => !profileMap.has(id));
     if (missingAuthorIds.length) {
@@ -285,6 +277,24 @@ export async function listPostComments({ postId, limit = 50 }) {
           existing.avatar_url = row.author_avatar;
         }
       });
+
+      // // One more pass: fetch any still-missing profiles directly from profiles table
+      // const stillMissingIds = missingAuthorIds.filter((id) => !feedAuthorMap.has(id));
+      // if (stillMissingIds.length) {
+      //   const { data: retryProfileRows } = await supabase
+      //     .from('profiles')
+      //     .select('id, full_name, avatar_url')
+      //     .in('id', stillMissingIds);
+
+      //   (retryProfileRows || []).forEach((row) => {
+      //     if (!feedAuthorMap.has(row.id)) {
+      //       feedAuthorMap.set(row.id, {
+      //         full_name: row.full_name || null,
+      //         avatar_url: row.avatar_url || null,
+      //       });
+      //     }
+      //   });
+      // }
     }
   }
 

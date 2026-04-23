@@ -1,15 +1,72 @@
 import { supabase } from '../lib/supabase';
 import { calcMacroTargets, dobToISO, normalizeGoal } from '../lib/calculations';
+import { resolveAvatarUrl, AVATAR_BUCKET } from '../lib/avatar';
 
 export const getProfile = async (userId: string) => {
   const { data, error } = await supabase
     .from('profiles')
-    .select('full_name, goal, onboarded, date_of_birth, preferred_workout_time, workout_days_per_week')
+    .select('full_name, goal, onboarded, date_of_birth, preferred_workout_time, workout_days_per_week, avatar_url')
     .eq('id', userId)
     .single();
 
   if (error) throw new Error(error.message);
   return data;
+};
+
+/**
+ * Fetches the user's profile photo URL from the bucket.
+ * Returns a public or signed URL that can be used to display the image.
+ * If the user has no avatar, returns null.
+ */
+export const getProfilePhotoUrl = async (userId: string): Promise<string | null> => {
+  // First get the avatar path from the profile
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('avatar_url')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data?.avatar_url) return null;
+
+  // The avatar_url in the profile stores the path in the bucket
+  const avatarPath = data.avatar_url;
+
+  // Use the avatar resolver to get the proper URL (public or signed)
+  const resolvedUrl = await resolveAvatarUrl(avatarPath);
+  return resolvedUrl;
+};
+
+/**
+ * Fetches the full profile data including the resolved profile photo URL.
+ * This is a convenience method that combines getProfile with getProfilePhotoUrl.
+ */
+export const getProfileWithPhoto = async (userId: string) => {
+  const profile = await getProfile(userId);
+  const photoUrl = await getProfilePhotoUrl(userId);
+
+  return {
+    ...profile,
+    profile_photo_url: photoUrl,
+  };
+};
+
+/**
+ * Fetches multiple user profiles by their IDs.
+ * Returns a Map of userId -> profile data for efficient lookup.
+ * This is useful for batch loading user data for comments, posts, etc.
+ */
+export const getProfilesByIds = async (userIds: string[]) => {
+  if (!userIds.length) return new Map();
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, full_name, avatar_url')
+    .in('id', userIds);
+
+  if (error) throw new Error(error.message);
+
+  return new Map((data || []).map((row) => [row.id, row]));
 };
 
 export const saveOnboardingProfile = async (userId: string, answers: any) => {

@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,6 +7,7 @@ import { ensureThread, listThreads } from '../../services/dmService';
 import { getProfile } from '../../services/profileService';
 import { supabase } from '../../lib/supabase';
 import { AVATAR_BUCKET } from '../../lib/avatar';
+import { AppEvents, on } from '../../lib/eventBus';
 
 async function resolveDmAvatarUri(value) {
   if (!value || typeof value !== 'string') return null;
@@ -92,6 +93,20 @@ export default function MessagesInbox({ navigation, route }) {
       console.error('Failed to load threads:', error);
     }
   }, [user?.id]);
+
+  // useEffect(() => {
+  //   loadDisplayName();
+  // }, [loadDisplayName]);
+
+  // useEffect(() => {
+  //   const unsubscribe = on(AppEvents.PROFILE_UPDATED, (payload) => {
+  //     if (!payload?.userId || payload.userId === user?.id) {
+  //       loadDisplayName();
+  //     }
+  //   });
+
+  //   return unsubscribe;
+  // }, [loadDisplayName, user?.id]);
 
   useFocusEffect(
     useCallback(() => {
