@@ -78,12 +78,12 @@ const MIN_VISIBLE_MS    = 4000;
 const MUTE_KEY          = '@alexi_muted';
 const DEBUG_OVERLAY     = false;
 
-// Fuzzy wake word — includes Whisper hallucination variants:
-//   "election" = Whisper hears "Alexi" as "Election"
-//   "i legacy" = Whisper hears "Alexi" as "I legacy" / "I Lexi"
-//   "a lexi"   = split transcription artefact
-const WAKE_RE       = /\b(alexi|alexie|alexey|alexy|alexis|alex|lexi|lex|alexa|election|a lexi)\b|i legacy|i lexi/i;
-const WAKE_SPLIT_RE = /\b(alexi|alexie|alexey|alexy|alexis|alex|lexi|lex|alexa|election)\b|i legacy|i lexi/i;
+// Wake word — only high-confidence variants of "Alexi".
+// Removed: "alex", "lex", "alexa", "election" — too common, caused false triggers
+// on everyday speech, other people's names, and Amazon Echo devices.
+// Kept: Whisper-specific hallucination patterns that are unambiguous.
+const WAKE_RE       = /\b(alexi|alexie|alexey|alexy|alexis|lexi)\b|a[\s-]lexi\b|i legacy\b|i lexi\b/i;
+const WAKE_SPLIT_RE = /\b(alexi|alexie|alexey|alexy|alexis|lexi)\b|a[\s-]lexi\b|i legacy\b|i lexi\b/i;
 
 const { width: SW, height: SH } = Dimensions.get('window');
 
