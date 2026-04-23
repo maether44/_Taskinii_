@@ -78,12 +78,34 @@ const MIN_VISIBLE_MS    = 4000;
 const MUTE_KEY          = '@alexi_muted';
 const DEBUG_OVERLAY     = false;
 
-// Wake word — only high-confidence variants of "Alexi".
-// Removed: "alex", "lex", "alexa", "election" — too common, caused false triggers
-// on everyday speech, other people's names, and Amazon Echo devices.
-// Kept: Whisper-specific hallucination patterns that are unambiguous.
-const WAKE_RE       = /\b(alexi|alexie|alexey|alexy|alexis|lexi)\b|a[\s-]lexi\b|i legacy\b|i lexi\b/i;
-const WAKE_SPLIT_RE = /\b(alexi|alexie|alexey|alexy|alexis|lexi)\b|a[\s-]lexi\b|i legacy\b|i lexi\b/i;
+// Strict wake word — only unambiguous spellings of "Alexi".
+// Nothing else opens the command window.
+const STRICT_WAKE_RE = /\b(alexi|alexie|alexey|alexy|alexis)\b/i;
+// Split RE used to extract the command text that follows the wake word.
+const WAKE_SPLIT_RE  = /\b(alexi|alexie|alexey|alexy|alexis)\b/i;
+// Keep old alias for any code that still references WAKE_RE.
+const WAKE_RE = STRICT_WAKE_RE;
+
+// Noise words that Whisper emits for silence / background sound.
+// If the entire transcript is one of these (and no wake word), discard it.
+const NOISE_WORDS = new Set([
+  'you','my','the','a','i','it','is','he','she','we','they','this','that',
+  'yes','no','ok','okay','hmm','uh','um','ah','oh','hey','hi','bye',
+  'music','background','noise','sound','audio',
+]);
+
+function isGarbageTranscript(text) {
+  if (!text) return true;
+  const t = text.trim();
+  // Whisper hallucination: lone punctuation or very short non-word strings
+  if (t.length < 3) return true;
+  // Single word that's a noise word
+  const words = t.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 1 && NOISE_WORDS.has(words[0])) return true;
+  // All punctuation / numbers only
+  if (/^[\s.,!?;:\-–—0-9]+$/.test(t)) return true;
+  return false;
+}
 
 const { width: SW, height: SH } = Dimensions.get('window');
 
@@ -713,24 +735,31 @@ export function AlexiVoiceProvider({ children }) {
 
       if (!uri) continue;
 
-      // ── Transcribe every chunk (no silence gate) ──────────────────────────
+      // ── Transcribe chunk ──────────────────────────────────────────────────
       setPassiveState('transcribing');
-      // transcribeURI never throws — returns '' on any error so the loop retries
       const raw = await transcribeURI(uri);
 
-      if (!raw) { setPassiveState('listening'); continue; }
-
-      console.log('[Alexi] Heard:', raw);
-
-      // ── L1: hallucination fix ─────────────────────────────────────────────
-      const fixed = applyHallucMap(raw);
-
-      // ── Wake-word check (fuzzy) ───────────────────────────────────────────
-      const hasWake = WAKE_RE.test(fixed);
-      if (!hasWake && !isAlexiVisibleRef.current) {
+      // ── Gate 1: garbage / silence filter ─────────────────────────────────
+      // Discard empty results, lone punctuation, single noise words, etc.
+      if (isGarbageTranscript(raw)) {
+        console.log('[Alexi] Garbage transcript, ignoring:', JSON.stringify(raw));
         setPassiveState('listening');
         continue;
       }
+
+      // ── Gate 2: strict wake word ──────────────────────────────────────────
+      // NOTHING happens unless "Alexi" (or a recognised variant) is spoken.
+      const hasWake = STRICT_WAKE_RE.test(raw);
+      if (!hasWake && !isAlexiVisibleRef.current) {
+        console.log('[Alexi] No trigger word detected. Ignoring:', JSON.stringify(raw));
+        setPassiveState('listening');
+        continue;
+      }
+
+      console.log('[Alexi] Wake word detected in:', raw);
+
+      // ── L1: hallucination fix (runs only after wake confirmed) ───────────
+      const fixed = applyHallucMap(raw);
 
       // ── WAKE — haptic + Siri orb fires immediately ────────────────────────
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
@@ -749,11 +778,11 @@ export function AlexiVoiceProvider({ children }) {
       const wakeMatch = fixed.match(WAKE_SPLIT_RE);
       const cmdRaw = wakeMatch
         ? fixed.split(WAKE_SPLIT_RE).pop().replace(/^[,.\s!?]+/, '').trim()
-        : fixed;
+        : '';
       const cmdText = snapShortTranscript(cmdRaw);
 
       if (cmdText && cmdText.split(/\s+/).filter(Boolean).length >= 2) {
-        // Inline: "Alexi, go to training" — execute immediately
+        // Inline: "Alexi go to training" — execute immediately
         console.log('[Alexi] Inline command:', cmdText);
         await executeCommand(cmdText);
         await ensureMinVisible();
@@ -762,7 +791,7 @@ export function AlexiVoiceProvider({ children }) {
         continue;
       }
 
-      // ── Bare "Alexi" — open 5-second command window ───────────────────────
+      // ── Bare "Alexi" — open command window (ONLY because wake was confirmed)
       await speak('Yes?');
       if (!alive()) break;
 
@@ -789,7 +818,7 @@ export function AlexiVoiceProvider({ children }) {
         setPassiveState('transcribing');
         let cmdTx = '';
         try { cmdTx = await transcribeURI(cmdUri); } catch (_) {}
-        if (cmdTx) {
+        if (cmdTx && !isGarbageTranscript(cmdTx)) {
           const fixedCmd = applyHallucMap(cmdTx);
           const snapped  = snapShortTranscript(fixedCmd);
           console.log('[Alexi] Command window:', snapped);
