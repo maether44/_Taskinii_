@@ -111,6 +111,26 @@ export default function CommunityCenter({ navigation }) {
     setPickedImageUri(asset?.uri || null);
   };
 
+
+  const takePhoto = async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission needed', 'Please allow camera access to take a photo.');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.8,
+    });
+
+    if (result.canceled) return;
+    const asset = result.assets?.[0] || null;
+    setPickedImageAsset(asset);
+    setPickedImageUri(asset?.uri || null);
+  };
+
   const submitPost = async () => {
     if (posting) return;
     const trimmed = statusText.trim();
@@ -538,7 +558,12 @@ export default function CommunityCenter({ navigation }) {
         <View style={styles.actionsRow}>
           <Pressable style={styles.attachBtn} onPress={pickPhoto}>
             <Ionicons name="image-outline" size={16} color="#C8F135" />
-            <Text style={styles.attachTxt}>Photo</Text>
+            <Text style={styles.attachTxt}>Gallery</Text>
+          </Pressable>
+
+          <Pressable style={styles.attachBtn} onPress={takePhoto}>
+            <Ionicons name="camera-outline" size={16} color="#C8F135" />
+            <Text style={styles.attachTxt}>Camera</Text>
           </Pressable>
 
           <Pressable style={styles.postBtn} onPress={submitPost}>
