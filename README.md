@@ -1,4 +1,4 @@
-# BodyQ - your customised fitness App
+
 
 ## 1. DASHBOARD
 
