@@ -72,9 +72,14 @@ export default function DMThread({ navigation, route }) {
 
   const loadMessages = useCallback(async () => {
     if (!ownerId || !threadId) return;
-    const rows = await getThreadMessages(ownerId, threadId);
-    setMessages(rows);
-    await markThreadRead(ownerId, threadId);
+
+    try {
+      const rows = await getThreadMessages(ownerId, threadId);
+      setMessages(rows);
+      await markThreadRead(ownerId, threadId);
+    } catch (error) {
+      console.error('Failed to load messages:', error);
+    }
   }, [ownerId, threadId]);
 
   useEffect(() => {

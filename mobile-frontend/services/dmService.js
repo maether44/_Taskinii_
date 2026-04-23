@@ -12,7 +12,7 @@ function deriveHandle(name) {
 export async function listThreads(ownerId) {
   if (!ownerId) return [];
 
-  const { data, error } = await supabase.from('inbox').select('*');
+  const { data, error } = await supabase.rpc('list_inbox_threads');
   if (error) {
     const detail = [error?.message, error?.details, error?.hint].filter(Boolean).join(' | ');
     throw new Error(detail || 'Could not load inbox conversations.');
@@ -54,11 +54,18 @@ export async function ensureThread(ownerId, peer) {
     throw new Error(detail || 'Could not open conversation.');
   }
 
-  const { data: inboxRow } = await supabase
-    .from('inbox')
-    .select('*')
-    .eq('conversation_id', conversationId)
-    .maybeSingle();
+  const { data: inboxRows, error: inboxError } = await supabase.rpc('list_inbox_threads', {
+    conversation_filter: conversationId,
+  });
+
+  if (inboxError) {
+    const detail = [inboxError?.message, inboxError?.details, inboxError?.hint]
+      .filter(Boolean)
+      .join(' | ');
+    throw new Error(detail || 'Could not load conversation details.');
+  }
+
+  const inboxRow = (inboxRows || [])[0] || null;
 
   return {
     id: conversationId,

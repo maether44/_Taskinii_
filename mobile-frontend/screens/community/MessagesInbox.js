@@ -1,9 +1,10 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Alert, FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { ensureThread, listThreads } from '../../services/dmService';
+import { getProfile } from '../../services/profileService';
 import { supabase } from '../../lib/supabase';
 import { AVATAR_BUCKET } from '../../lib/avatar';
 
@@ -40,36 +41,56 @@ function AvatarSeed({ label, uri }) {
 export default function MessagesInbox({ navigation, route }) {
   const { user } = useAuth();
   const [threads, setThreads] = useState([]);
+  const [me, setMe] = useState('');
 
-  // const me = useMemo(() => {
-  //   const meta = user?.user_metadata || {};
-  //   return meta.full_name || meta.name || user?.email?.split('@')?.[0] || 'You';
-  // }, [user]);
+  useFocusEffect(
+    useCallback(() => {
+      const fetchProfile = async () => {
+        if (!user?.id) return;
+
+        try {
+          const profile = await getProfile(user.id);
+          if (profile?.full_name) {
+            setMe(profile.full_name);
+          }
+        } catch (error) {
+          console.error('Failed to fetch profile:', error);
+        }
+      };
+
+      fetchProfile();
+    }, [user?.id]),
+  );
 
   const loadThreads = useCallback(async () => {
     if (!user?.id) {
       setThreads([]);
       return;
     }
-    const rows = await listThreads(user.id);
 
-    const avatarCache = new Map();
-    const hydrated = await Promise.all(
-      (rows || []).map(async (thread) => {
-        const key = thread?.peerAvatarUri || '';
-        if (!key) return thread;
+    try {
+      const rows = await listThreads(user.id);
 
-        if (avatarCache.has(key)) {
-          return { ...thread, peerAvatarUri: avatarCache.get(key) };
-        }
+      const avatarCache = new Map();
+      const hydrated = await Promise.all(
+        (rows || []).map(async (thread) => {
+          const key = thread?.peerAvatarUri || '';
+          if (!key) return thread;
 
-        const resolved = await resolveDmAvatarUri(key);
-        avatarCache.set(key, resolved);
-        return { ...thread, peerAvatarUri: resolved };
-      }),
-    );
+          if (avatarCache.has(key)) {
+            return { ...thread, peerAvatarUri: avatarCache.get(key) };
+          }
 
-    setThreads(hydrated);
+          const resolved = await resolveDmAvatarUri(key);
+          avatarCache.set(key, resolved);
+          return { ...thread, peerAvatarUri: resolved };
+        }),
+      );
+
+      setThreads(hydrated);
+    } catch (error) {
+      console.error('Failed to load threads:', error);
+    }
   }, [user?.id]);
 
   useFocusEffect(
