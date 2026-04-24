@@ -178,14 +178,30 @@ function snapShortTranscript(text) {
 
 function applyHallucMap(text) {
   const tl = text.toLowerCase().trim();
-  const MAP = {
+  const wc = tl.split(/\s+/).filter(Boolean).length;
+
+  // Exact short-phrase map (≤3 words) — safe because the full phrase is tiny
+  const SHORT_MAP = {
+    'election': 'alexi', 'elections': 'alexi',
+    'lexi': 'alexi', 'lexie': 'alexi',
+    'a lexi': 'alexi', 'i lexi': 'alexi',
+    'i legacy': 'alexi', 'legacy': 'alexi',
+    'aleksi': 'alexi', 'alexy': 'alexi',
     'video file': 'profile', 'video': 'profile', 'for file': 'profile', 'pro file': 'profile',
     'fell': 'fuel', 'full': 'fuel', 'feel': 'fuel',
     'trains': 'train', 'incite': 'insights', 'in sites': 'insights', 'inside': 'insights',
   };
-  const wc = tl.split(/\s+/).filter(Boolean).length;
-  if (wc <= 3 && MAP[tl]) return MAP[tl];
+  if (wc <= 3 && SHORT_MAP[tl]) return SHORT_MAP[tl];
+
+  // Multi-word: ONLY replace at the START of the phrase.
+  // "Alexi" is always spoken first — replacing mid-sentence would false-trigger
+  // on background speech like "the election was held today".
+  let out = tl;
+  out = out.replace(/^(lexi|lexie|aleksi|alexy|election)(\s+)/, 'alexi$2');
+  out = out.replace(/^(i[\s-]lexi|a[\s-]lexi|i[\s-]legacy)(\s+)/, 'alexi$2');
+
   if (tl.includes('video') || tl.includes('file') || tl.startsWith('pro ')) return 'profile';
+  if (out !== tl) return out;
   return text;
 }
 
@@ -747,19 +763,23 @@ export function AlexiVoiceProvider({ children }) {
         continue;
       }
 
+      // ── Normalize hallucinations BEFORE wake check ───────────────────────
+      // Whisper often transcribes "Alexi" as "election", "i legacy", "lexi"
+      // etc. Normalize first so the strict gate can catch them.
+      const fixed = applyHallucMap(raw);
+
       // ── Gate 2: strict wake word ──────────────────────────────────────────
       // NOTHING happens unless "Alexi" (or a recognised variant) is spoken.
-      const hasWake = STRICT_WAKE_RE.test(raw);
-      if (!hasWake && !isAlexiVisibleRef.current) {
-        console.log('[Alexi] No trigger word detected. Ignoring:', JSON.stringify(raw));
+      // No bypass for isAlexiVisible — follow-up commands go through the
+      // dedicated command window (the 5s recording after "Yes?"), not here.
+      const hasWake = STRICT_WAKE_RE.test(fixed);
+      if (!hasWake) {
+        console.log('[Alexi] No trigger word detected. Ignoring:', JSON.stringify(raw), '→', JSON.stringify(fixed));
         setPassiveState('listening');
         continue;
       }
 
-      console.log('[Alexi] Wake word detected in:', raw);
-
-      // ── L1: hallucination fix (runs only after wake confirmed) ───────────
-      const fixed = applyHallucMap(raw);
+      console.log('[Alexi] Wake word detected in:', fixed, '(raw:', raw, ')');
 
       // ── WAKE — haptic + Siri orb fires immediately ────────────────────────
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
