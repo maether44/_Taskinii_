@@ -18,12 +18,12 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { FS } from '../constants/typography';
-import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useInsights } from '../hooks/useInsights';
-import { useReports } from '../hooks/useReports';
 import { useMilestones } from '../context/MilestoneContext';
 import { generateAndCacheInsights } from '../services/yaraInsightsService';
+import { generateAndShareReport } from '../services/reportService';
 import { AppEvents, on } from '../lib/eventBus';
 import { error as logError } from '../lib/logger';
 import ReportCard from '../components/reports/ReportCard';
@@ -80,7 +80,6 @@ export default function Insights() {
     aiHistory, refresh,
   } = useInsights(period);
 
-  const { reports, refreshReports, downloadReport, getReportState } = useReports();
   const { currentStreak, getProgress, isUnlocked, fetchUnlocks, checkMilestones } = useMilestones();
   const milestoneProgress = getProgress();
 
@@ -113,17 +112,21 @@ export default function Insights() {
     return `${fmt(start)} – ${fmt(end)}`;
   }
 
-  async function handleDownload(report) {
-    const url = await downloadReport(report);
-    if (url) Linking.openURL(url);
+  async function handleDownload(reportType) {
+    if (!userId) return;
+    try {
+      await generateAndShareReport(userId, reportType);
+    } catch (err) {
+      logError('[Insights] PDF generation error:', err);
+      Alert.alert('Report Error', 'Failed to generate the report. Please try again.');
+    }
   }
 
   useFocusEffect(useCallback(() => {
     refresh();
-    refreshReports();
     fetchUnlocks();
     checkMilestones();
-  }, [refresh, refreshReports, fetchUnlocks, checkMilestones]));
+  }, [refresh, fetchUnlocks, checkMilestones]));
 
   // Auto-refresh when user logs activity elsewhere in the app
   useEffect(() => {
@@ -386,16 +389,14 @@ export default function Insights() {
           <Text style={st.cardSub}>Unlock reports by maintaining your daily streak</Text>
           {['weekly', 'monthly', 'quarterly', 'biannual', 'yearly'].map(type => {
             const unlocked = isUnlocked(type);
-            const report = reports[type];
-            const state = unlocked ? getReportState(type) : 'not_available';
+            const state = unlocked ? 'available' : 'not_available';
             return (
               <ReportCard
                 key={type}
                 reportType={type}
-                report={unlocked ? report : null}
                 state={state}
                 periodLabel={unlocked ? reportPeriodLabel(type) : 'Locked'}
-                onDownload={() => unlocked && report && handleDownload(report)}
+                onDownload={() => unlocked && handleDownload(type)}
               />
             );
           })}

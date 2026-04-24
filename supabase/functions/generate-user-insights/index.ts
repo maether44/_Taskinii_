@@ -71,7 +71,7 @@ function buildPrompt(stats: any, topMuscles: string, sessionCount: number): stri
     weight_delta = 0,
   } = stats
 
-  return `You are Yara, a personal fitness coach AI inside the BodyQ app.
+  return `You are Alexi, a personal fitness coach AI inside the BodyQ app.
 Analyze this user's 30-day behavioral fitness data and return exactly 4 personalized profile insights.
 
 User data:
@@ -103,7 +103,7 @@ async function callGroq(prompt: string): Promise<Array<{ type: string; message: 
       messages: [
         {
           role: 'system',
-          content: 'You are Yara, a fitness analytics AI. Always respond with only the JSON array requested.',
+          content: 'You are Alexi, a fitness analytics AI. Always respond with only the JSON array requested.',
         },
         { role: 'user', content: prompt },
       ],
@@ -126,7 +126,7 @@ function fallbackInsights(stats: any, topMuscles: string) {
 
   return [
     { type: 'Activity', message: avgSteps > 7000 ? `Your activity base is solid at about ${avgSteps} steps a day. Keep protecting that consistency because it supports everything else.` : `Your average is around ${avgSteps} steps a day, so adding one extra walk would be an easy win this week.` },
-    { type: 'Nutrition', message: avgCalories > 0 ? `You are averaging about ${avgCalories} kcal per day. Keep logging meals consistently so Yara can coach with better food precision.` : 'Meal logging is still light, so start with one fully logged meal each day to sharpen nutrition coaching.' },
+    { type: 'Nutrition', message: avgCalories > 0 ? `You are averaging about ${avgCalories} kcal per day. Keep logging meals consistently so Alexi can coach with better food precision.` : 'Meal logging is still light, so start with one fully logged meal each day to sharpen nutrition coaching.' },
     { type: 'Sleep', message: Number(avgSleep) >= 7 ? `Sleep is holding around ${avgSleep} hours, which is a strong recovery base. Keep your bedtime consistent.` : `Sleep is averaging about ${avgSleep} hours, so recovery may improve fast if you can add even 30 to 45 minutes.` },
     { type: 'Training', message: topMuscles !== 'none' ? `Your most fatigued muscles right now are ${topMuscles}. Plan recovery or lighter volume before pushing them hard again.` : 'Training data is still building, so keep logging workouts to unlock sharper recovery insights.' },
   ]

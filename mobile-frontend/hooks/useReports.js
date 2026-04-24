@@ -8,13 +8,6 @@ import { error as logError } from '../lib/logger'
 
 const REPORT_TYPES = ['weekly', 'monthly', 'quarterly', 'biannual', 'yearly']
 
-function isExpired(report) {
-  if (!report) return false
-  if (report.is_expired || report.status === 'expired') return true
-  if (!report.expires_at) return false
-  return new Date(report.expires_at).getTime() <= Date.now()
-}
-
 export function useReports() {
   const { user } = useAuth()
   const [reports, setReports] = useState({
@@ -88,7 +81,6 @@ export function useReports() {
     if (!report) return 'not_available'
     if (report.status === 'pending') return 'pending'
     if (report.status === 'failed') return 'not_available'
-    if (isExpired(report)) return 'expired'
     if (report.status === 'available') return 'available'
     return 'not_available'
   }, [reports])

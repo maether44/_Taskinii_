@@ -11,7 +11,7 @@ import {
   deriveConstraintsFromMemory,
   extractActionsFromResponse,
   extractMemoriesFromResponse,
-  MemoryRow,
+  MemoryRow,44
   ParsedAction,
   YaraEvent,
 } from './memory.ts'

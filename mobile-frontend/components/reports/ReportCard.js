@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react'
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const TYPE_LABELS = {
   weekly: 'Weekly',
@@ -7,31 +6,9 @@ const TYPE_LABELS = {
   quarterly: 'Quarterly',
   biannual: '6-Month',
   yearly: 'Yearly',
-}
+};
 
-function daysUntil(dateStr) {
-  if (!dateStr) return Infinity
-  const now = new Date()
-  const exp = new Date(dateStr)
-  return Math.max(0, Math.ceil((exp.getTime() - now.getTime()) / 86400000))
-}
-
-function formatCountdown(days) {
-  if (days <= 0) return 'Expired'
-  if (days === 1) return '1 day left'
-  return `${days} days left`
-}
-
-export default function ReportCard({ reportType, report, state, periodLabel, onDownload }) {
-  const [daysLeft, setDaysLeft] = useState(() => daysUntil(report?.expires_at))
-
-  useEffect(() => {
-    setDaysLeft(daysUntil(report?.expires_at))
-  }, [report?.expires_at])
-
-  const isAmber = state === 'available' && daysLeft <= 2
-  const canDownload = state === 'available' && !!report?.storage_path
-
+export default function ReportCard({ reportType, state, periodLabel, onDownload }) {
   return (
     <View style={st.row}>
       <View style={st.info}>
@@ -41,22 +18,12 @@ export default function ReportCard({ reportType, report, state, periodLabel, onD
 
       {state === 'available' ? (
         <View style={st.rightCol}>
-          <View style={[st.badge, isAmber ? st.badgeAmber : st.badgeGreen]}>
-            <Text style={[st.badgeText, isAmber ? st.badgeTextAmber : st.badgeTextGreen]}>
-              {canDownload ? (isAmber ? formatCountdown(daysLeft) : 'Ready') : 'Unlocked'}
-            </Text>
+          <View style={[st.badge, st.badgeGreen]}>
+            <Text style={[st.badgeText, st.badgeTextGreen]}>Ready</Text>
           </View>
-          {canDownload && (
-            <TouchableOpacity style={st.downloadBtn} onPress={onDownload} activeOpacity={0.7}>
-              <Text style={st.downloadText}>Export PDF</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      ) : state === 'expired' ? (
-        <View style={st.rightCol}>
-          <View style={[st.badge, st.badgeExpired]}>
-            <Text style={st.badgeTextExpired}>Expired</Text>
-          </View>
+          <TouchableOpacity style={st.downloadBtn} onPress={onDownload} activeOpacity={0.7}>
+            <Text style={st.downloadText}>Export PDF</Text>
+          </TouchableOpacity>
         </View>
       ) : periodLabel === 'Locked' ? (
         <View style={st.rightCol}>
@@ -72,7 +39,7 @@ export default function ReportCard({ reportType, report, state, periodLabel, onD
         </View>
       )}
     </View>
-  )
+  );
 }
 
 const st = StyleSheet.create({
@@ -91,10 +58,6 @@ const st = StyleSheet.create({
   badge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
   badgeGreen: { backgroundColor: 'rgba(205, 242, 126, 0.15)' },
   badgeTextGreen: { color: '#CDF27E', fontSize: 10, fontWeight: '700' },
-  badgeAmber: { backgroundColor: 'rgba(255, 149, 0, 0.15)' },
-  badgeTextAmber: { color: '#FF9500', fontSize: 10, fontWeight: '700' },
-  badgeExpired: { backgroundColor: 'rgba(255, 100, 100, 0.15)' },
-  badgeTextExpired: { color: '#FF6464', fontSize: 10, fontWeight: '700' },
   badgePending: { backgroundColor: 'rgba(122, 106, 170, 0.15)' },
   badgeTextPending: { color: '#7A6AAA', fontSize: 10, fontWeight: '700' },
   badgeLocked: { backgroundColor: 'rgba(74, 66, 104, 0.2)' },
@@ -109,4 +72,4 @@ const st = StyleSheet.create({
     borderColor: '#6F4BF2',
   },
   downloadText: { color: '#A38DF2', fontSize: 11, fontWeight: '700' },
-})
+});

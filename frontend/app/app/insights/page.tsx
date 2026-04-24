@@ -32,7 +32,7 @@ export default function InsightsPage() {
         AI Insights
       </h1>
       <p style={{ fontFamily: 'var(--font-inter)', fontSize: 14, color: 'var(--bq-muted)', marginTop: 0, marginBottom: 24 }}>
-        Personalized analysis from your AI trainer Yara
+        Personalized analysis from your AI trainer Alexi
       </p>
 
       {/* ── Filter pills ── */}
