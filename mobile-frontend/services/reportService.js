@@ -202,7 +202,7 @@ function buildHealthChart(values) {
     return `<rect x="${x}" y="${y}" width="${barW}" height="${bH}" rx="1.5" fill="${fill}"/>`;
   }).join('');
 
-  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">${bars}</svg>`;
+  return `<svg width="100%" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">${bars}</svg>`;
 }
 
 function buildMacroBar(protein, carbs, fat) {
@@ -212,7 +212,7 @@ function buildMacroBar(protein, carbs, fat) {
   const pW = (protein / total) * w;
   const cW = (carbs / total) * w;
   const fW = (fat / total) * w;
-  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
+  return `<svg width="100%" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
     <rect width="${w}" height="${h}" rx="5" fill="#E8E3FF"/>
     <rect width="${pW}" height="${h}" rx="5" fill="#6F4BF2"/>
     <rect x="${pW}" width="${cW}" height="${h}" fill="#CDF27E"/>
@@ -239,157 +239,157 @@ function buildReportHtml({ reportType, data, logoUri, mascotUri }) {
   const fatigueHtml = fatigue.length ? fatigue.map(m => {
     const pct = m.fatigue_pct ?? 0;
     const color = pct >= 70 ? '#6F4BF2' : pct >= 40 ? '#FF9500' : '#34C759';
-    return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
-      <span style="font-size:8px;color:#555;width:65px;">${m.muscle_name}</span>
-      <div style="flex:1;height:5px;background:#EDE9F7;border-radius:3px;overflow:hidden;">
-        <div style="width:${pct}%;height:100%;background:${color};border-radius:3px;"></div>
+    return `<div style="display:flex;align-items:center;gap:1.5vw;margin-bottom:0.6vh;">
+      <span style="font-size:2vw;color:#555;width:15vw;">${m.muscle_name}</span>
+      <div style="flex:1;height:1.2vw;background:#EDE9F7;border-radius:0.6vw;overflow:hidden;">
+        <div style="width:${pct}%;height:100%;background:${color};border-radius:0.6vw;"></div>
       </div>
-      <span style="font-size:7px;color:${color};font-weight:700;width:24px;text-align:right;">${pct}%</span>
+      <span style="font-size:1.8vw;color:${color};font-weight:700;width:6vw;text-align:right;">${pct}%</span>
     </div>`;
-  }).join('') : '<span style="font-size:8px;color:#999;">No data yet</span>';
+  }).join('') : '<span style="font-size:2.2vw;color:#999;">No data yet</span>';
 
   return `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
 <style>
-  @page { size: letter; margin: 0; }
+  @page { size: A4; margin: 0; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
     background: #fff;
     color: #1a1a2e;
-    width: 612px;
-    height: 792px;
-    overflow: hidden;
-    padding: 24px 28px 20px;
+    width: 100vw;
+    min-height: 100vh;
+    padding: 4vw 5vw 3vw;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+  @media print {
+    body { width: 210mm; height: 297mm; padding: 8mm 10mm 7mm; overflow: hidden; }
   }
 
   .header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 14px;
-    padding-bottom: 10px;
+    margin-bottom: 2.5vh;
+    padding-bottom: 1.5vh;
     border-bottom: 2px solid #6F4BF2;
   }
-  .header-left { display: flex; align-items: center; gap: 10px; }
-  .header-logo { height: 36px; }
-  .header-mascot { height: 40px; }
-  .header-title { font-size: 16px; font-weight: 800; color: #1a1a2e; }
-  .header-sub { font-size: 9px; color: #777; margin-top: 1px; }
+  .header-left { display: flex; align-items: center; gap: 2.5vw; }
+  .header-logo { height: 7vw; }
+  .header-mascot { height: 8vw; }
+  .header-title { font-size: 3.8vw; font-weight: 800; color: #1a1a2e; }
+  .header-sub { font-size: 2.2vw; color: #777; margin-top: 0.3vh; }
   .header-right { text-align: right; }
-  .header-period { font-size: 9px; color: #6F4BF2; font-weight: 700; }
-  .header-user { font-size: 11px; font-weight: 700; color: #1a1a2e; }
-  .header-meta { font-size: 8px; color: #999; margin-top: 1px; }
+  .header-period { font-size: 2.2vw; color: #6F4BF2; font-weight: 700; }
+  .header-user { font-size: 2.8vw; font-weight: 700; color: #1a1a2e; }
+  .header-meta { font-size: 2vw; color: #999; margin-top: 0.3vh; }
 
-  .cols { display: flex; gap: 16px; }
+  .cols { display: flex; gap: 3.5vw; }
   .col-left { flex: 1.1; }
   .col-right { flex: 0.9; }
 
-  .section { margin-bottom: 12px; }
+  .section { margin-bottom: 2vh; }
   .section-head {
-    font-size: 10px;
+    font-size: 2.4vw;
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.8px;
     color: #6F4BF2;
-    margin-bottom: 6px;
+    margin-bottom: 1vh;
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 1vw;
   }
-  .section-icon { font-size: 11px; }
+  .section-icon { font-size: 2.6vw; }
 
   .card {
     background: #F8F7FC;
-    border-radius: 8px;
-    padding: 10px 12px;
-    margin-bottom: 10px;
+    border-radius: 2vw;
+    padding: 2vw 2.5vw;
+    margin-bottom: 1.5vh;
   }
 
   .stats-row {
     display: flex;
-    gap: 8px;
-    margin-bottom: 10px;
+    gap: 2vw;
+    margin-bottom: 1.5vh;
   }
   .stat-box {
     flex: 1;
     background: #F8F7FC;
-    border-radius: 8px;
-    padding: 8px;
+    border-radius: 2vw;
+    padding: 1.5vw;
     text-align: center;
   }
-  .stat-val { font-size: 18px; font-weight: 800; color: #6F4BF2; }
-  .stat-lbl { font-size: 7px; color: #777; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.4px; }
+  .stat-val { font-size: 4.5vw; font-weight: 800; color: #6F4BF2; }
+  .stat-lbl { font-size: 1.8vw; color: #777; margin-top: 0.3vh; text-transform: uppercase; letter-spacing: 0.4px; }
 
   .list-item {
     display: flex;
     align-items: flex-start;
-    gap: 6px;
-    margin-bottom: 4px;
-    font-size: 9px;
+    gap: 1.5vw;
+    margin-bottom: 0.8vh;
+    font-size: 2.4vw;
     line-height: 1.4;
     color: #333;
   }
-  .bullet-win { color: #34C759; font-weight: 700; font-size: 10px; }
-  .bullet-fix { color: #FF9500; font-weight: 700; font-size: 10px; }
-  .bullet-act { color: #6F4BF2; font-weight: 700; font-size: 10px; }
+  .bullet-win { color: #34C759; font-weight: 700; font-size: 2.6vw; }
+  .bullet-fix { color: #FF9500; font-weight: 700; font-size: 2.6vw; }
+  .bullet-act { color: #6F4BF2; font-weight: 700; font-size: 2.6vw; }
 
   .peak-row {
     display: flex;
-    gap: 8px;
-    margin-bottom: 8px;
+    gap: 2vw;
+    margin-bottom: 2vh;
   }
   .peak-box {
     flex: 1;
     background: linear-gradient(135deg, #6F4BF2 0%, #A38DF2 100%);
-    border-radius: 8px;
-    padding: 8px 10px;
+    border-radius: 2vw;
+    padding: 1.5vw 2vw;
     text-align: center;
     color: #fff;
   }
-  .peak-val { font-size: 18px; font-weight: 800; }
-  .peak-lbl { font-size: 7px; opacity: 0.85; margin-top: 1px; text-transform: uppercase; letter-spacing: 0.4px; }
+  .peak-val { font-size: 4.5vw; font-weight: 800; }
+  .peak-lbl { font-size: 1.8vw; opacity: 0.85; margin-top: 0.3vh; text-transform: uppercase; letter-spacing: 0.4px; }
 
   .macro-row {
     display: flex;
-    gap: 10px;
+    gap: 2vw;
     align-items: center;
-    margin-top: 6px;
+    margin-top: 1vh;
   }
-  .macro-legend { display: flex; gap: 8px; }
-  .macro-dot { width: 6px; height: 6px; border-radius: 3px; display: inline-block; margin-right: 2px; }
-  .macro-label { font-size: 7px; color: #777; }
+  .macro-legend { display: flex; gap: 2vw; }
+  .macro-dot { width: 1.5vw; height: 1.5vw; border-radius: 50%; display: inline-block; margin-right: 0.5vw; }
+  .macro-label { font-size: 1.8vw; color: #777; }
 
   .alexi-box {
     display: flex;
     align-items: flex-start;
-    gap: 8px;
+    gap: 2vw;
     background: #F0ECFA;
-    border-radius: 8px;
-    padding: 8px 10px;
+    border-radius: 2vw;
+    padding: 2vw 2.5vw;
     border-left: 3px solid #6F4BF2;
   }
-  .alexi-img { width: 30px; border-radius: 15px; flex-shrink: 0; margin-top: 2px; }
-  .alexi-text { font-size: 8px; color: #444; line-height: 1.5; }
-  .alexi-name { font-size: 8px; font-weight: 700; color: #6F4BF2; margin-bottom: 2px; }
+  .alexi-img { width: 7vw; border-radius: 50%; flex-shrink: 0; margin-top: 0.5vh; }
+  .alexi-text { font-size: 2.2vw; color: #444; line-height: 1.5; }
+  .alexi-name { font-size: 2.2vw; font-weight: 700; color: #6F4BF2; margin-bottom: 0.5vh; }
 
   .footer {
-    position: absolute;
-    bottom: 12px;
-    left: 28px;
-    right: 28px;
+    margin-top: 2vh;
     display: flex;
     justify-content: space-between;
     align-items: center;
     border-top: 1px solid #EDE9F7;
-    padding-top: 6px;
+    padding-top: 1vh;
   }
-  .footer span { font-size: 7px; color: #bbb; }
-  .footer-logo { height: 16px; opacity: 0.4; }
+  .footer span { font-size: 1.8vw; color: #bbb; }
+  .footer-logo { height: 3.5vw; opacity: 0.4; }
 </style>
 </head>
 <body>
@@ -488,19 +488,19 @@ function buildReportHtml({ reportType, data, logoUri, mascotUri }) {
             <div class="stat-lbl">Sessions</div>
           </div>
           <div class="stat-box">
-            <div class="stat-val">${workout.avgDurationMin}<span style="font-size:10px;">m</span></div>
+            <div class="stat-val">${workout.avgDurationMin}<span style="font-size:2.5vw;">m</span></div>
             <div class="stat-lbl">Avg Duration</div>
           </div>
         </div>
-        ${workout.longestSession ? `<div style="font-size:8px;color:#777;text-align:center;margin-bottom:6px;">Longest session: ${workout.longestSession} min</div>` : ''}
+        ${workout.longestSession ? `<div style="font-size:2vw;color:#777;text-align:center;margin-bottom:1vh;">Longest session: ${workout.longestSession} min</div>` : ''}
       </div>
 
       <div class="section">
         <div class="section-head"><span class="section-icon">🥗</span> Nutrition</div>
         ${nutrition ? `
           <div class="card">
-            <div style="font-size:20px;font-weight:800;color:#6F4BF2;">${nutrition.avgCal}</div>
-            <div style="font-size:7px;color:#777;margin-bottom:6px;">AVG KCAL / DAY · ${nutrition.loggedDays} days logged</div>
+            <div style="font-size:4.5vw;font-weight:800;color:#6F4BF2;">${nutrition.avgCal}</div>
+            <div style="font-size:1.8vw;color:#777;margin-bottom:1vh;">AVG KCAL / DAY · ${nutrition.loggedDays} days logged</div>
             ${macroBar}
             <div class="macro-row">
               <div class="macro-legend">
@@ -510,20 +510,20 @@ function buildReportHtml({ reportType, data, logoUri, mascotUri }) {
               </div>
             </div>
           </div>
-        ` : `<div class="card"><span style="font-size:8px;color:#999;">No meals logged yet</span></div>`}
+        ` : `<div class="card"><span style="font-size:2.2vw;color:#999;">No meals logged yet</span></div>`}
       </div>
 
       <div class="section">
         <div class="section-head"><span class="section-icon">😴</span> Sleep & Recovery</div>
         <div class="card">
-          <div style="display:flex;gap:12px;margin-bottom:8px;">
+          <div style="display:flex;gap:3vw;margin-bottom:1.5vh;">
             <div style="text-align:center;">
-              <div style="font-size:16px;font-weight:800;color:#6F4BF2;">${(stats.avg_sleep ?? 0) > 0 ? `${Number(stats.avg_sleep).toFixed(1)}h` : '–'}</div>
-              <div style="font-size:7px;color:#777;">AVG SLEEP</div>
+              <div style="font-size:4vw;font-weight:800;color:#6F4BF2;">${(stats.avg_sleep ?? 0) > 0 ? `${Number(stats.avg_sleep).toFixed(1)}h` : '–'}</div>
+              <div style="font-size:1.8vw;color:#777;">AVG SLEEP</div>
             </div>
             <div style="text-align:center;">
-              <div style="font-size:16px;font-weight:800;color:#6F4BF2;">${Math.round(stats.avg_steps ?? 0) >= 1000 ? `${(Math.round(stats.avg_steps ?? 0) / 1000).toFixed(1)}k` : Math.round(stats.avg_steps ?? 0)}</div>
-              <div style="font-size:7px;color:#777;">AVG STEPS</div>
+              <div style="font-size:4vw;font-weight:800;color:#6F4BF2;">${Math.round(stats.avg_steps ?? 0) >= 1000 ? `${(Math.round(stats.avg_steps ?? 0) / 1000).toFixed(1)}k` : Math.round(stats.avg_steps ?? 0)}</div>
+              <div style="font-size:1.8vw;color:#777;">AVG STEPS</div>
             </div>
           </div>
           ${fatigueHtml}
@@ -585,7 +585,7 @@ export async function buildReportHtmlForViewing(userId, reportType) {
 }
 
 export async function saveReportAsPdf(html) {
-  const { uri } = await Print.printToFileAsync({ html, width: 612, height: 792 });
+  const { uri } = await Print.printToFileAsync({ html, width: 595, height: 842 });
   const { isAvailableAsync, shareAsync } = await import('expo-sharing');
   if (await isAvailableAsync()) {
     await shareAsync(uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });

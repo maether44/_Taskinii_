@@ -23,10 +23,11 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useInsights } from '../hooks/useInsights';
 import { useMilestones } from '../context/MilestoneContext';
 import { generateAndCacheInsights } from '../services/yaraInsightsService';
-import { generateAndShareReport } from '../services/reportService';
+import { buildReportHtmlForViewing } from '../services/reportService';
 import { AppEvents, on } from '../lib/eventBus';
 import { error as logError } from '../lib/logger';
 import ReportCard from '../components/reports/ReportCard';
+import ReportViewer from '../components/reports/ReportViewer';
 import MilestonePath from '../components/reports/MilestonePath';
 
 const PERIODS = ['Week', 'Month', '3 Months'];
@@ -112,12 +113,19 @@ export default function Insights() {
     return `${fmt(start)} – ${fmt(end)}`;
   }
 
+  const [reportHtml, setReportHtml] = useState(null);
+  const [reportVisible, setReportVisible] = useState(false);
+
   async function handleDownload(reportType) {
     if (!userId) return;
     try {
-      await generateAndShareReport(userId, reportType);
+      setReportVisible(true);
+      setReportHtml(null);
+      const html = await buildReportHtmlForViewing(userId, reportType);
+      setReportHtml(html);
     } catch (err) {
-      logError('[Insights] PDF generation error:', err);
+      logError('[Insights] Report generation error:', err);
+      setReportVisible(false);
       Alert.alert('Report Error', 'Failed to generate the report. Please try again.');
     }
   }
@@ -422,6 +430,12 @@ export default function Insights() {
 
         <View style={{ height: 20 }} />
       </ScrollView>
+
+      <ReportViewer
+        visible={reportVisible}
+        html={reportHtml}
+        onClose={() => { setReportVisible(false); setReportHtml(null); }}
+      />
     </View>
   );
 }
