@@ -4,7 +4,7 @@
     "slug": "mobile",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/yara_spirit.png",
+    "icon": "./assets/Alexi_mascott.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {

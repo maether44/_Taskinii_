@@ -7,13 +7,26 @@ function cleanAiText(text: string): string {
   return text.replace(INTERNAL_LINE_RE, '').replace(/\n{3,}/g, '\n\n').trim();
 }
 
+function parseAge(dob: string | undefined): number {
+  if (!dob) return 25;
+  const parts = dob.includes('/') ? dob.split('/') : dob.split('-');
+  if (parts.length !== 3) return 25;
+  const [d, m, y] = dob.includes('/')
+    ? [parts[0], parts[1], parts[2]]
+    : [parts[2], parts[1], parts[0]];
+  const birthYear = parseInt(y, 10);
+  if (isNaN(birthYear) || birthYear < 1900) return 25;
+  return new Date().getFullYear() - birthYear;
+}
+
 function buildPrompt(answers) {
   const {
-    goal, gender, age, height, weight, targetW, activity, experience,
+    goal, gender, age, dob, height, weight, targetW, activity, experience,
     injuries, days, duration, timeOfDay, equipment, focus, sleep,
     stress, diet, calTarget, protein,
   } = answers;
 
+  const userAge = age ?? parseAge(dob);
   const injList   = injuries?.filter((x) => x !== "none").join(", ") || "none";
   const focusList = focus?.join(", ") || "balanced";
   const goalLabel = {
@@ -27,7 +40,7 @@ function buildPrompt(answers) {
 
 USER PROFILE:
 - Goal: ${goal} (${goalLabel})
-- Gender: ${gender}, Age: ${age}, Height: ${height}cm, Weight: ${weight}kg${targetW ? `, Target: ${targetW}kg` : ""}
+- Gender: ${gender}, Age: ${userAge}, Height: ${height}cm, Weight: ${weight}kg${targetW ? `, Target: ${targetW}kg` : ""}
 - Experience: ${experience}
 - Equipment: ${equipment}
 - Training: ${days} days/week, ${duration} min per session, ${timeOfDay} time preferred
@@ -78,24 +91,37 @@ function parseGroqResponse(text) {
 }
 
 export async function generateAIPlan(answers) {
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${GROQ_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: "llama-3.1-8b-instant",
-      max_tokens: 4096,
-      temperature: 0.4,
-      messages: [{ role: "user", content: buildPrompt(answers) }],
-    }),
-  });
+  if (!GROQ_API_KEY) {
+    throw new Error("Groq API key is not configured. Check your .env file.");
+  }
+
+  let res: Response;
+  try {
+    res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${GROQ_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        max_tokens: 4096,
+        temperature: 0.4,
+        messages: [{ role: "user", content: buildPrompt(answers) }],
+      }),
+    });
+  } catch (e: any) {
+    throw new Error(`Network error — check your connection. (${e.message})`);
+  }
 
   const data = await res.json();
-  if (!res.ok) throw new Error(JSON.stringify(data?.error));
+  if (!res.ok) {
+    const msg = data?.error?.message || data?.error?.type || JSON.stringify(data?.error);
+    throw new Error(`Groq API error (${res.status}): ${msg}`);
+  }
 
   const text = data.choices?.[0]?.message?.content ?? "";
+  if (!text) throw new Error("AI returned an empty response. Please retry.");
   return parseGroqResponse(text);
 }
 

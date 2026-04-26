@@ -27,20 +27,37 @@ Deno.serve(async (req) => {
     if (!answers) throw new Error('answers are required')
 
     const {
-      goal, gender, age, height, weight, targetW, activity,
+      goal, gender, age, dob, height, weight, targetW, activity,
       experience, injuries, days, duration, timeOfDay,
       equipment, focus, sleep, stress, diet,
       calTarget, protein,
     } = answers
 
+    let userAge = age
+    if (!userAge && dob) {
+      const parts = dob.includes('/') ? dob.split('/') : dob.split('-')
+      if (parts.length === 3) {
+        const y = parseInt(dob.includes('/') ? parts[2] : parts[0], 10)
+        if (!isNaN(y) && y > 1900) userAge = new Date().getFullYear() - y
+      }
+    }
+    if (!userAge) userAge = 25
+
     const injList   = injuries?.filter((x: string) => x !== 'none').join(', ') || 'none'
     const focusList = focus?.join(', ') || 'balanced'
+
+    const goalLabel = {
+      lose_fat: 'lose body fat', fat_loss: 'lose body fat',
+      gain_muscle: 'build muscle', muscle: 'build muscle',
+      maintain: 'stay healthy', gain_weight: 'gain weight',
+      build_habits: 'build healthy habits', athletic: 'athletic performance',
+    }[goal] || goal
 
     const prompt = `You are an expert fitness coach. Create a highly personalised ${days}-day training plan for this user.
 
 USER PROFILE:
-- Goal: ${goal} (${goal === 'fat_loss' ? 'lose body fat' : goal === 'muscle' ? 'build muscle' : goal === 'maintain' ? 'stay healthy' : 'athletic performance'})
-- Gender: ${gender}, Age: ${age}, Height: ${height}cm, Weight: ${weight}kg${targetW ? `, Target: ${targetW}kg` : ''}
+- Goal: ${goal} (${goalLabel})
+- Gender: ${gender}, Age: ${userAge}, Height: ${height}cm, Weight: ${weight}kg${targetW ? `, Target: ${targetW}kg` : ''}
 - Experience: ${experience}
 - Equipment: ${equipment}
 - Training: ${days} days/week, ${duration} min per session, ${timeOfDay} time preferred
@@ -74,7 +91,7 @@ Use this exact structure:
         'Content-Type':  'application/json',
       },
       body: JSON.stringify({
-        model:       'llama-3.1-8b-instant',
+        model:       'llama-3.3-70b-versatile',
         max_tokens:  4096,
         temperature: 0.4,
         messages: [{ role: 'user', content: prompt }],

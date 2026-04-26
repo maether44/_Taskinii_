@@ -116,7 +116,7 @@ export default function OnBoardingGoal({ onComplete }) {
           <>
             <View style={s.mascotRow}>
               <Image
-                source={require("../assets/bodyq111.png")}
+                source={require("../assets/Alexi_mascott.png")}
                 style={s.mascotImg}
                 resizeMode="contain"
               />
@@ -523,7 +523,7 @@ export default function OnBoardingGoal({ onComplete }) {
           <>
             <View style={s.mascotRow}>
               <Image
-                source={require("../assets/bodyq111.png")}
+                source={require("../assets/Alexi_mascott.png")}
                 style={s.mascotImg}
                 resizeMode="contain"
               />
@@ -591,7 +591,7 @@ export default function OnBoardingGoal({ onComplete }) {
           <>
             <View style={s.mascotRow}>
               <Image
-                source={require("../assets/bodyq111.png")}
+                source={require("../assets/Alexi_mascott.png")}
                 style={s.mascotImg}
                 resizeMode="contain"
               />

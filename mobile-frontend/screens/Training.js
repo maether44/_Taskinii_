@@ -2,7 +2,7 @@ import React, { useState, useCallback, useRef } from 'react';
 import { FS } from '../constants/typography';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, Dimensions, Modal, Pressable, Image,
+  StyleSheet, Dimensions, Modal, Pressable, Image, Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -858,6 +858,7 @@ export default function Training({ navigation }) {
       loadData();
     } catch (e) {
       warn('[Training] AI plan generation failed:', e?.message ?? e);
+      Alert.alert('Plan Generation Failed', e?.message ?? 'Unknown error. Check your connection and try again.');
     } finally {
       setAiPlanLoading(false);
     }

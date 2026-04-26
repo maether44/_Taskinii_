@@ -577,7 +577,7 @@ function buildAlexiSummary(data) {
 export async function buildReportHtmlForViewing(userId, reportType) {
   const [logoUri, mascotUri, data] = await Promise.all([
     loadImageBase64(require('../assets/BodyQ_Logo.png')),
-    loadImageBase64(require('../assets/yara_spirit.png')),
+    loadImageBase64(require('../assets/Alexi_mascott.png')),
     fetchReportData(userId, reportType),
   ]);
 

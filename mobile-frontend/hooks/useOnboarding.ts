@@ -18,6 +18,7 @@ import {
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
 import { error as logError } from '../lib/logger';
+import { scheduleStore } from '../store/scheduleStore';
 
 export function useOnboarding() {
   const { user: authUser } = useAuth();
@@ -143,8 +144,9 @@ export function useOnboarding() {
     try {
       const plan = await generateAIPlan(getAnswers());
       setAiPlan(plan);
-    } catch {
-      setLoadError("Still having trouble. Check your connection.");
+    } catch (err: any) {
+      logError("AI plan retry error:", err);
+      setLoadError(err.message || "Still having trouble. Check your connection.");
     } finally {
       setLoading(false);
     }
@@ -158,9 +160,9 @@ export function useOnboarding() {
       try {
         const plan = await generateAIPlan(getAnswers());
         setAiPlan(plan);
-      } catch (err) {
+      } catch (err: any) {
         logError("AI plan error:", err);
-        setLoadError("Could not generate your plan. Tap retry.");
+        setLoadError(err.message || "Could not generate your plan. Tap retry.");
       } finally {
         setLoading(false);
       }
@@ -188,12 +190,33 @@ export function useOnboarding() {
 
       // Save AI plan to training_plans table if one was generated
       if (aiPlan?.days?.length) {
-        await supabase
+        const { error: planErr } = await supabase
           .from('training_plans')
           .upsert(
             { user_id: user.id, plan_json: aiPlan, created_at: new Date().toISOString() },
             { onConflict: 'user_id' },
           );
+        if (planErr) logError('[onboarding] training_plans save failed:', planErr.message);
+
+        // Populate the schedule store so TodayScheduleWidget shows the plan
+        const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        const scheduleDays = DAY_NAMES.map((dayName, i) => {
+          const planDay = aiPlan.days[i];
+          if (!planDay) {
+            return { day: dayName, is_rest: true, rest_note: 'Rest day — focus on recovery.' };
+          }
+          return {
+            day: dayName,
+            is_rest: false,
+            workout_type: planDay.focus || planDay.name,
+            exercises: planDay.exercises ?? [],
+            coach_tip: planDay.coachTip,
+          };
+        });
+        await scheduleStore.set({
+          days: scheduleDays,
+          generated_at: new Date().toISOString(),
+        });
       }
 
       onComplete?.();

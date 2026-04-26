@@ -245,7 +245,7 @@ export default function Home({ navigation }) {
             <BentoCard style={styles.macroSmallCard} delay={300}>
               <Text style={[styles.macroLabel, { color: COLORS.lime }]}>PROTEIN</Text>
               <Text style={styles.macroVal}>
-                {stats.macros.protein.current} / {stats.macros.protein.target}g
+                {Number(stats.macros.protein.current).toFixed(1)} / {stats.macros.protein.target}g
               </Text>
               <View style={styles.barContainer}>
                 <View
@@ -262,7 +262,7 @@ export default function Home({ navigation }) {
 
             <BentoCard style={styles.macroSmallCard} delay={400}>
               <Text style={[styles.macroLabel, { color: '#378ADD' }]}>CARBS</Text>
-              <Text style={styles.macroVal}>{stats.macros.carbs.current}g</Text>
+              <Text style={styles.macroVal}>{Number(stats.macros.carbs.current).toFixed(1)}g</Text>
               <View style={styles.barContainer}>
                 <View
                   style={[

@@ -209,9 +209,6 @@ export default function Insights() {
         {/* ── Header ── */}
         <View style={st.header}>
           <Text style={st.title}>Insights</Text>
-          <View style={st.aiBadge}>
-            <Text style={st.aiBadgeText}>🧠 AI Analysis</Text>
-          </View>
         </View>
 
         {/* ── Period selector ── */}
@@ -447,8 +444,6 @@ const st = StyleSheet.create({
 
   header:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
   title:       { color: '#fff', fontSize: FS.screenTitle, fontWeight: '800' },
-  aiBadge:     { backgroundColor: '#1A1432', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: '#6F4BF2' },
-  aiBadgeText: { color: '#A38DF2', fontSize: FS.btnSecondary, fontWeight: '700' },
 
   periodRow:         { flexDirection: 'row', backgroundColor: '#1A1432', borderRadius: 12, padding: 4, marginBottom: 20, borderWidth: 1, borderColor: '#3D2F7A' },
   periodBtn:         { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 10 },

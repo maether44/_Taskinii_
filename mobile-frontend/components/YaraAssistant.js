@@ -283,8 +283,8 @@ const makeConv = (greeting) => ({
 });
 
 const getGreeting = (profile, name) => profile
-  ? `Hey ${name}! I'm Yara, your personal coach inside BodyQ. I already know your profile — goal, targets, all of it. What's on your mind today?`
-  : "Hey! I'm Yara — your personal coach. Ask me anything about training, nutrition, or recovery.";
+  ? `Hey ${name}! I'm Alexi, your personal coach inside BodyQ. I already know your profile — goal, targets, all of it. What's on your mind today?`
+  : "Hey! I'm Alexi — your personal coach. Ask me anything about training, nutrition, or recovery.";
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function YaraAssistant({ onOpenSchedule }) {
@@ -658,8 +658,8 @@ export default function YaraAssistant({ onOpenSchedule }) {
       <View style={[s.sidebar, { flex: 1, paddingTop: insets.top }]}>
         <View style={s.sidebarHead}>
           <View style={s.sidebarBrand}>
-            <Text style={{ fontSize: 18 }}>👩‍⚕️</Text>
-            <Text style={s.sidebarBrandTxt}>Yara</Text>
+            <Image source={require('../assets/Alexi_mascott.png')} style={s.sidebarAvatar} />
+            <Text style={s.sidebarBrandTxt}>Alexi</Text>
           </View>
           <View style={s.sidebarHeadRight}>
             {!IS_WIDE && (
@@ -714,28 +714,15 @@ export default function YaraAssistant({ onOpenSchedule }) {
             </TouchableOpacity>
           )}
           <View style={s.headerAvatarWrap}>
-            <Text style={{ fontSize: 24 }}>👩‍⚕️</Text>
+            <Image source={require('../assets/Alexi_mascott.png')} style={s.headerAvatarImg} />
             <View style={s.headerOnlineDot} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={s.headerName}>Yara</Text>
+            <Text style={s.headerName}>Alexi</Text>
             <Text style={s.headerSub}>
-              {listenState === 'listening'  ? '🎙 Listening…'   :
-               listenState === 'processing' ? '⚙ Thinking…'     :
-               listenState === 'speaking'   ? '🔊 Speaking…'    :
-               profile ? 'Knows your profile ✓' : 'Personal Coach'}
+              {profile ? 'Knows your profile ✓' : 'Personal Coach'}
             </Text>
           </View>
-          <TouchableOpacity
-            style={[s.handsFreeBtn, handsFreeMode && s.handsFreeBtnOn]}
-            onPress={toggleHandsFree}
-            activeOpacity={0.8}
-          >
-            <Text style={{ fontSize: 14 }}>🎙</Text>
-            <Text style={[s.handsFreeTxt, handsFreeMode && { color: '#000' }]}>
-              {handsFreeMode ? 'ON' : 'OFF'}
-            </Text>
-          </TouchableOpacity>
           <TouchableOpacity style={s.closeBtn} onPress={closeChat}>
             <Text style={s.closeTxt}>✕</Text>
           </TouchableOpacity>
@@ -745,7 +732,7 @@ export default function YaraAssistant({ onOpenSchedule }) {
           {messages.map((m, i) => (
             <View key={i} style={[s.msgRow, m.from === 'user' && s.msgRowUser]}>
               {m.from === 'yara' && (
-                <View style={s.msgAvatar}><Text style={{ fontSize: 14 }}>👩‍⚕️</Text></View>
+                <View style={s.msgAvatar}><Image source={require('../assets/Alexi_mascott.png')} style={s.msgAvatarImg} /></View>
               )}
               <View style={{ maxWidth: '75%' }}>
                 <View style={[s.bubble, m.from === 'user' ? s.bubbleUser : s.bubbleYara]}>
@@ -765,7 +752,7 @@ export default function YaraAssistant({ onOpenSchedule }) {
           ))}
           {typing && (
             <View style={s.msgRow}>
-              <View style={s.msgAvatar}><Text style={{ fontSize: 14 }}>👩‍⚕️</Text></View>
+              <View style={s.msgAvatar}><Image source={require('../assets/Alexi_mascott.png')} style={s.msgAvatarImg} /></View>
               <View style={[s.bubble, s.bubbleYara, { paddingVertical: 12 }]}>
                 <TypingDots />
               </View>
@@ -785,26 +772,12 @@ export default function YaraAssistant({ onOpenSchedule }) {
           </ScrollView>
         )}
 
-        {voiceError && (
-          <View style={s.voiceErrorBar}>
-            <Text style={s.voiceErrorTxt}>{voiceError}</Text>
-          </View>
-        )}
-
         <View style={[s.inputBar, { paddingBottom: Math.max(14, insets.bottom + 8) }]}>
-          <TouchableOpacity
-            style={[s.micBtn, listenState === 'listening' && s.micBtnActive]}
-            onPress={() => { if (listenState === 'listening') stopAndTranscribe(); else startListening(); }}
-            disabled={listenState === 'processing' || listenState === 'speaking' || typing}
-            activeOpacity={0.8}
-          >
-            <Text style={{ fontSize: 16 }}>{listenState === 'listening' ? '⏹' : '🎙'}</Text>
-          </TouchableOpacity>
           <TextInput
             style={s.input}
             value={input}
             onChangeText={setInput}
-            placeholder="Ask Yara anything…"
+            placeholder="Ask Alexi anything…"
             placeholderTextColor="#8B82AD"
             returnKeyType="send"
             onSubmitEditing={() => send()}
@@ -842,7 +815,7 @@ export default function YaraAssistant({ onOpenSchedule }) {
           <View style={s.glowCore} />
           <TouchableOpacity style={s.mascotTouch} onPress={openChat} activeOpacity={0.88}>
             <Animated.View style={[s.mascotClip, { transform: [{ scale: listenState === 'speaking' ? speakVibrate : 1 }] }]}>
-              <Image source={require('../assets/yara_spirit.png')} style={s.mascotImg} resizeMode="cover" />
+              <Image source={require('../assets/Alexi_mascott.png')} style={s.mascotImg} resizeMode="cover" />
             </Animated.View>
           </TouchableOpacity>
         </Animated.View>
@@ -899,6 +872,7 @@ const s = StyleSheet.create({
   sidebar:             { flex: 1, width: SIDEBAR_W, backgroundColor: '#12102A', borderRightWidth: 1, borderRightColor: '#2D2850' },
   sidebarHead:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#2D2850' },
   sidebarBrand:        { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sidebarAvatar:       { width: 28, height: 28, borderRadius: 14 },
   sidebarBrandTxt:     { color: '#F4F0FF', fontSize: 15, fontWeight: '800' },
   sidebarHeadRight:    { flexDirection: 'row', alignItems: 'center', gap: 8 },
   hideHistoryBtn:      { backgroundColor: '#2D2850', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 },
@@ -920,7 +894,8 @@ const s = StyleSheet.create({
   historyBtnTxt:    { color: '#F4F0FF', fontSize: 11, fontWeight: '700' },
   hamburgerIcon:    { flexDirection: 'column', justifyContent: 'space-between', height: 16 },
   hLine:            { width: 18, height: 2, borderRadius: 1, backgroundColor: '#8B82AD' },
-  headerAvatarWrap: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#7B61FF', alignItems: 'center', justifyContent: 'center', position: 'relative' },
+  headerAvatarWrap: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#7B61FF', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' },
+  headerAvatarImg:  { width: 46, height: 46, borderRadius: 23 },
   headerOnlineDot:  { position: 'absolute', bottom: 2, right: 2, width: 10, height: 10, borderRadius: 5, backgroundColor: '#B8F566', borderWidth: 2, borderColor: '#18152A' },
   headerName:       { color: '#F4F0FF', fontSize: 16, fontWeight: '800' },
   headerSub:        { color: '#8B82AD', fontSize: 11, marginTop: 2 },
@@ -937,7 +912,8 @@ const s = StyleSheet.create({
   messagesContent:  { padding: 16, gap: 12 },
   msgRow:           { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
   msgRowUser:       { flexDirection: 'row-reverse' },
-  msgAvatar:        { width: 30, height: 30, borderRadius: 15, backgroundColor: '#7B61FF', alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
+  msgAvatar:        { width: 30, height: 30, borderRadius: 15, backgroundColor: '#7B61FF', alignItems: 'center', justifyContent: 'center', marginBottom: 18, overflow: 'hidden' },
+  msgAvatarImg:     { width: 30, height: 30, borderRadius: 15 },
   bubble:           { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
   bubbleYara:       { backgroundColor: '#201C35', borderBottomLeftRadius: 4 },
   bubbleUser:       { backgroundColor: '#7B61FF', borderBottomRightRadius: 4 },

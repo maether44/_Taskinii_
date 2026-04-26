@@ -1,11 +1,13 @@
 /**
  * services/aiPlanService.ts
  *
- * Generates and persists AI training plans via the onboarding-plan edge function.
+ * Generates and persists AI training plans.
+ * Tries the onboarding-plan Edge Function first, falls back to direct Groq call.
  * Plans are stored in the training_plans table as JSONB (one active plan per user).
  */
 import { supabase } from '../lib/supabase';
-import { error as logError } from '../lib/logger';
+import { error as logError, warn } from '../lib/logger';
+import { generateAIPlan } from '../lib/groqAPI';
 
 export type PlanExercise = {
   name: string;
@@ -104,15 +106,25 @@ export async function generatePlan(userId: string): Promise<AIPlan> {
     protein:    targets?.protein_target ?? 120,
   };
 
-  // 3. Call edge function
-  const { data, error } = await supabase.functions.invoke('onboarding-plan', {
-    body: { answers },
-  });
+  // 3. Try Edge Function first, fall back to direct Groq call
+  let plan: AIPlan;
 
-  if (error) throw new Error(error.message ?? 'Failed to generate plan');
-  if (!data?.days) throw new Error('Invalid plan response');
+  try {
+    const { data, error } = await supabase.functions.invoke('onboarding-plan', {
+      body: { answers },
+    });
 
-  const plan = data as AIPlan;
+    if (error) {
+      const detail = typeof data === 'object' && data?.error ? data.error : error.message;
+      throw new Error(detail);
+    }
+    if (!data?.days) throw new Error('Edge Function returned invalid plan (no days)');
+    plan = data as AIPlan;
+  } catch (edgeErr: any) {
+    warn('[aiPlanService] Edge Function failed, falling back to direct API:', edgeErr.message);
+    plan = await generateAIPlan(answers) as AIPlan;
+    if (!plan?.days) throw new Error('Direct API returned invalid plan (no days)');
+  }
 
   // 4. Upsert into training_plans (one per user)
   const { error: saveError } = await supabase
