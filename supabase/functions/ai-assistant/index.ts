@@ -15,6 +15,7 @@ import {
   ParsedAction,
   YaraEvent,
 } from './memory.ts'
+import { semanticSearch, buildRagContextSection } from './embeddings.ts'
 
 type ActionResult = {
   ok: boolean
@@ -45,28 +46,8 @@ type ProfileShape = {
   stress_level?: string
 }
 
-type TodaySnapshot = {
-  date?: string
-  calories_eaten?: number
-  calorie_target?: number
-  protein_eaten?: number
-  protein_target?: number
-  carbs_eaten?: number
-  carbs_target?: number
-  fat_eaten?: number
-  fat_target?: number
-  water_ml?: number
-  water_target_ml?: number
-  calories_burned?: number
-  sleep_hours?: number | null
-  sleep_quality?: number | null
-  muscle_fatigue?: Array<{ muscle: string; pct: number }>
-  meals?: Array<{ meal_type: string; foods: string; calories?: number }>
-}
-
 type ClientContextShape = {
   profile?: ProfileShape | null
-  today?: TodaySnapshot | null
   activity?: any
   nutrition?: any
   workouts?: any
@@ -74,7 +55,8 @@ type ClientContextShape = {
   aiHistory?: any
 }
 
-const GROQ_KEY = Deno.env.get('GROQ_API_KEY') ?? ''
+const GROQ_KEY    = Deno.env.get('GROQ_API_KEY') ?? ''
+const OPENAI_KEY  = Deno.env.get('OPENAI_API_KEY') ?? ''
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? Deno.env.get('SUPABASE_SERVICE_KEY') ?? ''
 
@@ -104,191 +86,133 @@ async function safeRpc(supabase: any, fn: string, params: Record<string, unknown
   }
 }
 
+/** Parses and executes COMMAND:{...} lines embedded in the AI reply. */
+async function executeVoiceCommands(supabase: any, userId: string, aiText: string): Promise<string[]> {
+  const executed: string[] = []
+  const commandRegex = /COMMAND:(\{[^\n]+\})/g
+  let match
+  const TODAY = new Date().toISOString().split('T')[0]
+
+  while ((match = commandRegex.exec(aiText)) !== null) {
+    try {
+      const cmd = JSON.parse(match[1])
+
+      if (cmd.action === 'log_water') {
+        const { data: ex } = await supabase
+          .from('daily_activity').select('id, water_ml').eq('user_id', userId).eq('date', TODAY).maybeSingle()
+        const newMl = (ex?.water_ml ?? 0) + (cmd.amount ?? 250)
+        if (ex) await supabase.from('daily_activity').update({ water_ml: newMl }).eq('id', ex.id)
+        else     await supabase.from('daily_activity').insert({ user_id: userId, date: TODAY, water_ml: newMl })
+        executed.push(`logged_water:${newMl}ml`)
+
+      } else if (cmd.action === 'log_sleep') {
+        await supabase.from('daily_activity')
+          .upsert({ user_id: userId, date: TODAY, sleep_hours: cmd.hours }, { onConflict: 'user_id,date' })
+        executed.push(`logged_sleep:${cmd.hours}h`)
+
+      } else if (cmd.action === 'log_weight') {
+        await supabase.from('body_metrics').insert({
+          user_id: userId, weight_kg: cmd.weight_kg, logged_at: new Date().toISOString(),
+        })
+        executed.push(`logged_weight:${cmd.weight_kg}kg`)
+
+      } else if (cmd.action === 'log_food') {
+        // Schema: foods(id, name, calories_per_100g, protein_per_100g, carbs_per_100g, fat_per_100g)
+        //         food_logs(user_id, food_id, consumed_at, meal_type, quantity_grams, ...)
+        // Use AI-estimated macros when present; fall back to sensible single-serving
+        // defaults so we never log a zero-calorie entry.
+        const NOW_TS = new Date().toISOString()
+        const foodName     = cmd.name      || 'Unknown Food'
+        const foodCalories = cmd.calories  ?? 250   // ~1 average serving
+        const foodProtein  = cmd.protein_g ?? 10
+        const foodCarbs    = cmd.carbs_g   ?? 30
+        const foodFat      = cmd.fat_g     ?? 8
+
+        let foodId: string | null = null
+        const { data: existing } = await supabase
+          .from('foods').select('id').ilike('name', foodName).maybeSingle()
+        if (existing) {
+          foodId = existing.id
+        } else {
+          const { data: newFood } = await supabase.from('foods').insert({
+            name:              foodName,
+            calories_per_100g: foodCalories,
+            protein_per_100g:  foodProtein,
+            carbs_per_100g:    foodCarbs,
+            fat_per_100g:      foodFat,
+            source: 'alexi_voice',
+          }).select('id').single()
+          foodId = newFood?.id ?? null
+        }
+        if (foodId) {
+          // quantity_grams=100 so per-100g values equal the logged macros directly
+          await supabase.from('food_logs').insert({
+            user_id:       userId,
+            food_id:       foodId,
+            consumed_at:   NOW_TS,   // timestamptz — NOT a date column
+            meal_type:     cmd.meal_type ?? 'snack',
+            quantity_grams: 100,     // column name is quantity_grams, NOT quantity_g
+          })
+        }
+        executed.push(`logged_food:${cmd.name}:calories=${cmd.calories ?? 0}:protein=${cmd.protein_g ?? 0}`)
+
+      } else if (cmd.action === 'log_workout') {
+        const now = new Date().toISOString()
+        const startedAt = new Date(Date.now() - (cmd.duration_minutes ?? 30) * 60000).toISOString()
+        await supabase.from('workout_sessions').insert({
+          user_id: userId,
+          started_at: startedAt,
+          ended_at: now,
+          calories_burned: cmd.calories_burned ?? null,
+          notes: cmd.exercise_name ? `${cmd.exercise_name}${cmd.intensity ? ' · ' + cmd.intensity : ''}` : null,
+          source: 'alexi_voice',
+        })
+        const XP = 50
+        await supabase.from('xp_log').insert({ user_id: userId, source: 'workout', amount: XP, earned_at: now })
+        await supabase.rpc('increment_xp', { p_user_id: userId, p_amount: XP }).catch(() => {})
+        executed.push(`logged_workout:${cmd.duration_minutes ?? 30}min +${XP}xp`)
+
+      } else if (cmd.action === 'log_metric') {
+        // Schema: body_metrics(user_id, weight_kg, body_fat_pct, logged_at)
+        const row: Record<string, unknown> = {
+          user_id:    userId,
+          logged_at:  new Date().toISOString(),
+        }
+        if (cmd.weight_kg  != null) row.weight_kg    = cmd.weight_kg
+        if (cmd.body_fat   != null) row.body_fat_pct = cmd.body_fat
+        await supabase.from('body_metrics').insert(row)
+        executed.push(`logged_metric:${JSON.stringify({ weight_kg: cmd.weight_kg, body_fat_pct: cmd.body_fat })}`)
+
+      } else if (cmd.action === 'check_status') {
+        // Query daily_activity + xp_log and return a summary text in executed[]
+        const { data: act } = await supabase
+          .from('daily_activity').select('steps, water_ml, sleep_hours')
+          .eq('user_id', userId).eq('date', TODAY).maybeSingle()
+        const { data: xpRows } = await supabase
+          .from('xp_log').select('amount')
+          .eq('user_id', userId)
+          .gte('earned_at', new Date(Date.now() - 7 * 86400000).toISOString())
+        const weeklyXP = (xpRows ?? []).reduce((s: number, r: any) => s + (r.amount ?? 0), 0)
+        const steps = act?.steps ?? 0
+        const water = act?.water_ml ?? 0
+        const sleep = act?.sleep_hours ?? 0
+        executed.push(
+          `status:steps=${steps},water=${water}ml,sleep=${sleep}h,weeklyXP=${weeklyXP}`
+        )
+      }
+    } catch (e: any) {
+      console.error('[ai-assistant] executeVoiceCommands failed on:', match[1], e?.message)
+    }
+  }
+  return executed
+}
+
 async function safeInsertInsight(supabase: any, row: Record<string, unknown>) {
   try {
     const { error } = await supabase.from('ai_insights').insert(row)
     if (error) console.error('[ai-assistant] ai_insights insert failed:', error.message)
   } catch (error: any) {
     console.error('[ai-assistant] ai_insights insert crashed:', error?.message ?? error)
-  }
-}
-
-/**
- * Executes a list of pre-parsed action tool-calls emitted by Yara. Parser
- * lives in memory.ts (extractActionsFromResponse); this stays here because it
- * mutates the supabase client. Returns a structured result list the caller
- * can surface to the user as "Logged 250ml ✓" confirmations.
- */
-async function executeActions(
-  supabase: any,
-  userId: string,
-  actions: ParsedAction[],
-): Promise<ActionResult[]> {
-  const results: ActionResult[] = []
-  const TODAY = new Date().toISOString().split('T')[0]
-
-  for (const a of actions) {
-    const cmd = a.params as any
-    try {
-      if (a.action === 'log_water') {
-        const { data: ex } = await supabase
-          .from('daily_activity').select('id, water_ml').eq('user_id', userId).eq('date', TODAY).maybeSingle()
-        const newMl = (ex?.water_ml ?? 0) + (cmd.amount ?? 250)
-        if (ex) await supabase.from('daily_activity').update({ water_ml: newMl }).eq('id', ex.id)
-        else     await supabase.from('daily_activity').insert({ user_id: userId, date: TODAY, water_ml: newMl })
-        results.push({ ok: true, action: 'log_water', detail: `water total ${newMl} ml today` })
-
-      } else if (a.action === 'log_sleep') {
-        await supabase.from('daily_activity')
-          .upsert({ user_id: userId, date: TODAY, sleep_hours: cmd.hours }, { onConflict: 'user_id,date' })
-        results.push({ ok: true, action: 'log_sleep', detail: `sleep ${cmd.hours}h logged` })
-
-      } else if (a.action === 'log_weight') {
-        await supabase.from('body_metrics').insert({
-          user_id: userId, weight_kg: cmd.weight_kg, recorded_at: new Date().toISOString(),
-        })
-        results.push({ ok: true, action: 'log_weight', detail: `${cmd.weight_kg} kg logged` })
-
-      } else if (a.action === 'log_food') {
-        let foodId: string | null = null
-        const { data: existing } = await supabase
-          .from('foods').select('id').ilike('name', cmd.name).maybeSingle()
-        if (existing) {
-          foodId = existing.id
-        } else {
-          const { data: newFood } = await supabase.from('foods').insert({
-            name: cmd.name,
-            calories_per_100g: cmd.calories ?? 0,
-            protein_per_100g:  cmd.protein_g ?? 0,
-            carbs_per_100g:    cmd.carbs_g ?? 0,
-            fat_per_100g:      cmd.fat_g ?? 0,
-            source: 'yara_action',
-          }).select('id').single()
-          foodId = newFood?.id ?? null
-        }
-        if (foodId) {
-          await supabase.from('food_logs').insert({
-            user_id: userId, food_id: foodId,
-            consumed_at: new Date().toISOString(),
-            meal_type: cmd.meal_type ?? 'snack',
-            quantity_grams: 100,
-          })
-          results.push({ ok: true, action: 'log_food', detail: `logged ${cmd.name}` })
-        } else {
-          results.push({ ok: false, action: 'log_food', detail: `could not resolve or create food "${cmd.name}"` })
-        }
-
-      } else if (a.action === 'log_workout') {
-        const now = new Date().toISOString()
-        const durationMins = cmd.duration_minutes ?? 30
-        const startedAt = new Date(Date.now() - durationMins * 60000).toISOString()
-        await supabase.from('workout_sessions').insert({
-          user_id: userId,
-          started_at: startedAt,
-          ended_at: now,
-          calories_burned: cmd.calories_burned ?? null,
-          notes: 'logged via yara action',
-        })
-        const XP = 50
-        await supabase.from('xp_log').insert({ user_id: userId, source: 'workout', amount: XP, earned_at: now }).catch(() => {})
-        await supabase.rpc('increment_xp', { p_user_id: userId, p_amount: XP }).catch(() => {})
-        results.push({ ok: true, action: 'log_workout', detail: `workout ${durationMins} min logged (+${XP} xp)` })
-
-      } else if (a.action === 'forget_fact') {
-        const needle = String(cmd.fact_contains ?? cmd.fact ?? '').trim()
-        if (!needle) {
-          results.push({ ok: false, action: 'forget_fact', detail: 'missing fact_contains parameter' })
-          continue
-        }
-        const { data: rows } = await supabase
-          .from('user_memory')
-          .select('id, fact')
-          .eq('user_id', userId)
-          .ilike('fact', `%${needle}%`)
-        const ids: string[] = (rows ?? []).map((r: any) => r.id)
-        if (ids.length === 0) {
-          results.push({ ok: false, action: 'forget_fact', detail: `no memory matched "${needle}"` })
-          continue
-        }
-        await Promise.all(
-          ids.map((id) => supabase.rpc('delete_user_memory', { p_user_id: userId, p_id: id })),
-        )
-        results.push({ ok: true, action: 'forget_fact', detail: `forgot ${ids.length} fact(s) matching "${needle}"` })
-      }
-    } catch (e: any) {
-      console.error('[ai-assistant] executeActions failed on', a.action, e?.message ?? e)
-      results.push({ ok: false, action: a.action, detail: e?.message ?? 'execution failed' })
-    }
-  }
-  return results
-}
-
-// ─── Cross-session memory ───────────────────────────────────────────────────
-// Pure helpers (parser, section builder, types) live in ./memory.ts so they
-// can be unit-tested without booting the HTTP server. The functions below
-// touch the supabase client, so they stay here.
-
-async function fetchUserMemory(supabase: any, userId: string): Promise<MemoryRow[]> {
-  if (!userId) return []
-  try {
-    const { data, error } = await supabase.rpc('get_user_memory', { p_user_id: userId, p_limit: 30 })
-    if (error) {
-      console.error('[ai-assistant] get_user_memory failed:', error.message)
-      return []
-    }
-    if (Array.isArray(data)) return data as MemoryRow[]
-    if (typeof data === 'string') {
-      try { return JSON.parse(data) as MemoryRow[] } catch { return [] }
-    }
-    return []
-  } catch (error: any) {
-    console.error('[ai-assistant] get_user_memory crashed:', error?.message ?? error)
-    return []
-  }
-}
-
-async function storeMemoryFact(supabase: any, userId: string, category: string, fact: string) {
-  if (!userId || !ALLOWED_MEMORY_CATEGORIES.has(category)) return
-  if (!fact || fact.length > 240) return
-  try {
-    const { error } = await supabase.rpc('add_user_memory', {
-      p_user_id: userId,
-      p_category: category,
-      p_fact: fact,
-    })
-    if (error) console.error('[ai-assistant] add_user_memory failed:', error.message)
-  } catch (error: any) {
-    console.error('[ai-assistant] add_user_memory crashed:', error?.message ?? error)
-  }
-}
-
-// extractMemoriesFromResponse and buildMemorySection live in ./memory.ts
-
-// ─── Proactive events (Phase 3 #3) ──────────────────────────────────────────
-
-async function fetchPendingYaraEvents(supabase: any, userId: string): Promise<YaraEvent[]> {
-  if (!userId) return []
-  try {
-    const { data, error } = await supabase.rpc('get_pending_yara_events', { p_user_id: userId, p_limit: 10 })
-    if (error) {
-      console.error('[ai-assistant] get_pending_yara_events failed:', error.message)
-      return []
-    }
-    if (Array.isArray(data)) return data as YaraEvent[]
-    return []
-  } catch (error: any) {
-    console.error('[ai-assistant] get_pending_yara_events crashed:', error?.message ?? error)
-    return []
-  }
-}
-
-async function consumeYaraEvents(supabase: any, userId: string, ids: string[]) {
-  if (!userId || ids.length === 0) return
-  try {
-    const { error } = await supabase.rpc('consume_yara_events', { p_user_id: userId, p_ids: ids })
-    if (error) console.error('[ai-assistant] consume_yara_events failed:', error.message)
-  } catch (error: any) {
-    console.error('[ai-assistant] consume_yara_events crashed:', error?.message ?? error)
   }
 }
 
@@ -326,37 +250,24 @@ function defaultProfile(): ProfileShape {
   }
 }
 
-function buildFallbackResponse(
-  query: string,
-  profile?: ProfileShape | null,
-  nutrition?: any,
-  activity?: any,
-  today?: TodaySnapshot | null,
-) {
+function buildFallbackResponse(query: string, profile?: ProfileShape | null, nutrition?: any, _activity?: any) {
   const q = query.toLowerCase()
   const name = profile?.full_name || 'there'
 
   if (/meal plan|what should i eat|food plan|eat today|meal ideas|nutrition/.test(q)) {
-    const target = today?.calorie_target ?? nutrition?.daily_calorie_target ?? 2000
-    const protein = today?.protein_target ?? nutrition?.protein_target ?? 150
-    const eatenToday = today?.calories_eaten ?? 0
-    const proteinToday = today?.protein_eaten ?? 0
-    const remaining = Math.max(0, target - eatenToday)
-    const meals = Array.isArray(today?.meals) && today!.meals!.length > 0
-      ? today!.meals!.slice(0, 3)
-      : (Array.isArray(nutrition?.recent_meals) ? nutrition.recent_meals.slice(0, 3) : [])
+    const target = nutrition?.daily_calorie_target ?? 2000
+    const protein = nutrition?.protein_target ?? 150
+    const avgCalories = nutrition?.avg_calories ?? 0
+    const avgProtein = nutrition?.avg_protein_g ?? 0
+    const meals = Array.isArray(nutrition?.recent_meals) ? nutrition.recent_meals.slice(0, 3) : []
     const recent = meals.length
-      ? `So far today: ${meals.map((meal: any) => `${meal.meal_type} (${meal.foods})`).join('; ')}.`
-      : 'You have not logged any meals yet today — start by logging breakfast or lunch.'
-    return `Hey ${name}, aim for ${target} kcal and ${protein}g protein today. You have about ${remaining} kcal and ${Math.max(0, protein - proteinToday)}g protein left. ${recent} Build each remaining meal around a clear protein, add a smart carb if energy is low, and finish with fruit or vegetables.`
+      ? `Recent meals logged: ${meals.map((meal: any) => `${meal.meal_type} (${meal.foods})`).join('; ')}.`
+      : 'You do not have enough recent meal logs yet, so start by logging breakfast and lunch today.'
+    return `Hey ${name}, here’s a solid fallback plan: aim for about ${target} kcal and ${protein}g protein today. Your recent average is around ${avgCalories} kcal and ${avgProtein}g protein. ${recent} Build each meal around one clear protein, add a smart carb if energy feels low, and finish with fruit or vegetables.`
   }
 
   if (/sleep|water|steps|activity/.test(q)) {
-    const water = today?.water_ml ?? 0
-    const waterTarget = today?.water_target_ml ?? 2500
-    const sleep = today?.sleep_hours
-    const sleepLine = sleep != null ? `You logged ${Number(sleep).toFixed(1)}h sleep last night.` : 'No sleep logged for last night yet.'
-    return `Hey ${name}, ${sleepLine} Water is at ${water}/${waterTarget} ml today — keep sipping, aim for a short walk, and protect sleep tonight. Consistency beats perfect days.`
+    return `Hey ${name}, your latest coaching data is loading, so here’s the simple version: keep water steady, aim for a short walk today, and protect sleep tonight because consistency beats perfect days.`
   }
 
   return `Hey ${name}, I can still coach you even while live data is limited. Ask me about meals, training, recovery, or habits and I'll keep the advice practical and tailored to your goal of ${profile?.goal ?? 'general health'}.`
@@ -415,9 +326,9 @@ type ToneProfile = {
 const TONE_PROFILES: Record<string, ToneProfile> = {
   motivational: {
     label: 'motivational',
-    voice: 'Energetic, upbeat, encouraging. Use short punchy sentences. Celebrate wins. Frame gaps as opportunities, never failures. Second person ("you got this"). Never condescending.',
+    voice: 'Upbeat but concise. Lead with data, then one encouraging line. No rambling. Vary openers.',
     emojiPolicy: 'At most one celebratory emoji near the opener (🔥, 💪, ⚡). Never stack emojis.',
-    openerExample: '"Big day ahead — you already crushed X, now let\'s stack one more win."',
+    openerExample: 'Vary each time. Examples: "Looking at your numbers…", "Let\'s talk about your week so far…", "Here\'s what stands out…". NEVER use a fixed catchphrase.',
   },
   strict: {
     label: 'strict',
@@ -427,7 +338,7 @@ const TONE_PROFILES: Record<string, ToneProfile> = {
   },
   friendly: {
     label: 'friendly',
-    voice: 'Warm, conversational, like a supportive friend who happens to know the science. Longer flowing sentences. Uses the user\'s name. Gentle framing. Asks one light check-in.',
+    voice: 'Warm but efficient. Uses the user\'s name. Data first, gentle framing second. One short check-in at most.',
     emojiPolicy: 'At most one warm emoji (🙂, ✨, 🌱) — optional.',
     openerExample: '"Hey Israa, I saw you logged a late workout — how is the energy holding up today?"',
   },
@@ -448,37 +359,23 @@ function buildToneSection(tone: ToneProfile): string {
   return `COACHING TONE: ${tone.label}
 - Voice: ${tone.voice}
 - Emoji policy: ${tone.emojiPolicy}
-- Example opener in this voice: ${tone.openerExample}
-- This tone is non-negotiable. Do not drift toward generic "cheerful coach" style.`
+- Opener guidance: ${tone.openerExample}
+- This tone is non-negotiable. Do not drift toward generic "cheerful coach" style.
+- IMPORTANT: Never copy example openers verbatim. Create a fresh, contextual opener every time.`
 }
 
 function buildPrompt(
   profile: any,
-  today: TodaySnapshot | null | undefined,
   activity: any,
   nutrition: any,
   workouts: any,
   bodyMetrics: any,
   aiHistory: any,
-  memories: MemoryRow[],
-  events: YaraEvent[],
   query: string,
   voiceMode = false,
+  ragContext = '',
 ): string {
-  const tone = resolveTone(profile.assistant_tone)
-  const toneSection = buildToneSection(tone)
-
-  // Derive explicit deny-lists from memory facts. This hoists constraints out
-  // of soft prose ("respect injuries") into mechanical AVOID lines the model
-  // cannot misread — the root cause of the prior "prescribed lunges despite
-  // knee injury" compliance bug.
-  const derivedConstraints = deriveConstraintsFromMemory(memories)
-  const constraintsSection = buildConstraintsSection(derivedConstraints)
-
-  const eventsSection = buildEventsSection(events)
-
-  const todaySection = buildTodaySection(today)
-  const memorySection = buildMemorySection(memories)
+  const tone = profile.assistant_tone ?? 'motivational'
 
   const profileSection = `USER PROFILE:
 Name: ${profile.full_name ?? 'User'}
@@ -544,29 +441,26 @@ ${aiHistory.slice(0, 3).map((h: any) => {
 }).join('\n')}`
     : `COACHING HISTORY: Not available.`
 
-  // Action tool-call protocol (Phase 3 #5). Available in both text and voice
-  // modes, but voice mode gets the extra brevity rules. The edge function
-  // parses COMMAND lines out of the reply via extractActionsFromResponse,
-  // executes them, and strips the markers before returning visible text.
-  const actionRules = `
-ACTIONS (optional tool calls — use ONLY if the user explicitly asked you to log, forget, or perform one of these):
-- Log water:   COMMAND:{"action":"log_water","amount":250}
-- Log sleep:   COMMAND:{"action":"log_sleep","hours":<number>}
-- Log weight:  COMMAND:{"action":"log_weight","weight_kg":<number>}
-- Log food:    COMMAND:{"action":"log_food","name":"<food name>","calories":<number>,"protein_g":<number>,"carbs_g":<number>,"fat_g":<number>,"meal_type":"breakfast|lunch|dinner|snack"}
-- Log workout: COMMAND:{"action":"log_workout","duration_minutes":<number>,"calories_burned":<number>}
-- Forget a memorised fact: COMMAND:{"action":"forget_fact","fact_contains":"<substring that uniquely identifies the fact>"}
-- Put each COMMAND on its own line at the very end of your reply. Never emit a COMMAND for anything the user did not clearly ask for.
-- Only emit COMMAND lines from the list above. Never invent new action types like "navigate", "open", "redirect", or anything not listed.
-- Never write action names (log_water, log_food, etc.) as bare text in your reply — only inside a COMMAND: line at the very end.
-- Never reference the COMMAND line in your visible prose — the user only sees confirmation once the action runs.`
-
   const voiceRules = voiceMode
     ? `
-VOICE MODE:
-- Keep the whole spoken reply under 25 words.
-- No bullets, no markdown, no emojis.
-- Still use the ACTIONS grammar above for any logging the user asks for.`
+VOICE MODE — SYSTEM CONTROLLER:
+- Respond in LESS THAN 12 WORDS. No greetings, no filler.
+- You MUST use COMMAND:{"action":"navigate","target":"<Screen>"} for any navigation request.
+- EXACT screen name targets (only these, no others):
+    MainApp       → home / dashboard / main screen
+    MealLogger    → log a meal / add food / food log
+    FoodScanner   → scan / barcode / take a photo / scan this / scan food
+    SleepLog      → log sleep / sleep tracker
+    WorkoutActive → start workout / begin workout / let's train / any specific exercise (squats, bench, deadlift…)
+    Train         → training page / exercise library / workout list
+    Fuel          → nutrition / macros / food page
+    Insights      → stats / analytics / progress / charts
+    Profile       → profile / account / settings
+- "scan" or "barcode" or "take a photo" → ALWAYS target FoodScanner.
+- Any exercise name (squats, push-ups, deadlifts, bench press…) → ALWAYS target WorkoutActive.
+- Say the spoken confirmation BEFORE the COMMAND line.
+- Example: "Opening the scanner. COMMAND:{"action":"navigate","target":"FoodScanner"}"
+- Example: "Let's do squats! COMMAND:{"action":"navigate","target":"WorkoutActive"}"`
     : ''
 
   // Prompt assembly. Order matters: tone → actions → voice rules → HARD
@@ -574,16 +468,23 @@ VOICE MODE:
   // Constraints and events must appear BEFORE the freeform data so they stay
   // salient in the model's attention window.
   const sections: string[] = [
-    `You are Yara, a personal AI health and fitness coach inside the BodyQ app.`,
+    `You are Alexi, a personal AI health and fitness coach inside the BodyQ app.`,
     toneSection,
     actionRules.trim(),
   ]
 
-  if (voiceRules) sections.push(voiceRules.trim())
-  if (constraintsSection) sections.push(constraintsSection)
-  if (eventsSection) sections.push(eventsSection)
+DATABASE SCHEMA (exact column names — use these in COMMAND generation):
+  daily_activity:   user_id, date(date), steps(int), water_ml(int), sleep_hours(numeric)
+  food_logs:        user_id, food_id(uuid→foods), consumed_at(timestamptz), meal_type, quantity_grams(numeric)
+  foods:            id, name, calories_per_100g, protein_per_100g, carbs_per_100g, fat_per_100g, source
+  workout_sessions: user_id, started_at(timestamptz), ended_at(timestamptz), calories_burned(int), notes, source
+  workout_exercises:workout_session_id, exercise_name, sets, reps, weight_kg, duration_seconds
+  body_metrics:     user_id, weight_kg(numeric), body_fat_pct(numeric), logged_at(timestamptz)
+  xp_log:           user_id, source, amount(int), earned_at(timestamptz)
+  profiles:         goal, activity_level, assistant_tone, xp_current
 
   sections.push(`RULES:
+- BANNED PHRASES: Never start with "Big day ahead", "Let's dive in", or any fixed catchphrase. Every reply must open differently based on what the user actually asked.
 - Prefer TODAY'S SNAPSHOT over the 30-day averages when the user asks about "today", "right now", or current state.
 - Use LONG-TERM MEMORY silently to personalise advice. Never recite the memory list back to the user unless they explicitly ask "what do you remember about me".
 - HARD CONSTRAINTS above override every other rule, including this list. Before naming any exercise or food, scan the AVOID list; if your candidate is on it, pick a safe substitute and briefly explain the swap in one clause.
@@ -592,17 +493,11 @@ VOICE MODE:
 - Identify the biggest win and biggest improvement area.
 - Give one concrete action for today.
 - If muscle fatigue is high (>=70%) for any group, recommend recovery for that group and training a different one.
-- Keep the response under 180 words unless asked for a full plan.
+- Keep replies 60–120 words. Lead with the key numbers and actionable advice. No filler, no pep talks, no restating what the user already knows. Only go longer (up to 200 words) if the user asks for a full plan or detailed breakdown.
 - If meal ideas are requested, suggest 2 or 3 options that fit the user's remaining calories/macros for today.
 - Use the user's actual logged meals when available.
 
-MEMORY EXTRACTION (very important):
-- If the user's message reveals a long-lived fact about themselves that is NOT already in LONG-TERM MEMORY, append at the very end of your reply, on its own final line, exactly:
-  MEMORIES:[{"category":"<one of: injury|medical|diet|equipment|schedule|preference|dislike|goal|other>","fact":"<short third-person fact, max 200 chars>"}]
-- Multiple facts may be included as a JSON array. Do NOT wrap in markdown or code fences.
-- Only include facts that will still be relevant in a week (injuries, allergies, dietary rules, equipment owned, weekly schedule, strong preferences/dislikes, durable goals). Skip transient state like "I'm tired today" or "I ate pasta for lunch".
-- If there is nothing memorable, omit the MEMORIES line entirely. Never write an empty array.
-- Never reference the MEMORIES line in your visible reply.`)
+${profileSection}
 
   sections.push(profileSection)
   sections.push(memorySection)
@@ -612,9 +507,18 @@ MEMORY EXTRACTION (very important):
   sections.push(workoutsSection)
   sections.push(bodySection)
   sections.push(historySection)
+  if (ragContext) sections.push(ragContext)
   sections.push(`USER QUESTION: ${query}`)
 
-  return sections.join('\n\n')
+${nutritionSection}
+
+${workoutsSection}
+
+${bodySection}
+
+${historySection}
+
+USER QUESTION: ${query}`
 }
 
 Deno.serve(async (req) => {
@@ -628,32 +532,77 @@ Deno.serve(async (req) => {
     body = await req.json()
 
     if (body.audioBase64) {
-      if (!GROQ_KEY) {
-        return jsonResponse({ error: 'Speech transcription is not configured yet.' }, 503)
+      // ── Key guard ────────────────────────────────────────────────────────────
+      const useOpenAI = !!OPENAI_KEY
+      if (!useOpenAI && !GROQ_KEY) {
+        console.error('[ai-assistant] Missing AI API keys — set GROQ_API_KEY or OPENAI_API_KEY in Supabase secrets')
+        return jsonResponse({ error: 'Missing AI API Keys — configure GROQ_API_KEY in Supabase secrets.' }, 500)
       }
 
+      // ── Audio size guard ─────────────────────────────────────────────────────
+      // A valid 3-second m4a clip is at least ~3 KB. Anything smaller is a
+      // silent/empty file that Whisper will reject with a 400. Return a clean
+      // empty transcript so the passive loop retries instead of crashing.
+      if (!body.audioBase64 || body.audioBase64.length < 4000) {
+        console.log('[ai-assistant] Audio too short, skipping transcription (bytes:', body.audioBase64?.length ?? 0, ')')
+        return jsonResponse({ transcript: '' })
+      }
+
+      // Audio is 16 kHz mono m4a from the VAD recording — Whisper's native format.
       const bytes = Uint8Array.from(atob(body.audioBase64), (c) => c.charCodeAt(0))
-      const mime = body.mimeType ?? 'audio/m4a'
-      const ext = mime.includes('webm') ? 'webm' : mime.includes('wav') ? 'wav' : 'm4a'
-      const blob = new Blob([bytes], { type: mime })
-      const form = new FormData()
-      form.append('file', blob, `audio.${ext}`)
-      form.append('model', 'whisper-large-v3-turbo')
-      form.append('language', 'en')
-      form.append('response_format', 'json')
+      const mime  = body.mimeType ?? 'audio/m4a'
+      const ext   = mime.includes('webm') ? 'webm' : mime.includes('wav') ? 'wav' : 'm4a'
 
-      const sttRes = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${GROQ_KEY}` },
-        body: form,
-      })
-
-      const sttData = await sttRes.json().catch(() => ({}))
-      if (!sttRes.ok) {
-        return jsonResponse({ error: sttData?.error?.message ?? 'Speech transcription failed.' }, 503)
+      // ── Build FormData once per provider (FormData body is consumed on first fetch) ──
+      function buildForm(model: string) {
+        const blob = new Blob([bytes], { type: mime })
+        const f = new FormData()
+        f.append('file', blob, `audio.${ext}`)
+        f.append('model', model)
+        f.append('language', 'en')
+        f.append('response_format', 'json')
+        f.append('temperature', '0')
+        f.append('prompt', 'BodyQ app. Commands: Alexi, Profile, Fuel, Train, Insights, Log Water, Log Food, Log Weight.')
+        return f
       }
 
-      return jsonResponse({ transcript: sttData.text ?? '' })
+      // ── Primary: OpenAI Whisper-1 ────────────────────────────────────────────
+      if (useOpenAI) {
+        try {
+          const sttRes  = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${OPENAI_KEY}` },
+            body: buildForm('whisper-1'),
+          })
+          const sttData = await sttRes.json().catch(() => ({}))
+          console.log('[ai-assistant] OpenAI STT status:', sttRes.status, 'error:', sttData?.error?.message ?? 'none')
+          if (sttRes.ok) return jsonResponse({ transcript: sttData.text ?? '' })
+          // Fall through to Groq if key is also available
+          console.warn('[ai-assistant] OpenAI Whisper failed, trying Groq fallback')
+        } catch (e: any) {
+          console.error('[ai-assistant] OpenAI Whisper fetch crashed:', e?.message)
+        }
+        if (!GROQ_KEY) return jsonResponse({ error: 'Speech transcription failed (OpenAI error, no Groq fallback).' }, 503)
+      }
+
+      // ── Primary (or fallback): Groq whisper-large-v3-turbo ──────────────────
+      try {
+        const sttRes  = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${GROQ_KEY}` },
+          body: buildForm('whisper-large-v3-turbo'),
+        })
+        const sttData = await sttRes.json().catch(() => ({}))
+        console.log('[ai-assistant] Groq STT status:', sttRes.status, 'error:', sttData?.error?.message ?? 'none')
+        if (!sttRes.ok) {
+          console.error('[ai-assistant] Groq Whisper error body:', JSON.stringify(sttData))
+          return jsonResponse({ error: sttData?.error?.message ?? 'Groq speech transcription failed.' }, 503)
+        }
+        return jsonResponse({ transcript: sttData.text ?? '' })
+      } catch (e: any) {
+        console.error('[ai-assistant] Groq Whisper fetch crashed:', e?.message)
+        return jsonResponse({ error: `Groq fetch crashed: ${e?.message}` }, 503)
+      }
     }
 
     if (Array.isArray(body.messages)) {
@@ -697,7 +646,7 @@ Deno.serve(async (req) => {
     const supabase = getSupabaseAdmin()
     if (!supabase) {
       return jsonResponse({
-        response: buildFallbackResponse(query, defaultProfile(), null, null, clientContext?.today ?? null),
+        response: buildFallbackResponse(query, defaultProfile(), null, null),
         fallback: true,
         reason: 'Supabase service role key is missing in edge function secrets.',
       })
@@ -731,7 +680,17 @@ Deno.serve(async (req) => {
     const needs = classifyQuery(query)
     console.log(`[ai-assistant] Query classified: ${JSON.stringify(needs)}`)
 
-    const [rpcActivity, rpcNutrition, rpcWorkouts, rpcBodyMetrics, rpcAiHistory, memories, pendingEvents] = userId
+    const safeSemanticSearch = async (): Promise<string> => {
+      try {
+        const ragChunks = await semanticSearch(supabase, userId, query)
+        return buildRagContextSection(ragChunks)
+      } catch (err: any) {
+        console.error('[ai-assistant] semantic search failed (non-fatal):', err?.message ?? err)
+        return ''
+      }
+    }
+
+    const [rpcActivity, rpcNutrition, rpcWorkouts, rpcBodyMetrics, rpcAiHistory, memories, pendingEvents, ragContext] = userId
       ? await Promise.all([
           needs.activity ? safeRpc(supabase, 'get_user_full_activity_summary', { p_user_id: userId }) : Promise.resolve(null),
           needs.nutrition ? safeRpc(supabase, 'get_user_nutrition_summary', { p_user_id: userId }) : Promise.resolve(null),
@@ -740,11 +699,10 @@ Deno.serve(async (req) => {
           needs.history ? safeRpc(supabase, 'get_user_ai_history', { p_user_id: userId }) : Promise.resolve(null),
           fetchUserMemory(supabase, userId),
           fetchPendingYaraEvents(supabase, userId),
+          safeSemanticSearch(),
         ])
-      : [null, null, null, null, null, [] as MemoryRow[], [] as YaraEvent[]]
+      : [null, null, null, null, null, [] as MemoryRow[], [] as YaraEvent[], '']
 
-    // 30-day averages always come from RPCs (client-side "today" data is a separate section).
-    // Legacy clients may still send activity/nutrition as overrides — respected only if RPC returned null.
     const activity = rpcActivity ?? clientContext?.activity ?? null
     const nutrition = rpcNutrition ?? clientContext?.nutrition ?? null
     const workouts = rpcWorkouts ?? clientContext?.workouts ?? null
@@ -754,7 +712,7 @@ Deno.serve(async (req) => {
 
     if (!GROQ_KEY) {
       return jsonResponse({
-        response: buildFallbackResponse(query, profile, nutrition, activity, today),
+        response: buildFallbackResponse(query, profile, nutrition, activity),
         fallback: true,
         reason: 'GROQ_API_KEY is missing in edge function secrets.',
       })
@@ -762,7 +720,7 @@ Deno.serve(async (req) => {
 
     const prompt = buildPrompt(
       profile, today, activity, nutrition, workouts, bodyMetrics, aiHistory,
-      memories ?? [], pendingEvents ?? [], query, voiceMode,
+      memories ?? [], pendingEvents ?? [], query, voiceMode, ragContext,
     )
     const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -771,9 +729,9 @@ Deno.serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        max_tokens: 400,
-        temperature: 0.7,
+        model: llmModel,
+        max_tokens: llmMaxTok,
+        temperature: 0,
         messages: [{ role: 'user', content: prompt }],
       }),
     })
@@ -781,74 +739,67 @@ Deno.serve(async (req) => {
     const groqData = await groqRes.json().catch(() => ({}))
     if (!groqRes.ok) {
       return jsonResponse({
-        response: buildFallbackResponse(query, profile, nutrition, activity, today),
+        response: buildFallbackResponse(query, profile, nutrition, activity),
         fallback: true,
         reason: groqData?.error?.message ?? `Groq API error ${groqRes.status}`,
       })
     }
 
-    const rawResponse = groqData.choices?.[0]?.message?.content
-    if (!rawResponse) {
+    const aiResponse = groqData.choices?.[0]?.message?.content
+    if (!aiResponse) {
       return jsonResponse({
-        response: buildFallbackResponse(query, profile, nutrition, activity, today),
+        response: buildFallbackResponse(query, profile, nutrition, activity),
         fallback: true,
         reason: 'No response generated by Groq.',
       })
     }
 
-    // Split visible reply from any MEMORIES:[…] tail line and persist new facts.
-    const { cleaned: postMemory, facts: newFacts } = extractMemoriesFromResponse(rawResponse)
-    if (userId && newFacts.length > 0) {
-      console.log(`[ai-assistant] Extracted ${newFacts.length} new memory fact(s)`)
-      await Promise.all(newFacts.map((f) => storeMemoryFact(supabase, userId, f.category, f.fact)))
-    }
-
-    // Parse, execute, and strip COMMAND:{...} tool calls (Phase 3 #5). Runs
-    // in both text and voice mode now — actions are a first-class feature,
-    // not a voice-only hack.
-    const { cleaned: aiResponse, actions: parsedActions } = extractActionsFromResponse(postMemory)
-    let actionResults: ActionResult[] = []
-    if (userId && parsedActions.length > 0) {
-      actionResults = await executeActions(supabase, userId, parsedActions)
-      console.log(`[ai-assistant] Actions executed:`, actionResults.map((r) => `${r.action}:${r.ok ? 'ok' : 'fail'}`))
-    }
-
-    // Consume pending yara_events so they don't repeat in the next conversation.
-    if (userId && pendingEvents && pendingEvents.length > 0) {
-      await consumeYaraEvents(supabase, userId, pendingEvents.map((e) => e.id))
-    }
-
     console.log(`[ai-assistant] Tokens — input: ${groqData.usage?.prompt_tokens}, output: ${groqData.usage?.completion_tokens}`)
+
+    // Execute any COMMAND:{...} lines embedded in the reply (voice mode logging)
+    let executedCommands: string[] = []
+    if (voiceMode && userId && supabase) {
+      executedCommands = await executeVoiceCommands(supabase, userId, aiResponse)
+      if (executedCommands.length > 0) {
+        console.log(`[ai-assistant] Voice commands executed:`, executedCommands)
+      }
+    }
+
+    // Extract NAVIGATE command so the frontend can route immediately (no chat UI)
+    let navigateTo: string | null = null
+    if (voiceMode) {
+      const navMatch = aiResponse.match(/COMMAND:\{"action":"navigate","target":"([^"]+)"\}/i)
+      if (navMatch) navigateTo = navMatch[1]
+    }
+
+    // Strip COMMAND lines from the spoken reply so they aren't read aloud
+    const spokenResponse = aiResponse.replace(/COMMAND:\{[^\n]+\}/g, '').trim()
 
     if (userId) {
       await safeInsertInsight(supabase, {
         user_id: userId,
         insight_type: classifyInsightType(query),
-        message: aiResponse,
-        source: 'rag',
+        message: spokenResponse,
+        source: 'alexi',
         is_read: false,
       })
     }
 
     return jsonResponse({
-      response: aiResponse,
+      response: spokenResponse,
+      navigateTo,
       insight_type: classifyInsightType(query),
       model: 'llama-3.3-70b-versatile',
       usage: groqData.usage,
-      memories_added: newFacts.length,
-      actions: actionResults,
-      events_surfaced: pendingEvents?.length ?? 0,
-      // Legacy field: previous shape returned a string[] of successful commands.
-      // Keep as an alias so existing mobile clients don't break.
-      executed: actionResults.filter((r) => r.ok).map((r) => r.action),
       fallback: false,
+      executed: executedCommands,
     })
   } catch (err: any) {
     console.error('[ai-assistant] fatal error:', err?.message ?? err)
 
     if (body?.query) {
       return jsonResponse({
-        response: buildFallbackResponse(body.query, defaultProfile(), null, null, body?.clientContext?.today ?? null),
+        response: buildFallbackResponse(body.query, defaultProfile(), null, null),
         fallback: true,
         reason: err?.message ?? 'Unexpected edge function error.',
       })

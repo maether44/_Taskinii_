@@ -1,5 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-import { FS } from '../../constants/typography';
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -14,7 +13,7 @@ import {
 } from "react-native";
 import { searchFoodLibrary } from "../../services/foodScannerApi";
 import { useNutrition } from "../../hooks/useNutrition";
-import { error as logError } from '../../lib/logger';
+import { error as logError } from "../../lib/logger";
 
 const C = {
   bg: "#0F0B1E",
@@ -30,14 +29,17 @@ const C = {
 };
 
 function calcTotals(added) {
-  return added.reduce((acc, item) => {
-    return {
-      cal: acc.cal + (item.calories || 0),
-      p: Math.round((acc.p + (item.protein || 0)) * 10) / 10,
-      c: Math.round((acc.c + (item.carbs || 0)) * 10) / 10,
-      f: Math.round((acc.f + (item.fat || 0)) * 10) / 10,
-    };
-  }, { cal: 0, p: 0, c: 0, f: 0 });
+  return added.reduce(
+    (acc, item) => {
+      return {
+        cal: acc.cal + (item.calories || 0),
+        p: Math.round((acc.p + (item.protein || 0)) * 10) / 10,
+        c: Math.round((acc.c + (item.carbs || 0)) * 10) / 10,
+        f: Math.round((acc.f + (item.fat || 0)) * 10) / 10,
+      };
+    },
+    { cal: 0, p: 0, c: 0, f: 0 },
+  );
 }
 
 function scaleFood(food, quantity) {
@@ -113,9 +115,9 @@ export default function MealLogger() {
   }, [uniqueFoods, search]);
 
   const addFood = (food) => {
-    setAdded((prev) => prev.find((item) => item.foodId === food.id)
-      ? prev
-      : [...prev, scaleFood(food, 100)]);
+    setAdded((prev) =>
+      prev.find((item) => item.foodId === food.id) ? prev : [...prev, scaleFood(food, 100)],
+    );
     setTab("added");
   };
 
@@ -125,11 +127,13 @@ export default function MealLogger() {
 
   const updateQty = (foodId, quantity) => {
     const safeQty = Math.max(1, quantity);
-    setAdded((prev) => prev.map((item) => {
-      if (item.foodId !== foodId) return item;
-      const source = foods.find((food) => food.id === foodId);
-      return source ? scaleFood(source, safeQty) : item;
-    }));
+    setAdded((prev) =>
+      prev.map((item) => {
+        if (item.foodId !== foodId) return item;
+        const source = foods.find((food) => food.id === foodId);
+        return source ? scaleFood(source, safeQty) : item;
+      }),
+    );
   };
 
   const totals = calcTotals(added);
@@ -165,10 +169,16 @@ export default function MealLogger() {
           <Ionicons name="chevron-back" size={20} color={C.text} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={s.title}>{mealSlot.icon} {mealSlot.label}</Text>
+          <Text style={s.title}>
+            {mealSlot.icon} {mealSlot.label}
+          </Text>
           <Text style={s.subtitle}>Build this meal from the food library</Text>
         </View>
-        <TouchableOpacity style={[s.saveBtn, (!added.length || saving) && s.saveBtnOff]} onPress={handleSave} disabled={!added.length || saving}>
+        <TouchableOpacity
+          style={[s.saveBtn, (!added.length || saving) && s.saveBtnOff]}
+          onPress={handleSave}
+          disabled={!added.length || saving}
+        >
           <Text style={s.saveTxt}>{saving ? "Saving" : "Save"}</Text>
         </TouchableOpacity>
       </View>
@@ -187,18 +197,16 @@ export default function MealLogger() {
         ))}
       </View>
 
-      <TouchableOpacity style={s.customMealBanner} onPress={() => navigation.navigate("CustomMealBuilder", { initialMealType: mealSlot.id })}>
-        <Ionicons name="restaurant-outline" size={16} color={C.lime} />
-        <Text style={s.customMealBannerTxt}>Build a Custom Meal</Text>
-        <Ionicons name="chevron-forward" size={14} color={C.lime} />
-      </TouchableOpacity>
-
       <View style={s.tabs}>
         {[
           { id: "search", label: "Food library" },
           { id: "added", label: `Added (${added.length})` },
         ].map((item) => (
-          <TouchableOpacity key={item.id} style={[s.tab, tab === item.id && s.tabActive]} onPress={() => setTab(item.id)}>
+          <TouchableOpacity
+            key={item.id}
+            style={[s.tab, tab === item.id && s.tabActive]}
+            onPress={() => setTab(item.id)}
+          >
             <Text style={[s.tabTxt, tab === item.id && s.tabTxtActive]}>{item.label}</Text>
           </TouchableOpacity>
         ))}
@@ -234,21 +242,31 @@ export default function MealLogger() {
               data={filtered}
               keyExtractor={(item) => String(item.id)}
               contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
-              ListEmptyComponent={(
+              ListEmptyComponent={
                 <View style={s.emptyState}>
-                  <Text style={s.emptyTitle}>{search ? "No matching foods" : "Search our food library"}</Text>
-                  <Text style={s.emptySub}>{search ? "Try a different food name or brand." : "Tap a suggestion or type a food to search OpenFoodFacts."}</Text>
+                  <Text style={s.emptyTitle}>
+                    {search ? "No matching foods" : "Search our food library"}
+                  </Text>
+                  <Text style={s.emptySub}>
+                    {search
+                      ? "Try a different food name or brand."
+                      : "Tap a suggestion or type a food to search OpenFoodFacts."}
+                  </Text>
                   {!search && (
                     <View style={s.suggestionRow}>
                       {["Banana", "Greek Yogurt", "Chicken Breast", "Oats", "Eggs"].map((term) => (
-                        <TouchableOpacity key={term} style={s.suggestionChip} onPress={() => setSearch(term)}>
+                        <TouchableOpacity
+                          key={term}
+                          style={s.suggestionChip}
+                          onPress={() => setSearch(term)}
+                        >
                           <Text style={s.suggestionTxt}>{term}</Text>
                         </TouchableOpacity>
                       ))}
                     </View>
                   )}
                 </View>
-              )}
+              }
               renderItem={({ item }) => {
                 const isAdded = added.some((addedItem) => addedItem.foodId === item.id);
                 return (
@@ -256,10 +274,16 @@ export default function MealLogger() {
                     <View style={{ flex: 1 }}>
                       <Text style={s.foodName}>{item.name}</Text>
                       <Text style={s.foodMeta}>
-                        {Math.round(item.calories_per_100g || 0)} kcal per 100g • {Math.round(item.protein_per_100g || 0)}g P • {Math.round(item.carbs_per_100g || 0)}g C • {Math.round(item.fat_per_100g || 0)}g F
+                        {Math.round(item.calories_per_100g || 0)} kcal per 100g •{" "}
+                        {Math.round(item.protein_per_100g || 0)}g P •{" "}
+                        {Math.round(item.carbs_per_100g || 0)}g C •{" "}
+                        {Math.round(item.fat_per_100g || 0)}g F
                       </Text>
                     </View>
-                    <TouchableOpacity style={[s.addBtn, isAdded && s.addBtnDone]} onPress={() => isAdded ? removeFood(item.id) : addFood(item)}>
+                    <TouchableOpacity
+                      style={[s.addBtn, isAdded && s.addBtnDone]}
+                      onPress={() => (isAdded ? removeFood(item.id) : addFood(item))}
+                    >
                       <Text style={s.addBtnTxt}>{isAdded ? "✓" : "+"}</Text>
                     </TouchableOpacity>
                   </View>
@@ -275,21 +299,31 @@ export default function MealLogger() {
           {!added.length ? (
             <View style={s.emptyState}>
               <Text style={s.emptyTitle}>No foods added yet</Text>
-              <Text style={s.emptySub}>Search your saved foods and build this meal piece by piece.</Text>
+              <Text style={s.emptySub}>
+                Search your saved foods and build this meal piece by piece.
+              </Text>
             </View>
           ) : (
             added.map((item) => (
               <View key={item.foodId} style={s.addedRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={s.foodName}>{item.foodName}</Text>
-                  <Text style={s.foodMeta}>{item.calories} kcal • {item.protein}g P • {item.carbs}g C • {item.fat}g F</Text>
+                  <Text style={s.foodMeta}>
+                    {item.calories} kcal • {item.protein}g P • {item.carbs}g C • {item.fat}g F
+                  </Text>
                 </View>
                 <View style={s.qtyControl}>
-                  <TouchableOpacity style={s.qtyBtn} onPress={() => updateQty(item.foodId, item.quantity - 25)}>
+                  <TouchableOpacity
+                    style={s.qtyBtn}
+                    onPress={() => updateQty(item.foodId, item.quantity - 25)}
+                  >
                     <Ionicons name="remove" size={14} color={C.accent} />
                   </TouchableOpacity>
                   <Text style={s.qtyVal}>{item.quantity}g</Text>
-                  <TouchableOpacity style={s.qtyBtn} onPress={() => updateQty(item.foodId, item.quantity + 25)}>
+                  <TouchableOpacity
+                    style={s.qtyBtn}
+                    onPress={() => updateQty(item.foodId, item.quantity + 25)}
+                  >
                     <Ionicons name="add" size={14} color={C.accent} />
                   </TouchableOpacity>
                 </View>
@@ -328,14 +362,32 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  title: { color: C.text, fontSize: FS.sectionTitle, fontWeight: "800" },
-  subtitle: { color: C.sub, fontSize: FS.btnSecondary, marginTop: 3 },
-  saveBtn: { backgroundColor: C.purple, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10 },
+  title: { color: C.text, fontSize: 20, fontWeight: "800" },
+  subtitle: { color: C.sub, fontSize: 12, marginTop: 3 },
+  saveBtn: {
+    backgroundColor: C.purple,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
   saveBtnOff: { opacity: 0.45 },
-  saveTxt: { color: "#fff", fontSize: FS.body, fontWeight: "800" },
-  suggestionRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 12, paddingHorizontal: 8 },
-  suggestionChip: { backgroundColor: "#1B1637", borderRadius: 14, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: "#2D2850" },
-  suggestionTxt: { color: "#C8F135", fontSize: FS.btnSecondary, fontWeight: "700" },
+  saveTxt: { color: "#fff", fontSize: 13, fontWeight: "800" },
+  suggestionRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 12,
+    paddingHorizontal: 8,
+  },
+  suggestionChip: {
+    backgroundColor: "#1B1637",
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: "#2D2850",
+  },
+  suggestionTxt: { color: "#C8F135", fontSize: 12, fontWeight: "700" },
   totalsBar: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -354,8 +406,8 @@ const s = StyleSheet.create({
     paddingVertical: 10,
     marginHorizontal: 4,
   },
-  totalVal: { color: C.text, fontSize: FS.bodyLarge, fontWeight: "800" },
-  totalLbl: { color: C.sub, fontSize: FS.sub, marginTop: 3 },
+  totalVal: { color: C.text, fontSize: 16, fontWeight: "800" },
+  totalLbl: { color: C.sub, fontSize: 11, marginTop: 3 },
   tabs: { flexDirection: "row", paddingHorizontal: 16, paddingTop: 14, gap: 10 },
   tab: {
     flex: 1,
@@ -367,7 +419,7 @@ const s = StyleSheet.create({
     borderColor: C.border,
   },
   tabActive: { backgroundColor: `${C.purple}20`, borderColor: `${C.purple}35` },
-  tabTxt: { color: C.sub, fontSize: FS.body, fontWeight: "700" },
+  tabTxt: { color: C.sub, fontSize: 13, fontWeight: "700" },
   tabTxtActive: { color: C.text },
   searchWrap: {
     flexDirection: "row",
@@ -381,20 +433,12 @@ const s = StyleSheet.create({
     borderColor: C.border,
     gap: 8,
   },
-  searchInput: { flex: 1, color: C.text, fontSize: FS.bodyLarge },
-  searchError: { color: "#FF8787", fontSize: FS.btnSecondary, marginHorizontal: 16, marginTop: 8 },
-  customMealBanner: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    marginHorizontal: 16, marginTop: 14, marginBottom: 4,
-    paddingHorizontal: 16, paddingVertical: 12,
-    backgroundColor: `${C.lime}10`, borderRadius: 14,
-    borderWidth: 1, borderColor: `${C.lime}30`,
-  },
-  customMealBannerTxt: { flex: 1, color: C.lime, fontSize: FS.body, fontWeight: "700" },
-  loadingTxt: { color: C.sub, fontSize: FS.body, marginTop: 10 },
+  searchInput: { flex: 1, color: C.text, fontSize: 15 },
+  searchError: { color: "#FF8787", fontSize: 12, marginHorizontal: 16, marginTop: 8 },
+  loadingTxt: { color: C.sub, fontSize: 13, marginTop: 10 },
   emptyState: { alignItems: "center", paddingTop: 48, paddingHorizontal: 24 },
-  emptyTitle: { color: C.text, fontSize: FS.cardTitle, fontWeight: "700", textAlign: "center" },
-  emptySub: { color: C.sub, fontSize: FS.body, lineHeight: 19, marginTop: 6, textAlign: "center" },
+  emptyTitle: { color: C.text, fontSize: 17, fontWeight: "700", textAlign: "center" },
+  emptySub: { color: C.sub, fontSize: 13, lineHeight: 19, marginTop: 6, textAlign: "center" },
   foodRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -407,8 +451,8 @@ const s = StyleSheet.create({
     marginBottom: 10,
   },
   foodRowAdded: { borderColor: `${C.purple}40`, backgroundColor: `${C.purple}10` },
-  foodName: { color: C.text, fontSize: FS.btnPrimary, fontWeight: "700" },
-  foodMeta: { color: C.sub, fontSize: FS.sub, marginTop: 4, lineHeight: 16 },
+  foodName: { color: C.text, fontSize: 14, fontWeight: "700" },
+  foodMeta: { color: C.sub, fontSize: 11, marginTop: 4, lineHeight: 16 },
   addBtn: {
     width: 34,
     height: 34,
@@ -418,7 +462,7 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   addBtnDone: { backgroundColor: C.lime },
-  addBtnTxt: { color: "#fff", fontSize: FS.cardTitle, fontWeight: "800" },
+  addBtnTxt: { color: "#fff", fontSize: 18, fontWeight: "800" },
   addedScroll: { padding: 16 },
   addedRow: {
     flexDirection: "row",
@@ -442,6 +486,6 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  qtyVal: { color: C.text, fontSize: FS.body, fontWeight: "700", minWidth: 46, textAlign: "center" },
+  qtyVal: { color: C.text, fontSize: 13, fontWeight: "700", minWidth: 46, textAlign: "center" },
   deleteBtn: { padding: 4 },
 });

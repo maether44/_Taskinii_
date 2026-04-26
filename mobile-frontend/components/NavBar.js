@@ -1,54 +1,32 @@
-import React from 'react';
-import { Image, View } from 'react-native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createStackNavigator } from '@react-navigation/stack';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useAuth } from '../context/AuthContext';
+import React from "react";
+import { View } from "react-native";
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { createStackNavigator } from "@react-navigation/stack";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useTheme } from "../context/ThemeContext";
 
 // Screens
-import Home from '../screens/Home';
-import Nutrition from '../screens/Nutrition';
-import Insights from '../screens/Insights';
-import Profile from '../screens/Profile';
-import Settings from '../screens/Settings';
-import Training from '../screens/Training';
-import ExerciseList from '../screens/ExerciseList';
-import ExerciseInfo from '../screens/ExerciseInfo';
-import WorkoutActive from '../screens/workout/WorkoutActive';
-import WorkoutSummary from '../screens/workout/WorkoutSummary';
-import PostureAI from '../screens/PostureAI';
-
-// New screens
-import EditProfileScreen from '../screens/Editprofilescreen';
-import WorkoutHistoryScreen from '../screens/Workouthistoryscreen';
-import HelpCenter from '../screens/settings/HelpCenter';
-import ReportProblem from '../screens/settings/ReportProblem';
-import TermsPolicies from '../screens/settings/TermsPolicies';
-import TrustCenter from '../screens/settings/TrustCenter';
+import Home from "../screens/Home";
+import Nutrition from "../screens/Nutrition";
+import Insights from "../screens/Insights";
+import Profile from "../screens/Profile";
+import Settings from "../screens/Settings";
+import Training from "../screens/Training";
+import ExerciseList from "../screens/ExerciseList";
+import ExerciseInfo from "../screens/ExerciseInfo";
+import WorkoutActive from "../screens/workout/WorkoutActive";
+import WorkoutSummary from "../screens/workout/WorkoutSummary";
+import FlappyBirdGame from "../screens/workout/FlappyBirdGame";
+import PostureAI from "../screens/PostureAI";
+import EditProfileScreen from "../screens/Editprofilescreen";
+import WorkoutHistoryScreen from "../screens/Workouthistoryscreen";
+import HelpCenter from "../screens/settings/HelpCenter";
+import ReportProblem from "../screens/settings/ReportProblem";
+import TermsPolicies from "../screens/settings/TermsPolicies";
+import TrustCenter from "../screens/settings/TrustCenter";
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
-
-function TrainingStack() {
-  return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="TrainingHub" component={Training} />
-      <Stack.Screen name="ExerciseList" component={ExerciseList} />
-      <Stack.Screen name="ExerciseInfo" component={ExerciseInfo} />
-      <Stack.Screen name="PostureAI" component={PostureAI} />
-      <Stack.Screen
-        name="WorkoutActive"
-        component={WorkoutActive}
-        options={{ tabBarStyle: { display: 'none' } }}
-      />
-      <Stack.Screen
-        name="WorkoutSummary"
-        component={WorkoutSummary}
-        options={{ tabBarStyle: { display: 'none' } }}
-      />
-    </Stack.Navigator>
-  );
-}
 
 function ProfileStack() {
   return (
@@ -65,21 +43,44 @@ function ProfileStack() {
   );
 }
 
-export default function NavBar() {
-  const { profileAvatarUri } = useAuth();
-  const hasProfileAvatar =
-    typeof profileAvatarUri === 'string' && profileAvatarUri.trim().length > 0;
-
+function TrainingStack() {
   return (
-    <View style={{ flex: 1 }}>
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="TrainingHub" component={Training} />
+      <Stack.Screen name="ExerciseList" component={ExerciseList} />
+      <Stack.Screen name="ExerciseInfo" component={ExerciseInfo} />
+      <Stack.Screen name="PostureAI" component={PostureAI} />
+      <Stack.Screen
+        name="WorkoutActive"
+        component={WorkoutActive}
+        options={{ tabBarStyle: { display: "none" } }}
+      />
+      <Stack.Screen
+        name="WorkoutSummary"
+        component={WorkoutSummary}
+        options={{ tabBarStyle: { display: "none" } }}
+      />
+      <Stack.Screen
+        name="FlappyBirdGame"
+        component={FlappyBirdGame}
+        options={{ tabBarStyle: { display: "none" } }}
+      />
+    </Stack.Navigator>
+  );
+}
+
+export default function NavBar() {
+  const { colors } = useTheme();
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <Tab.Navigator
         screenOptions={{
           headerShown: false,
-          tabBarActiveTintColor: '#C8F135',
-          tabBarInactiveTintColor: '#6B5F8A',
+          tabBarActiveTintColor: colors.tabActive,
+          tabBarInactiveTintColor: colors.tabInactive,
           tabBarStyle: {
-            backgroundColor: '#0F0B1E',
-            borderTopColor: '#1E1A35',
+            backgroundColor: colors.tabBar,
+            borderTopColor: colors.tabBorder,
             height: 85,
             paddingBottom: 20,
           },
@@ -121,29 +122,7 @@ export default function NavBar() {
           name="Profile"
           component={ProfileStack}
           options={{
-            tabBarLabel: hasProfileAvatar ? () => null : undefined,
-            tabBarIconStyle: hasProfileAvatar ? { marginTop: 8 } : undefined,
-            tabBarIcon: ({ color, focused }) =>
-              hasProfileAvatar ? (
-                <View
-                  style={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: 17,
-                    overflow: 'hidden',
-                    borderWidth: 2,
-                    borderColor: focused ? '#C8F135' : '#3d3f1e',
-                  }}
-                >
-                  <Image
-                    source={{ uri: profileAvatarUri }}
-                    style={{ width: '100%', height: '100%' }}
-                    resizeMode="cover"
-                  />
-                </View>
-              ) : (
-                <Ionicons name="person" size={24} color={color} />
-              ),
+            tabBarIcon: ({ color }) => <Ionicons name="person" size={24} color={color} />,
           }}
         />
       </Tab.Navigator>

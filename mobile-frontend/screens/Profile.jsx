@@ -1,13 +1,13 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useFocusEffect } from '@react-navigation/native';
-import { useNavigation } from '@react-navigation/native';
-import { useAuth } from '../context/AuthContext';
-import { supabase } from '../lib/supabase';
-import { AppEvents, emit, on } from '../lib/eventBus';
-import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Notifications from 'expo-notifications';
+import { useState, useEffect, useCallback } from "react";
+import { useFocusEffect } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
+import { useAuth } from "../context/AuthContext";
+import { supabase } from "../lib/supabase";
+import { AppEvents, emit, on } from "../lib/eventBus";
+import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Notifications from "expo-notifications";
 import {
   ActivityIndicator,
   Alert,
@@ -26,46 +26,47 @@ import {
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { error as logError } from '../lib/logger';
-import { calcMacroTargets, normalizeGoal } from '../lib/calculations';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { error as logError } from "../lib/logger";
+import { calcMacroTargets, normalizeGoal } from "../lib/calculations";
 import {
   AVATAR_BUCKET,
   buildAvatarPath,
   getLocalAvatarForUser,
   saveLocalAvatarForUser,
-} from '../lib/avatar';
+} from "../lib/avatar";
+import { refreshAfterProfileUpdate } from "../services/embeddingService";
 
 const C = {
-  bg: '#0F0B1E',
-  card: '#161230',
-  border: '#1E1A35',
-  purple: '#7C5CFC',
-  lime: '#C8F135',
-  accent: '#9D85F5',
-  text: '#FFFFFF',
-  sub: '#6B5F8A',
-  green: '#34C759',
-  orange: '#FF9500',
+  bg: "#0F0B1E",
+  card: "#161230",
+  border: "#1E1A35",
+  purple: "#7C5CFC",
+  lime: "#C8F135",
+  accent: "#9D85F5",
+  text: "#FFFFFF",
+  sub: "#6B5F8A",
+  green: "#34C759",
+  orange: "#FF9500",
 };
 
 const GOAL_LABELS = {
-  lose_fat: 'Lose Fat 🔥',
-  fat_loss: 'Lose Fat 🔥',
-  gain_muscle: 'Build Muscle 💪',
-  muscle_gain: 'Build Muscle 💪',
-  maintain: 'Stay Fit ⚖️',
-  gain_weight: 'Gain Weight 🍽️',
-  build_habits: 'Build Habits 🧠',
+  lose_fat: "Lose Fat 🔥",
+  fat_loss: "Lose Fat 🔥",
+  gain_muscle: "Build Muscle 💪",
+  muscle_gain: "Build Muscle 💪",
+  maintain: "Stay Fit ⚖️",
+  gain_weight: "Gain Weight 🍽️",
+  build_habits: "Build Habits 🧠",
 };
 
 const ACTIVITY_LABELS = {
-  sedentary: 'Sedentary',
-  light: 'Lightly Active',
-  moderate: 'Moderately Active',
-  active: 'Very Active',
-  very_active: 'Athlete',
+  sedentary: "Sedentary",
+  light: "Lightly Active",
+  moderate: "Moderately Active",
+  active: "Very Active",
+  very_active: "Athlete",
 };
 
 const ACTIVITY_MULT = {
@@ -83,32 +84,32 @@ const TIME_TO_HOUR = {
   any: 8,
 };
 
-const HELP_CENTER_URL = 'https://github.com/maether44/BodyQ#readme';
-const REPORT_ISSUE_URL = 'https://github.com/maether44/BodyQ/issues/new';
+const HELP_CENTER_URL = "https://github.com/maether44/BodyQ#readme";
+const REPORT_ISSUE_URL = "https://github.com/maether44/BodyQ/issues/new";
 
-const NOTIFICATION_PREFS_KEY = 'bodyq_notification_prefs';
+const NOTIFICATION_PREFS_KEY = "bodyq_notification_prefs";
 
 const EDITABLE_GOALS = [
-  { id: 'lose_fat', label: 'Lose Fat' },
-  { id: 'gain_muscle', label: 'Build Muscle' },
-  { id: 'gain_weight', label: 'Gain Weight' },
-  { id: 'maintain', label: 'Stay Fit' },
-  { id: 'build_habits', label: 'Build Habits' },
+  { id: "lose_fat", label: "Lose Fat" },
+  { id: "gain_muscle", label: "Build Muscle" },
+  { id: "gain_weight", label: "Gain Weight" },
+  { id: "maintain", label: "Stay Fit" },
+  { id: "build_habits", label: "Build Habits" },
 ];
 
-const EDITABLE_GENDERS = ['male', 'female', 'other'];
+const EDITABLE_GENDERS = ["male", "female", "other"];
 
 function getEncouragement(level) {
   const messages = [
-    'Welcome to BodyQ! Start your fitness journey today.',
-    'Great start! Keep up the momentum.',
+    "Welcome to BodyQ! Start your fitness journey today.",
+    "Great start! Keep up the momentum.",
     "You're building habits! Consistency is key.",
-    'Halfway there! Your body is transforming.',
+    "Halfway there! Your body is transforming.",
     "Amazing progress! You're a fitness enthusiast now.",
     "Elite level! You're inspiring others.",
     "Legend status! You've mastered the game.",
   ];
-  return messages[Math.min(level - 1, messages.length - 1)] || 'Keep pushing your limits!';
+  return messages[Math.min(level - 1, messages.length - 1)] || "Keep pushing your limits!";
 }
 
 function calcAgeFromISO(isoDate) {
@@ -125,7 +126,7 @@ function calcAgeFromISO(isoDate) {
 function calcBMRDirect(gender, weightKg, heightCm, age) {
   if (!weightKg || !heightCm || !age) return 0;
   return Math.round(
-    gender === 'female'
+    gender === "female"
       ? 10 * weightKg + 6.25 * heightCm - 5 * age - 161
       : 10 * weightKg + 6.25 * heightCm - 5 * age + 5,
   );
@@ -135,7 +136,7 @@ function Row({ label, value, color }) {
   return (
     <View style={s.statRow}>
       <Text style={s.statLabel}>{label}</Text>
-      <Text style={[s.statValue, color && { color }]}>{value ?? '—'}</Text>
+      <Text style={[s.statValue, color && { color }]}>{value ?? "—"}</Text>
     </View>
   );
 }
@@ -160,13 +161,13 @@ export default function Profile({ replayTour }) {
   const [showAllAchievements, setShowAllAchievements] = useState(false);
 
   const [editForm, setEditForm] = useState({
-    full_name: '',
-    gender: 'male',
-    height_cm: '',
-    weight_kg: '',
-    target_weight_kg: '',
-    goal: 'maintain',
-    activity_level: 'moderate',
+    full_name: "",
+    gender: "male",
+    height_cm: "",
+    weight_kg: "",
+    target_weight_kg: "",
+    goal: "maintain",
+    activity_level: "moderate",
   });
 
   const loadProfileData = useCallback(async () => {
@@ -176,30 +177,30 @@ export default function Profile({ replayTour }) {
       const localAvatarUri = await getLocalAvatarForUser(authUser.id).catch(() => null);
       const [{ data: cal }, profileResult] = await Promise.all([
         supabase
-          .from('calorie_targets')
-          .select('daily_calories, protein_target')
-          .eq('user_id', authUser.id)
-          .order('effective_from', { ascending: false })
+          .from("calorie_targets")
+          .select("daily_calories, protein_target")
+          .eq("user_id", authUser.id)
+          .order("effective_from", { ascending: false })
           .limit(1)
           .maybeSingle(),
         supabase
-          .from('profiles')
+          .from("profiles")
           .select(
-            'full_name, bio, city, country, date_of_birth, gender, height_cm, weight_kg, goal, activity_level, target_weight_kg, avatar_url',
+            "full_name, bio, city, country, date_of_birth, gender, height_cm, weight_kg, goal, activity_level, target_weight_kg, avatar_url",
           )
-          .eq('id', authUser.id)
+          .eq("id", authUser.id)
           .single(),
       ]);
 
       let prof = profileResult?.data;
 
-      if (profileResult?.error && /avatar_url/i.test(profileResult.error.message || '')) {
+      if (profileResult?.error && /avatar_url/i.test(profileResult.error.message || "")) {
         const { data: fallbackProf, error: fallbackError } = await supabase
-          .from('profiles')
+          .from("profiles")
           .select(
-            'full_name, bio, city, country, date_of_birth, gender, height_cm, weight_kg, goal, activity_level, target_weight_kg, xp_current, level',
+            "full_name, bio, city, country, date_of_birth, gender, height_cm, weight_kg, goal, activity_level, target_weight_kg, xp_current, level",
           )
-          .eq('id', authUser.id)
+          .eq("id", authUser.id)
           .single();
         if (fallbackError) throw fallbackError;
         prof = fallbackProf;
@@ -224,7 +225,7 @@ export default function Profile({ replayTour }) {
       }
 
       try {
-        const { data: xpData, error: xpError } = await supabase.rpc('get_user_level_info', {
+        const { data: xpData, error: xpError } = await supabase.rpc("get_user_level_info", {
           p_user_id: authUser.id,
         });
         setXpInfo(
@@ -235,7 +236,7 @@ export default function Profile({ replayTour }) {
       }
 
       try {
-        const { data: achData, error: achError } = await supabase.rpc('get_all_achievements', {
+        const { data: achData, error: achError } = await supabase.rpc("get_all_achievements", {
           p_user_id: authUser.id,
         });
         setAchievements(!achError && achData?.achievements ? achData.achievements : []);
@@ -243,8 +244,8 @@ export default function Profile({ replayTour }) {
         setAchievements([]);
       }
     } catch (error) {
-      logError('Profile screen load error:', error);
-      Alert.alert('Profile load issue', 'We could not load your latest profile details right now.');
+      logError("Profile screen load error:", error);
+      Alert.alert("Profile load issue", "We could not load your latest profile details right now.");
     } finally {
       setLoadingProfile(false);
     }
@@ -291,31 +292,31 @@ export default function Profile({ replayTour }) {
 
   if (loadingProfile) {
     return (
-      <View style={[s.root, { justifyContent: 'center', alignItems: 'center' }]}>
+      <View style={[s.root, { justifyContent: "center", alignItems: "center" }]}>
         <ActivityIndicator color={C.purple} size="large" />
       </View>
     );
   }
 
-  const name = profile?.full_name || authUser?.user_metadata?.full_name || 'User';
+  const name = profile?.full_name || authUser?.user_metadata?.full_name || "User";
   const age = calcAgeFromISO(profile?.date_of_birth);
-  const gender = profile?.gender || 'male';
+  const gender = profile?.gender || "male";
   const heightCm = profile?.height_cm;
   const weightKg = profile?.weight_kg;
   const goalWeightKg = profile?.target_weight_kg;
-  const activityLevel = profile?.activity_level || 'moderate';
-  const goal = normalizeGoal(profile?.goal) || 'maintain';
+  const activityLevel = profile?.activity_level || "moderate";
+  const goal = normalizeGoal(profile?.goal) || "maintain";
   const avatarUri = profile?.avatar_url || null;
 
   const bmr = calcBMRDirect(gender, weightKg, heightCm, age);
   const tdee = bmr ? Math.round(bmr * (ACTIVITY_MULT[activityLevel] || 1.55)) : 0;
   const calTarget =
     calorieTarget ||
-    (goal === 'lose_fat'
+    (goal === "lose_fat"
       ? tdee - 400
-      : goal === 'gain_muscle'
+      : goal === "gain_muscle"
         ? tdee + 200
-        : goal === 'gain_weight'
+        : goal === "gain_weight"
           ? tdee + 400
           : tdee);
   const protein = proteinTarget || (weightKg ? Math.round(weightKg * 2) : 0);
@@ -323,34 +324,34 @@ export default function Profile({ replayTour }) {
   const bmiVal = heightCm && weightKg ? (weightKg / (heightCm / 100) ** 2).toFixed(1) : null;
   const bmiNum = bmiVal ? parseFloat(bmiVal) : null;
   const bmiStatus = !bmiNum
-    ? '—'
+    ? "—"
     : bmiNum < 18.5
-      ? 'Underweight'
+      ? "Underweight"
       : bmiNum < 25
-        ? 'Normal'
+        ? "Normal"
         : bmiNum < 30
-          ? 'Overweight'
-          : 'Obese';
+          ? "Overweight"
+          : "Obese";
   const bmiColor = bmiNum >= 18.5 && bmiNum < 25 ? C.green : C.orange;
   const goalNote =
-    goal === 'lose_fat'
-      ? '400 kcal deficit for steady fat loss (~0.4 kg/week)'
-      : goal === 'gain_muscle'
-        ? '200 kcal surplus for lean muscle building'
-        : 'Maintenance calories — staying fit and healthy';
+    goal === "lose_fat"
+      ? "400 kcal deficit for steady fat loss (~0.4 kg/week)"
+      : goal === "gain_muscle"
+        ? "200 kcal surplus for lean muscle building"
+        : "Maintenance calories — staying fit and healthy";
   const goalDescription =
-    goal === 'gain_weight' ? '400 kcal surplus to support healthy weight gain' : goalNote;
+    goal === "gain_weight" ? "400 kcal surplus to support healthy weight gain" : goalNote;
 
   // ── Edit Body Stats ────────────────────────────────────────────────────────
   const openEditModal = () => {
     setEditForm({
-      full_name: profile?.full_name || name || '',
-      gender: gender || 'male',
-      height_cm: heightCm ? String(heightCm) : '',
-      weight_kg: weightKg ? String(weightKg) : '',
-      target_weight_kg: goalWeightKg ? String(goalWeightKg) : '',
-      goal: goal || 'maintain',
-      activity_level: activityLevel || 'moderate',
+      full_name: profile?.full_name || name || "",
+      gender: gender || "male",
+      height_cm: heightCm ? String(heightCm) : "",
+      weight_kg: weightKg ? String(weightKg) : "",
+      target_weight_kg: goalWeightKg ? String(goalWeightKg) : "",
+      goal: goal || "maintain",
+      activity_level: activityLevel || "moderate",
     });
     setEditVisible(true);
   };
@@ -364,16 +365,16 @@ export default function Profile({ replayTour }) {
       await AsyncStorage.setItem(NOTIFICATION_PREFS_KEY, JSON.stringify(nextPrefs));
 
       const { status } = await Notifications.getPermissionsAsync();
-      if (status !== 'granted') {
+      if (status !== "granted") {
         console.log(
-          '[ProfileNotifications] Workout toggle changed, but notification permission is not granted.',
+          "[ProfileNotifications] Workout toggle changed, but notification permission is not granted.",
         );
         return;
       }
 
       const scheduled = await Notifications.getAllScheduledNotificationsAsync();
       const workoutScheduled = scheduled.filter(
-        (n) => n.identifier === 'workout-time' || n.identifier.startsWith('workout-'),
+        (n) => n.identifier === "workout-time" || n.identifier.startsWith("workout-"),
       );
       await Promise.all(
         workoutScheduled.map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier)),
@@ -381,9 +382,9 @@ export default function Profile({ replayTour }) {
 
       if (nextValue) {
         const { data: profileData } = await supabase
-          .from('profiles')
-          .select('preferred_workout_time')
-          .eq('id', authUser.id)
+          .from("profiles")
+          .select("preferred_workout_time")
+          .eq("id", authUser.id)
           .maybeSingle();
 
         const hour = TIME_TO_HOUR[profileData?.preferred_workout_time] ?? 8;
@@ -395,18 +396,18 @@ export default function Profile({ replayTour }) {
         }
 
         const workoutBody =
-          profileData?.preferred_workout_time === 'any'
+          profileData?.preferred_workout_time === "any"
             ? "Don't forget to workout!"
-            : 'Time to exercise!';
+            : "Time to exercise!";
 
         await Notifications.scheduleNotificationAsync({
-          identifier: 'workout-time',
+          identifier: "workout-time",
           content: {
-            title: 'BodyQ',
+            title: "BodyQ",
             body: workoutBody,
             sound: true,
           },
-          trigger: { type: 'date', date: reminderTime },
+          trigger: { type: "date", date: reminderTime },
         });
         console.log(
           `[ProfileNotifications] Workout reminders toggled on. Scheduled reminder for ${reminderTime.toLocaleString()}.`,
@@ -418,7 +419,7 @@ export default function Profile({ replayTour }) {
         `[ProfileNotifications] Workout reminders toggled off. Cancelled ${workoutScheduled.length} scheduled reminder(s).`,
       );
     } catch (error) {
-      logError('[ProfileNotifications] Failed to cancel workout reminders:', error);
+      logError("[ProfileNotifications] Failed to cancel workout reminders:", error);
     }
   };
 
@@ -429,14 +430,14 @@ export default function Profile({ replayTour }) {
       await AsyncStorage.setItem(NOTIFICATION_PREFS_KEY, JSON.stringify(nextPrefs));
 
       const { status } = await Notifications.getPermissionsAsync();
-      if (status !== 'granted') {
+      if (status !== "granted") {
         console.log(
-          '[ProfileNotifications] Water toggle changed, but notification permission is not granted.',
+          "[ProfileNotifications] Water toggle changed, but notification permission is not granted.",
         );
         return;
       }
 
-      await Notifications.cancelScheduledNotificationAsync('hydration-5pm').catch(() => {});
+      await Notifications.cancelScheduledNotificationAsync("hydration-5pm").catch(() => {});
 
       if (nextValue) {
         const now = new Date();
@@ -447,13 +448,13 @@ export default function Profile({ replayTour }) {
         }
 
         await Notifications.scheduleNotificationAsync({
-          identifier: 'hydration-5pm',
+          identifier: "hydration-5pm",
           content: {
-            title: 'BodyQ',
-            body: 'Reminder to drink water! 💧',
+            title: "BodyQ",
+            body: "Reminder to drink water! 💧",
             sound: true,
           },
-          trigger: { type: 'date', date: reminderTime },
+          trigger: { type: "date", date: reminderTime },
         });
         console.log(
           `[ProfileNotifications] Water reminders toggled on. Scheduled reminder for ${reminderTime.toLocaleString()}.`,
@@ -462,10 +463,10 @@ export default function Profile({ replayTour }) {
       }
 
       console.log(
-        '[ProfileNotifications] Water reminders toggled off. Cancelled hydration reminder.',
+        "[ProfileNotifications] Water reminders toggled off. Cancelled hydration reminder.",
       );
     } catch (error) {
-      logError('[ProfileNotifications] Failed to cancel hydration reminder:', error);
+      logError("[ProfileNotifications] Failed to cancel hydration reminder:", error);
     }
   };
 
@@ -474,15 +475,15 @@ export default function Profile({ replayTour }) {
     try {
       const nextPrefs = { workout: notifWorkout, water: notifWater, meal: nextValue };
       await AsyncStorage.setItem(NOTIFICATION_PREFS_KEY, JSON.stringify(nextPrefs));
-      console.log(`[ProfileNotifications] Meal reminders toggled ${nextValue ? 'on' : 'off'}.`);
+      console.log(`[ProfileNotifications] Meal reminders toggled ${nextValue ? "on" : "off"}.`);
     } catch (error) {
-      logError('[ProfileNotifications] Failed to update meal preference:', error);
+      logError("[ProfileNotifications] Failed to update meal preference:", error);
     }
   };
 
   const saveProfileChanges = async () => {
     if (!authUser?.id) return;
-    const nextGoal = normalizeGoal(editForm.goal) || 'maintain';
+    const nextGoal = normalizeGoal(editForm.goal) || "maintain";
     const nextHeight = parseFloat(editForm.height_cm);
     const nextWeight = parseFloat(editForm.weight_kg);
     const nextTargetWeight = editForm.target_weight_kg
@@ -492,14 +493,14 @@ export default function Profile({ replayTour }) {
     const nextName = editForm.full_name.trim() || name;
 
     if (!nextHeight || !nextWeight) {
-      Alert.alert('Missing info', 'Height and weight are required.');
+      Alert.alert("Missing info", "Height and weight are required.");
       return;
     }
 
     setSavingProfile(true);
     try {
       const { error: profileError } = await supabase
-        .from('profiles')
+        .from("profiles")
         .update({
           full_name: nextName,
           gender: editForm.gender,
@@ -510,7 +511,7 @@ export default function Profile({ replayTour }) {
           activity_level: editForm.activity_level,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', authUser.id);
+        .eq("id", authUser.id);
       if (profileError) throw profileError;
 
       const nextBmr = calcBMRDirect(editForm.gender, nextWeight, nextHeight, nextAge);
@@ -518,23 +519,23 @@ export default function Profile({ replayTour }) {
         ? Math.round(nextBmr * (ACTIVITY_MULT[editForm.activity_level] || 1.55))
         : 0;
       const nextCalories =
-        nextGoal === 'lose_fat'
+        nextGoal === "lose_fat"
           ? nextTdee - 400
-          : nextGoal === 'gain_muscle'
+          : nextGoal === "gain_muscle"
             ? nextTdee + 200
-            : nextGoal === 'gain_weight'
+            : nextGoal === "gain_weight"
               ? nextTdee + 400
               : nextTdee;
       const macros = calcMacroTargets(nextCalories, nextGoal);
       const nextProtein = Math.round(nextWeight * 2);
 
-      const { error: targetsError } = await supabase.from('calorie_targets').insert({
+      const { error: targetsError } = await supabase.from("calorie_targets").insert({
         user_id: authUser.id,
         daily_calories: nextCalories,
         protein_target: nextProtein || macros.protein_target,
         carbs_target: macros.carbs_target,
         fat_target: macros.fat_target,
-        effective_from: new Date().toISOString().split('T')[0],
+        effective_from: new Date().toISOString().split("T")[0],
       });
       if (targetsError) throw targetsError;
 
@@ -553,9 +554,10 @@ export default function Profile({ replayTour }) {
       setEditVisible(false);
       emit(AppEvents.PROFILE_UPDATED, { userId: authUser.id });
       emit(AppEvents.TARGETS_UPDATED, { userId: authUser.id });
-      Alert.alert('Saved', 'Your profile has been updated.');
+      refreshAfterProfileUpdate(authUser.id);
+      Alert.alert("Saved", "Your profile has been updated.");
     } catch (error) {
-      Alert.alert('Save failed', error?.message || 'Could not update your profile.');
+      Alert.alert("Save failed", error?.message || "Could not update your profile.");
     } finally {
       setSavingProfile(false);
     }
@@ -563,17 +565,17 @@ export default function Profile({ replayTour }) {
 
   // ── Password Reset ─────────────────────────────────────────────────────────
   const openPwModal = () => {
-    setPwForm({ newPassword: '', confirmPassword: '' });
+    setPwForm({ newPassword: "", confirmPassword: "" });
     setPwModalVisible(true);
   };
 
   const saveNewPassword = async () => {
     if (!pwForm.newPassword || pwForm.newPassword.length < 6) {
-      Alert.alert('Too short', 'Password must be at least 6 characters.');
+      Alert.alert("Too short", "Password must be at least 6 characters.");
       return;
     }
     if (pwForm.newPassword !== pwForm.confirmPassword) {
-      Alert.alert('Mismatch', 'Passwords do not match.');
+      Alert.alert("Mismatch", "Passwords do not match.");
       return;
     }
     setSavingPw(true);
@@ -581,10 +583,10 @@ export default function Profile({ replayTour }) {
       const { error } = await supabase.auth.updateUser({ password: pwForm.newPassword });
       if (error) throw error;
       setPwModalVisible(false);
-      setPwForm({ newPassword: '', confirmPassword: '' });
-      Alert.alert('Done', 'Your password has been updated.');
+      setPwForm({ newPassword: "", confirmPassword: "" });
+      Alert.alert("Done", "Your password has been updated.");
     } catch (error) {
-      Alert.alert('Failed', error?.message || 'Could not update password.');
+      Alert.alert("Failed", error?.message || "Could not update password.");
     } finally {
       setSavingPw(false);
     }
@@ -594,13 +596,13 @@ export default function Profile({ replayTour }) {
   const pickProfilePhoto = async () => {
     if (!authUser?.id || uploadingPhoto) return;
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Please allow photo library access.');
+    if (status !== "granted") {
+      Alert.alert("Permission needed", "Please allow photo library access.");
       return;
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
+      mediaTypes: ["images"],
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -616,9 +618,9 @@ export default function Profile({ replayTour }) {
         base64 = await FileSystem.readAsStringAsync(asset.uri, {
           encoding: FileSystem.EncodingType.Base64,
         });
-      const mimeType = asset.mimeType || 'image/jpeg';
+      const mimeType = asset.mimeType || "image/jpeg";
       const dataUri = `data:${mimeType};base64,${base64}`;
-      const extension = (mimeType.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
+      const extension = (mimeType.split("/")[1] || "jpg").replace("jpeg", "jpg");
       const path = buildAvatarPath(authUser.id, extension);
 
       await saveLocalAvatarForUser(authUser.id, dataUri);
@@ -629,20 +631,20 @@ export default function Profile({ replayTour }) {
       const blob = await response.blob();
       const { error: uploadError } = await supabase.storage
         .from(AVATAR_BUCKET)
-        .upload(path, blob, { contentType: asset.mimeType || 'image/jpeg' });
+        .upload(path, blob, { contentType: asset.mimeType || "image/jpeg" });
       if (uploadError) throw uploadError;
 
       const { error: profileError } = await supabase
-        .from('profiles')
+        .from("profiles")
         .update({ avatar_url: path, updated_at: new Date().toISOString() })
-        .eq('id', authUser.id);
+        .eq("id", authUser.id);
       if (profileError) throw profileError;
 
       setProfileAvatarUri(dataUri);
       setProfile((prev) => ({ ...prev, avatar_url: dataUri, avatar_path: path }));
-      Alert.alert('Photo updated', 'Your profile picture has been changed.');
+      Alert.alert("Photo updated", "Your profile picture has been changed.");
     } catch (error) {
-      Alert.alert('Upload failed', error?.message || 'Could not update your profile photo.');
+      Alert.alert("Upload failed", error?.message || "Could not update your profile photo.");
     } finally {
       setUploadingPhoto(false);
     }
@@ -655,7 +657,7 @@ export default function Profile({ replayTour }) {
           <Text style={s.title}>Profile</Text>
           <TouchableOpacity
             style={s.headerSettingsBtn}
-            onPress={() => navigation.navigate('Settings')}
+            onPress={() => navigation.navigate("Settings")}
             activeOpacity={0.85}
           >
             <Ionicons name="settings-outline" size={20} color={C.text} />
@@ -679,7 +681,7 @@ export default function Profile({ replayTour }) {
               )}
             </View>
             <View style={s.avatarEditBadge}>
-              <Text style={s.avatarEditBadgeTxt}>{uploadingPhoto ? '...' : 'Edit'}</Text>
+              <Text style={s.avatarEditBadgeTxt}>{uploadingPhoto ? "..." : "Edit"}</Text>
             </View>
           </TouchableOpacity>
 
@@ -689,7 +691,7 @@ export default function Profile({ replayTour }) {
               <Text style={s.profileName}>{name}</Text>
               <TouchableOpacity
                 style={s.editProfileBtn}
-                onPress={() => navigation.navigate('EditProfile')}
+                onPress={() => navigation.navigate("EditProfile")}
                 activeOpacity={0.85}
               >
                 <Text style={s.editProfileBtnTxt}>Edit profile</Text>
@@ -698,7 +700,7 @@ export default function Profile({ replayTour }) {
             {profile?.bio ? <Text style={s.profileBio}>{profile.bio}</Text> : null}
             {profile?.city || profile?.country ? (
               <Text style={s.profileLocation}>
-                📍 {[profile.city, profile.country].filter(Boolean).join(', ')}
+                📍 {[profile.city, profile.country].filter(Boolean).join(", ")}
               </Text>
             ) : null}
             <View style={s.goalChip}>
@@ -732,7 +734,7 @@ export default function Profile({ replayTour }) {
         {/* ── Workout History button ── */}
         <TouchableOpacity
           style={s.historyBtn}
-          onPress={() => navigation.navigate('WorkoutHistory')}
+          onPress={() => navigation.navigate("WorkoutHistory")}
           activeOpacity={0.85}
         >
           <View style={s.historyBtnLeft}>
@@ -753,7 +755,7 @@ export default function Profile({ replayTour }) {
           <Row label="Age" value={age ? `${age} years` : null} />
           <Row
             label="Gender"
-            value={gender === 'male' ? 'Male' : gender === 'female' ? 'Female' : gender}
+            value={gender === "male" ? "Male" : gender === "female" ? "Female" : gender}
           />
           <Row label="Height" value={heightCm ? `${heightCm} cm` : null} />
           <Row label="Weight" value={weightKg ? `${weightKg} kg` : null} />
@@ -797,15 +799,9 @@ export default function Profile({ replayTour }) {
           <View style={s.badgesGrid}>
             {(showAllAchievements ? achievements : achievements.slice(0, 6)).map((a) => (
               <View key={a.id} style={[s.badge, !a.earned && s.badgeLocked]}>
-                <View style={[s.badgeIconWrap, a.earned && s.badgeIconWrapEarned]}>
-                  <Ionicons
-                    name={a.earned ? (a.icon || 'trophy-outline') : 'lock-closed-outline'}
-                    size={22}
-                    color={a.earned ? C.purple : C.sub}
-                  />
-                </View>
-                <Text style={[s.badgeLabel, !a.earned && s.badgeLabelLocked]}>{a.name}</Text>
-                <Text style={[s.badgeXP, !a.earned && s.badgeXPLocked]}>+{a.xp_reward} XP</Text>
+                <Text style={s.badgeIcon}>{a.earned ? a.icon : "🔒"}</Text>
+                <Text style={[s.badgeLabel, !a.earned && { opacity: 0.4 }]}>{a.name}</Text>
+                <Text style={[s.badgeXP, !a.earned && { opacity: 0.4 }]}>+{a.xp_reward} XP</Text>
               </View>
             ))}
           </View>
@@ -816,7 +812,7 @@ export default function Profile({ replayTour }) {
               activeOpacity={0.8}
             >
               <Text style={s.seeMoreTxt}>
-                {showAllAchievements ? 'Show Less' : `See ${achievements.length - 6} More`}
+                {showAllAchievements ? "Show Less" : `See ${achievements.length - 6} More`}
               </Text>
             </TouchableOpacity>
           )}
@@ -826,16 +822,16 @@ export default function Profile({ replayTour }) {
         <View style={s.card}>
           <Text style={s.cardLabel}>NOTIFICATIONS</Text>
           {[
-            { label: 'Workout Reminders', value: notifWorkout, set: handleWorkoutToggle },
-            { label: 'Water Reminders', value: notifWater, set: handleWaterToggle },
-            { label: 'Meal Log Reminders', value: notifMeal, set: handleMealToggle },
+            { label: "Workout Reminders", value: notifWorkout, set: handleWorkoutToggle },
+            { label: "Water Reminders", value: notifWater, set: handleWaterToggle },
+            { label: "Meal Log Reminders", value: notifMeal, set: handleMealToggle },
           ].map((n, i) => (
             <View key={i} style={[s.settingRow, i < 2 && s.settingRowBorder]}>
               <Text style={s.settingLabel}>{n.label}</Text>
               <Switch
                 value={n.value}
                 onValueChange={n.set}
-                trackColor={{ false: C.border, true: C.purple + '80' }}
+                trackColor={{ false: C.border, true: C.purple + "80" }}
                 thumbColor={n.value ? C.purple : C.sub}
               />
             </View>
@@ -863,7 +859,7 @@ export default function Profile({ replayTour }) {
         <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
           <View style={s.modalBackdrop}>
             <KeyboardAvoidingView
-              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              behavior={Platform.OS === "ios" ? "padding" : "height"}
               style={s.modalKeyboardWrap}
             >
               <TouchableWithoutFeedback>
@@ -882,7 +878,7 @@ export default function Profile({ replayTour }) {
                         <Pressable
                           key={option.id}
                           style={[s.chip, editForm.goal === option.id && s.chipActive]}
-                          onPress={() => updateEditField('goal', option.id)}
+                          onPress={() => updateEditField("goal", option.id)}
                         >
                           <Text
                             style={[s.chipText, editForm.goal === option.id && s.chipTextActive]}
@@ -899,7 +895,7 @@ export default function Profile({ replayTour }) {
                         <Pressable
                           key={option}
                           style={[s.chip, editForm.gender === option && s.chipActive]}
-                          onPress={() => updateEditField('gender', option)}
+                          onPress={() => updateEditField("gender", option)}
                         >
                           <Text
                             style={[s.chipText, editForm.gender === option && s.chipTextActive]}
@@ -914,7 +910,7 @@ export default function Profile({ replayTour }) {
                     <TextInput
                       style={s.modalInput}
                       value={editForm.height_cm}
-                      onChangeText={(v) => updateEditField('height_cm', v)}
+                      onChangeText={(v) => updateEditField("height_cm", v)}
                       keyboardType="numeric"
                       returnKeyType="done"
                       blurOnSubmit
@@ -927,7 +923,7 @@ export default function Profile({ replayTour }) {
                     <TextInput
                       style={s.modalInput}
                       value={editForm.weight_kg}
-                      onChangeText={(v) => updateEditField('weight_kg', v)}
+                      onChangeText={(v) => updateEditField("weight_kg", v)}
                       keyboardType="numeric"
                       returnKeyType="done"
                       blurOnSubmit
@@ -940,7 +936,7 @@ export default function Profile({ replayTour }) {
                     <TextInput
                       style={s.modalInput}
                       value={editForm.target_weight_kg}
-                      onChangeText={(v) => updateEditField('target_weight_kg', v)}
+                      onChangeText={(v) => updateEditField("target_weight_kg", v)}
                       keyboardType="numeric"
                       returnKeyType="done"
                       blurOnSubmit
@@ -955,7 +951,7 @@ export default function Profile({ replayTour }) {
                         <Pressable
                           key={id}
                           style={[s.chip, editForm.activity_level === id && s.chipActive]}
-                          onPress={() => updateEditField('activity_level', id)}
+                          onPress={() => updateEditField("activity_level", id)}
                         >
                           <Text
                             style={[s.chipText, editForm.activity_level === id && s.chipTextActive]}
@@ -980,7 +976,7 @@ export default function Profile({ replayTour }) {
                       disabled={savingProfile}
                     >
                       <Text style={s.modalBtnPrimaryText}>
-                        {savingProfile ? 'Saving...' : 'Save'}
+                        {savingProfile ? "Saving..." : "Save"}
                       </Text>
                     </Pressable>
                   </View>
@@ -1023,11 +1019,11 @@ const s = StyleSheet.create({
   scroll: { paddingHorizontal: 16, paddingTop: 52, paddingBottom: 20 },
   header: {
     marginBottom: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-  title: { color: C.text, fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
+  title: { color: C.text, fontSize: 26, fontWeight: "800", letterSpacing: -0.5 },
   headerSettingsBtn: {
     width: 40,
     height: 40,
@@ -1035,8 +1031,8 @@ const s = StyleSheet.create({
     backgroundColor: C.card,
     borderWidth: 1,
     borderColor: C.border,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   // Profile card
@@ -1047,32 +1043,32 @@ const s = StyleSheet.create({
     marginBottom: 14,
     borderWidth: 1,
     borderColor: C.border,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     gap: 16,
   },
-  avatarWrap: { position: 'relative', alignItems: 'center' },
+  avatarWrap: { position: "relative", alignItems: "center" },
   avatarCircle: {
     width: 80,
     height: 80,
     borderRadius: 40,
     backgroundColor: C.purple,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 3,
     borderColor: C.accent,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
-  avatarImage: { width: '100%', height: '100%' },
-  avatarText: { color: '#fff', fontSize: 32, fontWeight: '900' },
+  avatarImage: { width: "100%", height: "100%" },
+  avatarText: { color: "#fff", fontSize: 32, fontWeight: "900" },
   avatarOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(15,11,30,0.58)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(15,11,30,0.58)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   avatarEditBadge: {
-    position: 'absolute',
+    position: "absolute",
     bottom: -6,
     backgroundColor: C.lime,
     borderRadius: 999,
@@ -1081,42 +1077,42 @@ const s = StyleSheet.create({
     borderWidth: 2,
     borderColor: C.card,
   },
-  avatarEditBadgeTxt: { color: '#161230', fontSize: 10, fontWeight: '800' },
+  avatarEditBadgeTxt: { color: "#161230", fontSize: 10, fontWeight: "800" },
 
   profileInfo: { flex: 1 },
   profileNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 4,
   },
-  profileName: { color: C.text, fontSize: 20, fontWeight: '800', flex: 1 },
+  profileName: { color: C.text, fontSize: 20, fontWeight: "800", flex: 1 },
   profileBio: { color: C.sub, fontSize: 12, marginTop: 2, lineHeight: 17 },
   profileLocation: { color: C.sub, fontSize: 11, marginTop: 3 },
   goalChip: {
-    alignSelf: 'flex-start',
-    backgroundColor: C.purple + '25',
+    alignSelf: "flex-start",
+    backgroundColor: C.purple + "25",
     borderRadius: 10,
     paddingHorizontal: 10,
     paddingVertical: 4,
     marginTop: 8,
     borderWidth: 1,
-    borderColor: C.purple + '50',
+    borderColor: C.purple + "50",
   },
-  goalChipTxt: { color: C.accent, fontSize: 11, fontWeight: '700' },
+  goalChipTxt: { color: C.accent, fontSize: 11, fontWeight: "700" },
 
   editProfileBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
-    backgroundColor: C.purple + '20',
+    backgroundColor: C.purple + "20",
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 5,
     borderWidth: 1,
-    borderColor: C.purple + '50',
+    borderColor: C.purple + "50",
   },
-  editProfileBtnTxt: { color: C.accent, fontSize: 11, fontWeight: '700' },
+  editProfileBtnTxt: { color: C.accent, fontSize: 11, fontWeight: "700" },
 
   // History button
   historyBtn: {
@@ -1126,20 +1122,20 @@ const s = StyleSheet.create({
     marginBottom: 14,
     borderWidth: 1,
     borderColor: C.border,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-  historyBtnLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  historyBtnLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
   historyBtnIcon: {
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: C.lime + '15',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: C.lime + "15",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  historyBtnTitle: { color: C.text, fontSize: 14, fontWeight: '700' },
+  historyBtnTitle: { color: C.text, fontSize: 14, fontWeight: "700" },
   historyBtnSub: { color: C.sub, fontSize: 11, marginTop: 2 },
 
   // Generic card
@@ -1154,31 +1150,31 @@ const s = StyleSheet.create({
   cardLabel: {
     color: C.sub,
     fontSize: 10,
-    fontWeight: '800',
+    fontWeight: "800",
     letterSpacing: 1.2,
     marginBottom: 14,
   },
   cardTitleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 14,
   },
   cardSub: { color: C.sub, fontSize: 12 },
 
   xpRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
     marginBottom: 12,
   },
-  xpCount: { color: C.text, fontSize: 16, fontWeight: '700', marginTop: 4 },
+  xpCount: { color: C.text, fontSize: 16, fontWeight: "700", marginTop: 4 },
   xpEmoji: { fontSize: 28 },
   xpBarBg: {
     height: 8,
     backgroundColor: C.border,
     borderRadius: 4,
-    overflow: 'hidden',
+    overflow: "hidden",
     marginBottom: 8,
   },
   xpBarFill: { height: 8, backgroundColor: C.lime, borderRadius: 4 },
@@ -1186,92 +1182,77 @@ const s = StyleSheet.create({
   encouragement: {
     color: C.accent,
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
     marginTop: 8,
-    textAlign: 'center',
+    textAlign: "center",
   },
 
   statRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingVertical: 11,
     borderBottomWidth: 1,
     borderBottomColor: C.border,
   },
   statLabel: { color: C.sub, fontSize: 13 },
-  statValue: { color: C.text, fontSize: 13, fontWeight: '600' },
+  statValue: { color: C.text, fontSize: 13, fontWeight: "600" },
   editBtn: {
     backgroundColor: C.purple,
     borderRadius: 12,
     paddingVertical: 13,
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 14,
   },
-  editBtnTxt: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  editBtnTxt: { color: "#fff", fontSize: 14, fontWeight: "700" },
 
   targetNote: {
-    backgroundColor: C.purple + '12',
+    backgroundColor: C.purple + "12",
     borderRadius: 12,
     padding: 12,
     marginTop: 12,
     borderWidth: 1,
-    borderColor: C.purple + '30',
+    borderColor: C.purple + "30",
   },
   targetNoteTxt: { color: C.accent, fontSize: 12, lineHeight: 18 },
 
-  badgesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  badgesGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   badge: {
-    alignItems: 'center',
-    gap: 6,
+    alignItems: "center",
+    gap: 4,
     backgroundColor: C.border,
-    borderRadius: 16,
-    paddingVertical: 14,
-    paddingHorizontal: 8,
-    width: '30%',
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    width: "30%",
     borderWidth: 1,
-    borderColor: C.purple + '40',
+    borderColor: C.purple + "40",
   },
-  badgeLocked: { borderColor: C.border, opacity: 0.45 },
-  badgeIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  badgeIconWrapEarned: {
-    backgroundColor: C.purple + '18',
-    borderColor: C.purple + '50',
-  },
-  badgeLabel: { color: C.sub, fontSize: 9, fontWeight: '700', textAlign: 'center', lineHeight: 13 },
-  badgeLabelLocked: { opacity: 0.5 },
-  badgeXP: { color: C.lime, fontSize: 9, fontWeight: '800' },
-  badgeXPLocked: { opacity: 0.4 },
+  badgeLocked: { borderColor: C.border, opacity: 0.5 },
+  badgeIcon: { fontSize: 22 },
+  badgeLabel: { color: C.sub, fontSize: 9, fontWeight: "600", textAlign: "center" },
+  badgeXP: { color: C.lime, fontSize: 9, fontWeight: "700" },
   seeMoreBtn: {
-    alignSelf: 'center',
-    backgroundColor: C.purple + '20',
+    alignSelf: "center",
+    backgroundColor: C.purple + "20",
     borderRadius: 12,
     paddingVertical: 8,
     paddingHorizontal: 16,
     marginTop: 12,
     borderWidth: 1,
-    borderColor: C.purple + '40',
+    borderColor: C.purple + "40",
   },
-  seeMoreTxt: { color: C.accent, fontSize: 12, fontWeight: '700' },
+  seeMoreTxt: { color: C.accent, fontSize: 12, fontWeight: "700" },
 
   popupOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0,0,0,0.7)",
+    justifyContent: "center",
+    alignItems: "center",
   },
-  popupContainer: { position: 'relative', alignItems: 'center' },
+  popupContainer: { position: "relative", alignItems: "center" },
   popupGlow: {
-    position: 'absolute',
+    position: "absolute",
     width: 300,
     height: 300,
     borderRadius: 150,
@@ -1283,34 +1264,34 @@ const s = StyleSheet.create({
     backgroundColor: C.card,
     borderRadius: 20,
     padding: 24,
-    alignItems: 'center',
+    alignItems: "center",
     borderWidth: 2,
     borderColor: C.lime,
     minWidth: 280,
   },
   popupIcon: { fontSize: 48, marginBottom: 16 },
-  popupTitle: { color: C.lime, fontSize: 18, fontWeight: '800', marginBottom: 8 },
+  popupTitle: { color: C.lime, fontSize: 18, fontWeight: "800", marginBottom: 8 },
   popupName: {
     color: C.text,
     fontSize: 20,
-    fontWeight: '700',
-    textAlign: 'center',
+    fontWeight: "700",
+    textAlign: "center",
     marginBottom: 8,
   },
-  popupDesc: { color: C.sub, fontSize: 14, textAlign: 'center', marginBottom: 16, lineHeight: 20 },
-  popupXP: { color: C.lime, fontSize: 16, fontWeight: '800', marginBottom: 20 },
+  popupDesc: { color: C.sub, fontSize: 14, textAlign: "center", marginBottom: 16, lineHeight: 20 },
+  popupXP: { color: C.lime, fontSize: 16, fontWeight: "800", marginBottom: 20 },
   popupBtn: {
     backgroundColor: C.lime,
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 24,
   },
-  popupBtnText: { color: C.card, fontSize: 16, fontWeight: '700' },
+  popupBtnText: { color: C.card, fontSize: 16, fontWeight: "700" },
 
   settingRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingVertical: 14,
   },
   settingRowBorder: { borderBottomWidth: 1, borderBottomColor: C.border },
@@ -1323,46 +1304,46 @@ const s = StyleSheet.create({
     borderRadius: 16,
     paddingVertical: 14,
     paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   supportBtnSpacing: { marginTop: 10 },
-  supportBtnTitle: { color: C.text, fontSize: 14, fontWeight: '700' },
+  supportBtnTitle: { color: C.text, fontSize: 14, fontWeight: "700" },
   supportBtnSub: { color: C.sub, fontSize: 11, marginTop: 3 },
 
   changePwBtn: {
     backgroundColor: C.card,
     borderRadius: 16,
     paddingVertical: 16,
-    alignItems: 'center',
+    alignItems: "center",
     borderWidth: 1,
     borderColor: C.border,
     marginBottom: 10,
   },
-  changePwTxt: { color: C.accent, fontSize: 14, fontWeight: '700' },
+  changePwTxt: { color: C.accent, fontSize: 14, fontWeight: "700" },
 
   tourBtn: {
     backgroundColor: C.purple,
     borderRadius: 14,
     padding: 16,
     marginBottom: 10,
-    alignItems: 'center',
+    alignItems: "center",
   },
-  tourBtnTxt: { color: '#fff', fontWeight: '800', fontSize: 15 },
+  tourBtnTxt: { color: "#fff", fontWeight: "800", fontSize: 15 },
   signOutBtn: {
     backgroundColor: C.card,
     borderRadius: 16,
     paddingVertical: 16,
-    alignItems: 'center',
+    alignItems: "center",
     borderWidth: 1,
     borderColor: C.border,
     marginTop: 6,
   },
-  signOutTxt: { color: '#FF3B30', fontSize: 14, fontWeight: '700' },
+  signOutTxt: { color: "#FF3B30", fontSize: 14, fontWeight: "700" },
 
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  modalKeyboardWrap: { justifyContent: 'flex-end' },
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
+  modalKeyboardWrap: { justifyContent: "flex-end" },
   modalCard: {
     backgroundColor: C.card,
     borderTopLeftRadius: 24,
@@ -1370,12 +1351,12 @@ const s = StyleSheet.create({
     paddingTop: 10,
     paddingHorizontal: 20,
     paddingBottom: 32,
-    maxHeight: '88%',
+    maxHeight: "88%",
     borderTopWidth: 1,
     borderColor: C.border,
   },
   modalHandle: {
-    alignSelf: 'center',
+    alignSelf: "center",
     width: 44,
     height: 5,
     borderRadius: 999,
@@ -1384,9 +1365,9 @@ const s = StyleSheet.create({
     marginBottom: 14,
   },
   modalScrollContent: { paddingBottom: 12 },
-  modalTitle: { color: C.text, fontSize: 20, fontWeight: '800', marginBottom: 6 },
+  modalTitle: { color: C.text, fontSize: 20, fontWeight: "800", marginBottom: 6 },
   modalSubtitle: { color: C.sub, fontSize: 13, marginBottom: 16 },
-  modalLabel: { color: C.sub, fontSize: 13, fontWeight: '700', marginBottom: 8, marginTop: 8 },
+  modalLabel: { color: C.sub, fontSize: 13, fontWeight: "700", marginBottom: 8, marginTop: 8 },
   modalInput: {
     backgroundColor: C.bg,
     color: C.text,
@@ -1397,7 +1378,7 @@ const s = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 15,
   },
-  chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 6 },
+  chipWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 6 },
   chip: {
     backgroundColor: C.bg,
     borderWidth: 1,
@@ -1406,15 +1387,15 @@ const s = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 9,
   },
-  chipActive: { backgroundColor: C.purple + '20', borderColor: C.purple },
-  chipText: { color: C.sub, fontSize: 13, fontWeight: '600' },
+  chipActive: { backgroundColor: C.purple + "20", borderColor: C.purple },
+  chipText: { color: C.sub, fontSize: 13, fontWeight: "600" },
   chipTextActive: { color: C.text },
-  modalActions: { flexDirection: 'row', gap: 10, marginTop: 20 },
-  modalBtn: { flex: 1, borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
+  modalActions: { flexDirection: "row", gap: 10, marginTop: 20 },
+  modalBtn: { flex: 1, borderRadius: 14, paddingVertical: 14, alignItems: "center" },
   modalBtnPrimary: { backgroundColor: C.purple },
   modalBtnSecondary: { backgroundColor: C.bg, borderWidth: 1, borderColor: C.border },
-  modalBtnPrimaryText: { color: '#fff', fontSize: 15, fontWeight: '800' },
-  modalBtnSecondaryText: { color: C.text, fontSize: 15, fontWeight: '700' },
+  modalBtnPrimaryText: { color: "#fff", fontSize: 15, fontWeight: "800" },
+  modalBtnSecondaryText: { color: C.text, fontSize: 15, fontWeight: "700" },
   modalBtnDisabled: { opacity: 0.7 },
-  pwMatchHint: { fontSize: 12, fontWeight: '600', marginTop: 8 },
+  pwMatchHint: { fontSize: 12, fontWeight: "600", marginTop: 8 },
 });

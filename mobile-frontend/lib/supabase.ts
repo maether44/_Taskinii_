@@ -1,28 +1,28 @@
-import { AppState, Platform } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createClient } from '@supabase/supabase-js';
-import { warn } from './logger';
+import { AppState, Platform } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { createClient } from "@supabase/supabase-js";
+import { warn } from "./logger";
 
-export const SUPABASE_URL = (process.env.EXPO_PUBLIC_SUPABASE_URL || '').trim();
-export const SUPABASE_ANON_KEY = (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '').trim();
+export const SUPABASE_URL = (process.env.EXPO_PUBLIC_SUPABASE_URL || "").trim();
+export const SUPABASE_ANON_KEY = (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "").trim();
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  warn('Missing Supabase env vars: EXPO_PUBLIC_SUPABASE_URL and/or EXPO_PUBLIC_SUPABASE_ANON_KEY');
+  warn("Missing Supabase env vars: EXPO_PUBLIC_SUPABASE_URL and/or EXPO_PUBLIC_SUPABASE_ANON_KEY");
 }
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
-    ...(Platform.OS !== 'web' ? { storage: AsyncStorage } : {}),
-    autoRefreshToken:   true,
-    persistSession:     true,
+    ...(Platform.OS !== "web" ? { storage: AsyncStorage } : {}),
+    autoRefreshToken: true,
+    persistSession: true,
     detectSessionInUrl: false,
   },
 });
 
 // Keep the session alive while the app is foregrounded
-if (Platform.OS !== 'web') {
-  AppState.addEventListener('change', (state) => {
-    if (state === 'active') {
+if (Platform.OS !== "web") {
+  AppState.addEventListener("change", (state) => {
+    if (state === "active") {
       supabase.auth.startAutoRefresh();
     } else {
       supabase.auth.stopAutoRefresh();
@@ -32,23 +32,23 @@ if (Platform.OS !== 'web') {
 
 export async function invokeEdgePublic(functionName: string, body?: unknown) {
   const response = await fetch(`${SUPABASE_URL}/functions/v1/${functionName}`, {
-    method: 'POST',
+    method: "POST",
     headers: {
       apikey: SUPABASE_ANON_KEY,
       Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     },
     body: JSON.stringify(body ?? {}),
   });
 
-  const payload = await response.json().catch(() => ({} as Record<string, unknown>));
+  const payload = await response.json().catch(() => ({}) as Record<string, unknown>);
   if (!response.ok) {
     const error = new Error(
       String(
         (payload as any)?.reason ||
-        (payload as any)?.error ||
-        (payload as any)?.message ||
-        `Edge function failed with ${response.status}`,
+          (payload as any)?.error ||
+          (payload as any)?.message ||
+          `Edge function failed with ${response.status}`,
       ),
     ) as Error & { status?: number; payload?: unknown };
     error.status = response.status;

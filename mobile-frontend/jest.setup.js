@@ -1,5 +1,5 @@
 // Mock Supabase client for all tests
-jest.mock('./lib/supabase', () => ({
+jest.mock("./lib/supabase", () => ({
   supabase: {
     from: jest.fn(() => ({
       select: jest.fn().mockReturnThis(),
@@ -33,16 +33,16 @@ jest.mock('./lib/supabase', () => ({
 }));
 
 // Mock expo-sensors
-jest.mock('expo-sensors', () => ({
+jest.mock("expo-sensors", () => ({
   Pedometer: {
     isAvailableAsync: jest.fn().mockResolvedValue(true),
-    requestPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted' }),
+    requestPermissionsAsync: jest.fn().mockResolvedValue({ status: "granted" }),
     watchStepCount: jest.fn(() => ({ remove: jest.fn() })),
   },
 }));
 
 // Mock logger to be silent in tests
-jest.mock('./lib/logger', () => ({
+jest.mock("./lib/logger", () => ({
   log: jest.fn(),
   warn: jest.fn(),
   error: jest.fn(),

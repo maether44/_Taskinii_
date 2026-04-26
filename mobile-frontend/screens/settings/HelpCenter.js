@@ -1,18 +1,18 @@
-import React, { useState } from 'react';
-import { FS } from '../../constants/typography';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
-import { FAQ_ITEMS, QUICK_START_STEPS, PAYMENT_NOTES } from '../../data/faqProfile';
+import React, { useState } from "react";
+import { FS } from "../../constants/typography";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
+import { FAQ_ITEMS, QUICK_START_STEPS, PAYMENT_NOTES } from "../../data/faqProfile";
 
 const C = {
-  bg: '#0F0B1E',
-  card: '#161230',
-  border: '#1E1A35',
-  purple: '#7C5CFC',
-  lime: '#C8F135',
-  text: '#FFFFFF',
-  sub: '#9C91BE',
+  bg: "#0F0B1E",
+  card: "#161230",
+  border: "#1E1A35",
+  purple: "#7C5CFC",
+  lime: "#C8F135",
+  text: "#FFFFFF",
+  sub: "#9C91BE",
 };
 
 function FaqItem({ item, expanded, onPress }) {
@@ -21,7 +21,7 @@ function FaqItem({ item, expanded, onPress }) {
       <Pressable style={styles.faqHeader} onPress={onPress}>
         <Text style={styles.faqQuestion}>{item.question}</Text>
         <Ionicons
-          name={expanded ? 'chevron-up-outline' : 'chevron-down-outline'}
+          name={expanded ? "chevron-up-outline" : "chevron-down-outline"}
           size={18}
           color={C.sub}
         />
@@ -85,12 +85,11 @@ export default function HelpCenter() {
                 key={item.id}
                 item={item}
                 expanded={openFaqId === item.id}
-                onPress={() => setOpenFaqId(openFaqId === item.id ? '' : item.id)}
+                onPress={() => setOpenFaqId(openFaqId === item.id ? "" : item.id)}
               />
             ))}
           </View>
         </View>
-
       </ScrollView>
     </View>
   );
@@ -99,7 +98,7 @@ export default function HelpCenter() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
   scroll: { paddingHorizontal: 16, paddingTop: 52, paddingBottom: 24, gap: 14 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
+  headerRow: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
   backBtn: {
     width: 38,
     height: 38,
@@ -107,12 +106,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: C.border,
     backgroundColor: C.card,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 10,
   },
   headerTextWrap: { flex: 1 },
-  title: { color: C.text, fontSize: FS.screenTitle, fontWeight: '800', letterSpacing: -0.4 },
+  title: { color: C.text, fontSize: FS.screenTitle, fontWeight: "800", letterSpacing: -0.4 },
   subtitle: { color: C.sub, fontSize: FS.sub, marginTop: 4 },
   sectionCard: {
     backgroundColor: C.card,
@@ -123,7 +122,7 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     paddingBottom: 12,
   },
-  sectionTitle: { color: C.text, fontSize: FS.btnPrimary, fontWeight: '800' },
+  sectionTitle: { color: C.text, fontSize: FS.btnPrimary, fontWeight: "800" },
   sectionSubtitle: { color: C.sub, fontSize: FS.badge, marginTop: 5 },
   sectionBody: { marginTop: 12, gap: 10 },
   faqCard: {
@@ -135,25 +134,25 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   faqHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: 10,
   },
-  faqQuestion: { color: C.text, fontSize: FS.sub, fontWeight: '700', flex: 1 },
+  faqQuestion: { color: C.text, fontSize: FS.sub, fontWeight: "700", flex: 1 },
   faqAnswer: { color: C.sub, fontSize: FS.badge, lineHeight: 18, marginTop: 8 },
-  stepRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  stepRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   stepBadge: {
     width: 24,
     height: 24,
     borderRadius: 999,
     backgroundColor: C.purple,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
-  stepBadgeText: { color: C.text, fontSize: FS.badge, fontWeight: '800' },
+  stepBadgeText: { color: C.text, fontSize: FS.badge, fontWeight: "800" },
   stepText: { color: C.text, fontSize: FS.sub, flex: 1, lineHeight: 18 },
-  noteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  noteRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
   dot: { marginTop: 5 },
   noteText: { color: C.text, fontSize: FS.badge, lineHeight: 18, flex: 1 },
 });

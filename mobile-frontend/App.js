@@ -1,64 +1,55 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, ActivityIndicator } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import * as SplashScreen from 'expo-splash-screen';
-import * as Font from 'expo-font';
+import React, { useState, useEffect, useCallback } from "react";
+import { View, StyleSheet, ActivityIndicator } from "react-native";
+import { StatusBar } from "expo-status-bar";
+import * as SplashScreen from "expo-splash-screen";
+import * as Font from "expo-font";
 import {
   Outfit_400Regular,
   Outfit_500Medium,
   Outfit_600SemiBold,
   Outfit_700Bold,
-} from '@expo-google-fonts/outfit';
-import { Inter_400Regular, Inter_600SemiBold } from '@expo-google-fonts/inter';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
-import { createStackNavigator } from '@react-navigation/stack';
-import { registerRootComponent } from 'expo';
-import ScheduleScreen from './screens/ScheduleScreen';
+} from "@expo-google-fonts/outfit";
+import { Inter_400Regular, Inter_600SemiBold } from "@expo-google-fonts/inter";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { NavigationContainer } from "@react-navigation/native";
+import { createStackNavigator } from "@react-navigation/stack";
+import { registerRootComponent } from "expo";
+
 // Context & Supabase
-import { supabase } from './lib/supabase';
-import { AuthProvider, useAuth } from './context/AuthContext';
-import { TodayProvider } from './context/TodayContext';
-import { MilestoneProvider, useMilestones } from './context/MilestoneContext';
+import { supabase } from "./lib/supabase";
+import { navigationRef } from "./lib/navigationRef";
+import { AuthProvider, useAuth } from "./context/AuthContext";
+import { TodayProvider } from "./context/TodayContext";
+import { MilestoneProvider, useMilestones } from "./context/MilestoneContext";
+import { ThemeProvider } from "./context/ThemeContext";
 
 // ✅ Custom splash screen
-import CustomSplashScreen from './components/CustomSplashScreen';
+import CustomSplashScreen from "./components/CustomSplashScreen";
 
 // Screens - Auth & Onboarding
-import SignIn from './auth/SignIn';
-import SignUp from './auth/SignUp';
-import OnBoardingGoal from './screens/OnBoardingGoal';
+import SignIn from "./auth/SignIn";
+import SignUp from "./auth/SignUp";
+import OnBoardingGoal from "./screens/OnBoardingGoal";
 
 // Navigation Hub
-import NavBar from './components/NavBar';
+import NavBar from "./components/NavBar";
 
 // Sub-Screens
-import MealLogger from './screens/nutrition/MealLogger';
-import FoodDetail from './screens/nutrition/FoodDetail';
-import SleepLog from './screens/sleep/SleepLog';
-import FoodScannerScreen from './components/food-scanner/FoodScannerScreen';
-import WorkoutSummary from './screens/workout/WorkoutSummary';
-import FlappyBirdGame from './screens/workout/FlappyBirdGame';
-import CustomMealBuilder from './screens/nutrition/CustomMealBuilder';
-import CommunityCenter from './screens/community/CommunityCenter';
-import MessagesInbox from './screens/community/MessagesInbox';
-import DMThread from './screens/community/DMThread';
-import { scheduleStore } from './store/scheduleStore';
-import { useUnreadMessageNotifications } from './hooks/useNotification';
+import MealLogger from "./screens/nutrition/MealLogger";
+import FoodDetail from "./screens/nutrition/FoodDetail";
+import SleepLog from "./screens/sleep/SleepLog";
+import FoodScannerScreen from "./components/food-scanner/FoodScannerScreen";
+import WorkoutSummary from "./screens/workout/WorkoutSummary";
 
 // Global Components
-import YaraAssistant from './components/YaraAssistant';
-import AppTour from './components/onBoarding/AppTour';
-import CelebrationOverlay from './components/CelebrationOverlay';
-import CelebrationInterstitial from './components/reports/CelebrationInterstitial';
-import { warn } from './lib/logger';
+import YaraAssistant from "./components/YaraAssistant";
+import AppTour from "./components/onBoarding/AppTour";
+import CelebrationInterstitial from "./components/reports/CelebrationInterstitial";
+import { AlexiEvents, AlexiVoiceProvider } from "./context/AlexiVoiceContext";
 
 SplashScreen.preventAutoHideAsync();
 const Stack = createStackNavigator();
-const YARA_ALLOWED_ROUTES = new Set(['Home', 'Fuel', 'TrainingHub', 'Insights']);
-
-const navigationRef = createNavigationContainerRef(); // ← add this
 
 function getActiveRouteName(state) {
   if (!state) return null;
@@ -67,7 +58,7 @@ function getActiveRouteName(state) {
   return route.name;
 }
 
-function MilestoneCelebrationOverlay() {
+function CelebrationOverlay() {
   const { pendingCelebration, claimMilestone, dismissCelebration } = useMilestones();
 
   if (!pendingCelebration) return null;
@@ -113,46 +104,32 @@ function Navigation() {
           <Stack.Screen name="SleepLog" component={SleepLog} />
           <Stack.Screen name="FoodScanner" component={FoodScannerScreen} />
           <Stack.Screen name="WorkoutSummary" component={WorkoutSummary} />
-          <Stack.Screen name="FlappyBirdGame" component={FlappyBirdGame} />
-          <Stack.Screen name="Community" component={CommunityCenter} />
-          <Stack.Screen name="Messages" component={MessagesInbox} />
-          <Stack.Screen name="DMThread" component={DMThread} />
-          <Stack.Screen name="Schedule" component={ScheduleScreen} />
-          <Stack.Screen name="CustomMealBuilder" component={CustomMealBuilder} />
         </>
       )}
     </Stack.Navigator>
   );
 }
 
-function DirectMessageNotifications({ activeRoute }) {
-  const { user } = useAuth();
-  useUnreadMessageNotifications(user?.id, activeRoute);
-  return null;
-}
-
 export default function App() {
   const [appIsReady, setAppIsReady] = useState(false);
   const [splashDone, setSplashDone] = useState(false); // ✅ NEW
-  const [activeTab, setActiveTab] = useState('Home');
+  const [activeTab, setActiveTab] = useState("Home");
   const [activeRoute, setActiveRoute] = useState(null);
-  const showYaraAssistant = YARA_ALLOWED_ROUTES.has(activeRoute);
 
   useEffect(() => {
     async function prepare() {
       try {
         await Font.loadAsync({
-          'Outfit-Regular': Outfit_400Regular,
-          'Outfit-Medium': Outfit_500Medium,
-          'Outfit-SemiBold': Outfit_600SemiBold,
-          'Outfit-Bold': Outfit_700Bold,
-          'Inter-Regular': Inter_400Regular,
-          'Inter-SemiBold': Inter_600SemiBold,
+          "Outfit-Regular": Outfit_400Regular,
+          "Outfit-Medium": Outfit_500Medium,
+          "Outfit-SemiBold": Outfit_600SemiBold,
+          "Outfit-Bold": Outfit_700Bold,
+          "Inter-Regular": Inter_400Regular,
+          "Inter-SemiBold": Inter_600SemiBold,
         });
         await supabase.auth.getSession();
-        await scheduleStore.hydrate();
       } catch (e) {
-        warn(e);
+        console.warn(e);
       } finally {
         setAppIsReady(true);
       }
@@ -164,7 +141,34 @@ export default function App() {
     if (appIsReady) await SplashScreen.hideAsync();
   }, [appIsReady]);
 
-  // Fonts still loading — show nothing
+  // Route navigation commands emitted by AlexiVoiceContext
+  useEffect(() => {
+    const offNav = AlexiEvents.on("navigate", ({ screen, params }) => {
+      try {
+        if (!navigationRef.isReady()) {
+          console.warn("[Alexi] navigationRef not ready — queued screen:", screen);
+          return;
+        }
+        console.log("[Alexi] → navigate(", screen, params ? JSON.stringify(params) : "", ")");
+        navigationRef.navigate(screen, params);
+      } catch (e) {
+        console.error('[Alexi] Navigation failed for screen "' + screen + '":', e?.message);
+      }
+    });
+    const offBack = AlexiEvents.on("go_back", () => {
+      try {
+        if (navigationRef.isReady() && navigationRef.canGoBack()) {
+          navigationRef.goBack();
+        }
+      } catch (e) {
+        console.error("[Alexi] goBack failed:", e?.message);
+      }
+    });
+    return () => {
+      offNav();
+      offBack();
+    };
+  }, []);
   if (!appIsReady) return null;
 
   // ✅ Fonts ready → show custom splash
@@ -181,38 +185,42 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <AuthProvider>
-          <TodayProvider>
-            <MilestoneProvider>
-              <View style={styles.container} onLayout={onLayoutRootView}>
-                <StatusBar style="light" />
-                <NavigationContainer
-                  ref={navigationRef}
-                  onStateChange={(state) => setActiveRoute(getActiveRouteName(state))}
-                >
-                  <Navigation />
-                </NavigationContainer>
-                <DirectMessageNotifications activeRoute={activeRoute} />
-                {showYaraAssistant && (
-                  <YaraAssistant
-                    onOpenSchedule={() => navigationRef.current?.navigate('Schedule')}
-                  />
-                )}
-                <AppTour activeTab={activeTab} onTabPress={setActiveTab} showOnMount={true} />
-                <CelebrationOverlay />
-                <MilestoneCelebrationOverlay />
-              </View>
-            </MilestoneProvider>
-          </TodayProvider>
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <AlexiVoiceProvider>
+              <TodayProvider>
+                <MilestoneProvider>
+                  <View style={styles.container} onLayout={onLayoutRootView}>
+                    <StatusBar style="light" />
+                    <NavigationContainer
+                      ref={navigationRef}
+                      onStateChange={(state) => setActiveRoute(getActiveRouteName(state))}
+                    >
+                      <Navigation />
+                    </NavigationContainer>
+                    {activeRoute !== "WorkoutActive" && <YaraAssistant />}
+                    <AppTour activeTab={activeTab} onTabPress={setActiveTab} showOnMount={true} />
+                    <CelebrationOverlay />
+                  </View>
+                </MilestoneProvider>
+              </TodayProvider>
+            </AlexiVoiceProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0F0B1E' },
-  centered: { justifyContent: 'center', alignItems: 'center' },
+  container: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  centered: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 });
 
 registerRootComponent(App);

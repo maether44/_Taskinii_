@@ -1,11 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
-import { FS } from '../constants/typography';
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Image,
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,15 +13,10 @@ import {
 } from "react-native";
 import MacroBar from "../components/shared/MacroBar";
 import RingProgress from "../components/shared/RingProgress";
-import { StepCounter } from "../components/StepCounter";
 import { useNutrition } from "../hooks/useNutrition";
 import { useProfile } from "../hooks/useProfile";
-import { DEFAULT_TARGETS } from "../constants/targets";
-import {
-  getAiAssistantErrorMessage,
-  invokeAiAssistant,
-  sanitizeAiAssistantText,
-} from "../services/aiAssistantService";
+import { invokeEdgePublic, supabase } from "../lib/supabase";
+import { AlexiEvents } from "../context/AlexiVoiceContext";
 
 const C = {
   bg: "#0F0B1E",
@@ -52,117 +46,119 @@ function buildFallbackMealPlan({ goals, eaten, protein, carbs, fat, mealSections
   const remainingProtein = Math.max((goals?.protein_target || 0) - (protein || 0), 0);
   const remainingCarbs = Math.max((goals?.carbs_target || 0) - (carbs || 0), 0);
   const remainingFat = Math.max((goals?.fat_target || 0) - (fat || 0), 0);
-  const mealSectionsList = mealSections || [];
-  const loggedMeals = mealSectionsList.filter((meal) => meal.logged).map((meal) => meal.label.toLowerCase());
-  const emptyMeals = mealSectionsList.filter((meal) => !meal.logged).map((meal) => meal.label.toLowerCase());
-  const coreMealsDone = ["breakfast", "lunch", "dinner"].every((slot) =>
-    mealSectionsList.some((meal) => meal.id === slot && meal.logged),
-  );
+  const emptyMeals = (mealSections || [])
+    .filter((meal) => !meal.logged)
+    .map((meal) => meal.label.toLowerCase());
+  const nextMeals = emptyMeals.length ? emptyMeals.join(", ") : "your next meal";
   const plan = [];
 
-  if (coreMealsDone) {
-    if (remainingCalories > 250) {
-      plan.push(`Breakfast, lunch, and dinner are already logged, so the rest of today should be a smart snack instead of another full meal.`);
-    } else {
-      plan.push(`Your main meals are already covered today, so only add something small if you're genuinely hungry.`);
-    }
-  } else if (emptyMeals.length > 0) {
-    plan.push(`The only meal slots still open today are ${emptyMeals.join(", ")}, so focus there instead of repeating meals you've already logged.`);
-  }
-
   if (remainingProtein > 35) {
-    plan.push(coreMealsDone
-      ? "Protein is still the main gap, so a high-protein snack like Greek yogurt, eggs, tuna, cottage cheese, or tofu would make the biggest difference."
-      : "Protein is the main gap, so build the next open meal around chicken, tuna, Greek yogurt, eggs, or tofu.");
+    plan.push(
+      `Protein is the main gap, so make ${nextMeals} center around chicken, tuna, Greek yogurt, eggs, or tofu.`,
+    );
   } else {
-    plan.push("Protein is in a decent place, so keep the rest of the day balanced instead of over-correcting.");
+    plan.push(
+      "Protein is in a decent place, so keep the next meals balanced instead of over-correcting.",
+    );
   }
 
   if (remainingCalories > 600) {
-    plan.push(coreMealsDone
-      ? `You still have about ${remainingCalories} kcal left, so you can fit one satisfying evening snack and still stay on plan.`
-      : `You still have about ${remainingCalories} kcal left, so you can fit the remaining meal slots plus a snack.`);
+    plan.push(
+      `You still have about ${remainingCalories} kcal left, so you can fit a proper meal plus a snack.`,
+    );
   } else if (remainingCalories > 250) {
-    plan.push(coreMealsDone
-      ? `You have about ${remainingCalories} kcal left, so one controlled snack should finish the day well.`
-      : `You have about ${remainingCalories} kcal left, so one balanced remaining meal should finish the day well.`);
+    plan.push(
+      `You have about ${remainingCalories} kcal left, so one balanced meal should finish the day well.`,
+    );
   } else {
-    plan.push("Calories are already close to target, so keep the rest of the day light and satisfying.");
+    plan.push(
+      "Calories are already close to target, so keep the rest of the day light and satisfying.",
+    );
   }
 
   if (remainingCarbs > remainingFat) {
     plan.push("Add quality carbs like rice, oats, potatoes, or fruit to keep energy up.");
   } else if (remainingFat > 15) {
-    plan.push("Healthy fats are still low, so avocado, olive oil, nuts, or salmon would balance things nicely.");
+    plan.push(
+      "Healthy fats are still low, so avocado, olive oil, nuts, or salmon would balance things nicely.",
+    );
   }
 
-  if (loggedMeals.length > 0) {
-    plan.push(`You already logged ${loggedMeals.join(", ")}, so use that pattern to guide the rest of the day instead of restarting it.`);
-  }
-
-  plan.push(coreMealsDone
-    ? "Best move now: keep the night simple, protein-first, and easy to log so Yara can learn from a clean finish."
-    : "Best move now: finish the open meal slots cleanly with a protein, a smart carb, and something fresh so Yara gets better data.");
+  plan.push(
+    "Fun version: build one easy plate with a protein, one smart carb, and one colorful fruit or vegetable so Alexi has even better data tomorrow.",
+  );
 
   return plan.join(" ");
 }
 
-function getLocalDateKey(date = new Date()) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+async function extractEdgeFunctionMessage(error) {
+  if (!error) return "";
+
+  if (error?.context) {
+    try {
+      const payload = await error.context.json();
+      if (payload?.reason) return payload.reason;
+      if (payload?.error) return payload.error;
+      if (payload?.message) return payload.message;
+    } catch {
+      try {
+        const text = await error.context.text();
+        if (text) return text;
+      } catch {
+        // Ignore secondary parsing failures.
+      }
+    }
+  }
+
+  return error?.message || "";
 }
 
-function buildClientNutritionContext({ goals, eaten, protein, carbs, fat, waterMl, caloriesBurned, mealSections }) {
-  const loggedMeals = (mealSections || [])
-    .filter((meal) => meal.logged)
-    .map((meal) => meal.id);
-  const openMeals = (mealSections || [])
-    .filter((meal) => !meal.logged)
-    .map((meal) => meal.id);
+async function invokeAlexiPlan(body) {
+  try {
+    const { data, error } = await supabase.functions.invoke("ai-assistant", { body });
+    if (error) {
+      const detail = await extractEdgeFunctionMessage(error);
+      throw new Error(detail || error.message);
+    }
+    return data;
+  } catch (error) {
+    const message = error?.message || "";
+    if (/jwt/i.test(message) || /non-2xx/i.test(message)) {
+      return invokeEdgePublic("ai-assistant", body);
+    }
+    throw error;
+  }
+}
+
+function buildClientNutritionContext({
+  goals,
+  eaten,
+  protein,
+  carbs,
+  fat,
+  waterMl,
+  caloriesBurned,
+  mealSections,
+}) {
   const recentMeals = (mealSections || [])
     .filter((meal) => meal.logged)
     .map((meal) => ({
-      date: getLocalDateKey(),
+      date: new Date().toISOString().slice(0, 10),
       meal_type: meal.id,
       foods: meal.items.map((item) => item.name).join(", "),
     }));
 
   return {
-    today: {
-      date: getLocalDateKey(),
-      calories_eaten: eaten || 0,
-      calorie_target: goals?.calorie_target || DEFAULT_TARGETS.calorie_target,
-      protein_eaten: protein || 0,
-      protein_target: goals?.protein_target || DEFAULT_TARGETS.protein_target,
-      carbs_eaten: carbs || 0,
-      carbs_target: goals?.carbs_target || DEFAULT_TARGETS.carbs_target,
-      fat_eaten: fat || 0,
-      fat_target: goals?.fat_target || DEFAULT_TARGETS.fat_target,
-      water_ml: waterMl || 0,
-      water_target_ml: goals?.water_target_ml || DEFAULT_TARGETS.water_target_ml,
-      calories_burned: caloriesBurned || 0,
-      meals: recentMeals,
-      logged_meal_types: loggedMeals,
-      open_meal_types: openMeals,
-    },
     nutrition: {
       avg_calories: eaten || 0,
       avg_protein_g: protein || 0,
       avg_carbs_g: carbs || 0,
       avg_fat_g: fat || 0,
       logged_days: recentMeals.length ? 1 : 0,
-      daily_calorie_target: goals?.calorie_target || DEFAULT_TARGETS.calorie_target,
-      protein_target: goals?.protein_target || DEFAULT_TARGETS.protein_target,
-      carbs_target: goals?.carbs_target || DEFAULT_TARGETS.carbs_target,
-      fat_target: goals?.fat_target || DEFAULT_TARGETS.fat_target,
-      remaining_calories: Math.max((goals?.calorie_target || DEFAULT_TARGETS.calorie_target) - (eaten || 0), 0),
-      remaining_protein_g: Math.max((goals?.protein_target || DEFAULT_TARGETS.protein_target) - (protein || 0), 0),
-      remaining_carbs_g: Math.max((goals?.carbs_target || DEFAULT_TARGETS.carbs_target) - (carbs || 0), 0),
-      remaining_fat_g: Math.max((goals?.fat_target || DEFAULT_TARGETS.fat_target) - (fat || 0), 0),
-      logged_meal_types: loggedMeals,
-      open_meal_types: openMeals,
+      daily_calorie_target: goals?.calorie_target || 2000,
+      protein_target: goals?.protein_target || 150,
+      carbs_target: goals?.carbs_target || 250,
+      fat_target: goals?.fat_target || 65,
       recent_meals: recentMeals,
     },
     activity: {
@@ -197,7 +193,17 @@ export default function Nutrition({ navigation }) {
     [goals, eaten, protein, carbs, fat, mealSections],
   );
   const clientContext = useMemo(
-    () => buildClientNutritionContext({ goals, eaten, protein, carbs, fat, waterMl, caloriesBurned, mealSections }),
+    () =>
+      buildClientNutritionContext({
+        goals,
+        eaten,
+        protein,
+        carbs,
+        fat,
+        waterMl,
+        caloriesBurned,
+        mealSections,
+      }),
     [goals, eaten, protein, carbs, fat, waterMl, caloriesBurned, mealSections],
   );
 
@@ -214,41 +220,48 @@ export default function Nutrition({ navigation }) {
       const prompt = [
         "Use my real recent meals, calorie target, macro target, and goal.",
         "Give me a short enjoyable meal plan for today.",
-        "Only mention breakfast, lunch, or dinner if that meal has not already been logged today.",
-        "If breakfast, lunch, and dinner are already logged, do not tell me to eat them again; focus on whether I need a snack, a light add-on, or nothing else tonight.",
-        "Use my remaining calories and macros for the rest of today, not a generic full-day template.",
-        "Focus on what I should repeat, swap, or add based on my actual logs and what time of day the remaining eating should realistically happen.",
+        "Mention breakfast, lunch, dinner, and snack if useful.",
+        "Focus on what I should repeat, swap, or add based on my actual logs.",
         "Keep it concise, practical, and fun.",
       ].join(" ");
 
-      let resolvedData = await invokeAiAssistant({ userId, query: prompt, clientContext });
+      let resolvedData = await invokeAlexiPlan({ userId, query: prompt, clientContext });
       if (!resolvedData?.response) {
-        resolvedData = await invokeAiAssistant({ query: prompt, clientContext });
+        resolvedData = await invokeAlexiPlan({ query: prompt, clientContext });
       }
       if (resolvedData?.fallback) {
-        setMealPlan(sanitizeAiAssistantText(resolvedData?.response) || fallbackMealPlan);
-        setMealPlanError(resolvedData?.reason
-          ? `Yara is using fallback mode right now: ${resolvedData.reason}`
-          : "Yara is using fallback mode right now.");
+        setMealPlan(resolvedData?.response || fallbackMealPlan);
+        setMealPlanError(
+          resolvedData?.reason
+            ? `Alexi is using fallback mode right now: ${resolvedData.reason}`
+            : "Alexi is using fallback mode right now.",
+        );
         return;
       }
-      setMealPlan(sanitizeAiAssistantText(resolvedData?.response) || "");
+      setMealPlan(resolvedData?.response || "");
     } catch (error) {
-      const detail = await getAiAssistantErrorMessage(error);
+      const detail = await extractEdgeFunctionMessage(error);
       setMealPlan(fallbackMealPlan);
       setMealPlanError(
         detail
-          ? `Yara live planning is unavailable right now: ${detail}`
-          : "Yara live planning is unavailable right now, so this card is using a smart local fallback.",
+          ? `Alexi live planning is unavailable right now: ${detail}`
+          : "Alexi live planning is unavailable right now, so this card is using a smart local fallback.",
       );
     } finally {
       setMealPlanLoading(false);
     }
   }, [clientContext, fallbackMealPlan, userId]);
 
-  useFocusEffect(useCallback(() => {
-    refresh();
-  }, [refresh]));
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh]),
+  );
+
+  useEffect(() => {
+    const off = AlexiEvents.on("dataUpdated", () => refresh());
+    return off;
+  }, [refresh]);
 
   useEffect(() => {
     if (loading) return;
@@ -282,6 +295,20 @@ export default function Nutrition({ navigation }) {
     navigation.navigate("MealLogger", { mealSlot: meal, onSavedAt: Date.now() });
   };
 
+  const confirmDeleteLog = (logId, foodName) => {
+    Alert.alert("Remove food", `Remove "${foodName}" from today's log?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Remove",
+        style: "destructive",
+        onPress: async () => {
+          await deleteFoodLog(logId);
+          refresh();
+        },
+      },
+    ]);
+  };
+
   if (loading) {
     return (
       <View style={[s.root, s.centered]}>
@@ -295,23 +322,26 @@ export default function Nutrition({ navigation }) {
     <View style={s.root}>
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
         <View style={s.header}>
-          <View style={{ flex: 1 }}>
+          <View>
             <Text style={s.title}>Food diary</Text>
             <Text style={s.date}>
-              {new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
+              {new Date().toLocaleDateString("en-US", {
+                weekday: "long",
+                month: "short",
+                day: "numeric",
+              })}
             </Text>
           </View>
-          <Image
-            source={require("../assets/bodyqfood.png")}
-            style={s.headerMascot}
-            resizeMode="contain"
-          />
           <TouchableOpacity onPress={refresh} style={s.refreshBtn}>
             <Ionicons name="refresh-outline" size={18} color={C.sub} />
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity activeOpacity={0.9} onPress={() => openScanner("snack")} style={s.heroWrap}>
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPress={() => openScanner("snack")}
+          style={s.heroWrap}
+        >
           <LinearGradient colors={["#7C5CFC", "#9D85F5"]} style={s.heroCard}>
             <View style={{ flex: 1 }}>
               <Text style={s.heroEyebrow}>Food Scanner</Text>
@@ -326,23 +356,26 @@ export default function Nutrition({ navigation }) {
 
         <View style={s.summaryCard}>
           <View style={s.summaryTop}>
-            <View style={s.summaryCopy}>
+            <View>
               <Text style={s.cardLabel}>TODAY</Text>
               <Text style={s.cardTitle}>Calorie budget</Text>
               <Text style={s.cardSub}>
                 {caloriesBurned > 0
                   ? `Workout bonus added: +${caloriesBurned} kcal`
-                  : "Track meals to help Yara coach you better"}
+                  : "Track meals to help Alexi coach you better"}
               </Text>
             </View>
-            <View style={s.summaryRingWrap}>
-              <RingProgress size={116} stroke={10} progress={calPct} color={eaten > adjustedGoal ? "#FF6B6B" : C.lime}>
-                <View style={s.ringContent}>
-                  <Text style={s.ringValue}>{eaten}</Text>
-                  <Text style={s.ringLabel}>eaten</Text>
-                </View>
-              </RingProgress>
-            </View>
+            <RingProgress
+              size={116}
+              stroke={10}
+              progress={calPct}
+              color={eaten > adjustedGoal ? "#FF6B6B" : C.lime}
+            >
+              <View style={{ alignItems: "center" }}>
+                <Text style={s.ringValue}>{eaten}</Text>
+                <Text style={s.ringLabel}>eaten</Text>
+              </View>
+            </RingProgress>
           </View>
 
           <View style={s.summaryStats}>
@@ -363,7 +396,12 @@ export default function Nutrition({ navigation }) {
           </View>
 
           <View style={s.macroSection}>
-            <MacroBar label="Protein" eaten={protein} goal={goals.protein_target} color={C.purple} />
+            <MacroBar
+              label="Protein"
+              eaten={protein}
+              goal={goals.protein_target}
+              color={C.purple}
+            />
             <MacroBar label="Carbs" eaten={carbs} goal={goals.carbs_target} color={C.accent} />
             <MacroBar label="Fat" eaten={fat} goal={goals.fat_target} color={C.lime} />
           </View>
@@ -375,7 +413,11 @@ export default function Nutrition({ navigation }) {
               <Text style={s.cardLabel}>YARA PLAN</Text>
               <Text style={s.cardTitle}>Today's meal game plan</Text>
             </View>
-            <TouchableOpacity style={s.planRefreshBtn} onPress={loadMealPlan} disabled={mealPlanLoading}>
+            <TouchableOpacity
+              style={s.planRefreshBtn}
+              onPress={loadMealPlan}
+              disabled={mealPlanLoading}
+            >
               <Ionicons name="sparkles-outline" size={16} color={C.lime} />
               <Text style={s.planRefreshTxt}>{mealPlanLoading ? "Thinking" : "Refresh"}</Text>
             </TouchableOpacity>
@@ -384,14 +426,18 @@ export default function Nutrition({ navigation }) {
           {mealPlanLoading ? (
             <View style={s.planLoading}>
               <ActivityIndicator color={C.lime} />
-              <Text style={s.planLoadingTxt}>Yara is building your plan from your real logs...</Text>
+              <Text style={s.planLoadingTxt}>
+                Alexi is building your plan from your real logs...
+              </Text>
             </View>
           ) : mealPlanError ? (
             <Text style={s.planError}>{mealPlanError}</Text>
           ) : mealPlan ? (
             <Text style={s.planBody}>{mealPlan}</Text>
           ) : (
-            <Text style={s.planEmpty}>Log a couple meals and Yara will turn them into a more personalized day plan.</Text>
+            <Text style={s.planEmpty}>
+              Log a couple meals and Alexi will turn them into a more personalized day plan.
+            </Text>
           )}
         </View>
 
@@ -442,7 +488,11 @@ export default function Nutrition({ navigation }) {
                         </Text>
                       </View>
                       <Text style={s.foodCals}>{item.calories} kcal</Text>
-                      <TouchableOpacity onPress={() => deleteFoodLog(item.id)} style={s.deleteBtn}>
+                      <TouchableOpacity
+                        style={s.deleteBtn}
+                        onPress={() => confirmDeleteLog(item.id, item.name)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
                         <Ionicons name="trash-outline" size={16} color="#FF6B6B" />
                       </TouchableOpacity>
                     </View>
@@ -461,7 +511,9 @@ export default function Nutrition({ navigation }) {
                 <Text style={s.mealPrimaryTxt}>Scan to {meal.label}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.mealSecondaryBtn} onPress={() => openMealLogger(meal)}>
-                <Text style={s.mealSecondaryTxt}>{meal.logged ? "Add more manually" : "Add manually"}</Text>
+                <Text style={s.mealSecondaryTxt}>
+                  {meal.logged ? "Add more manually" : "Add manually"}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -492,13 +544,12 @@ export default function Nutrition({ navigation }) {
           </View>
         </View>
 
-        <StepCounter />
-
         <View style={s.yaraCard}>
           <Text style={s.cardLabel}>YARA</Text>
           <Text style={s.cardTitle}>Daily meal coaching works best with real logs</Text>
           <Text style={s.cardSub}>
-            Every meal you save here becomes part of the nutrition context Yara can use when you ask for analysis or meal ideas.
+            Every meal you save here becomes part of the nutrition context Alexi can use when you
+            ask for analysis or meal ideas.
           </Text>
         </View>
       </ScrollView>
@@ -509,12 +560,16 @@ export default function Nutrition({ navigation }) {
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
   centered: { justifyContent: "center", alignItems: "center" },
-  loadingTxt: { color: C.sub, marginTop: 12, fontSize: FS.sub },
+  loadingTxt: { color: C.sub, marginTop: 12, fontSize: 13 },
   scroll: { paddingHorizontal: 16, paddingTop: 52, paddingBottom: 24 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 18 },
-  title: { color: C.text, fontSize: FS.screenTitle, fontWeight: "800", letterSpacing: -0.8 },
-  date: { color: C.sub, fontSize: FS.btnSecondary, marginTop: 2 },
-  headerMascot: { width: 72, height: 72 },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 18,
+  },
+  title: { color: C.text, fontSize: 30, fontWeight: "800", letterSpacing: -0.8 },
+  date: { color: C.sub, fontSize: 13, marginTop: 2 },
   refreshBtn: {
     width: 38,
     height: 38,
@@ -533,9 +588,14 @@ const s = StyleSheet.create({
     alignItems: "center",
     gap: 16,
   },
-  heroEyebrow: { color: "rgba(255,255,255,0.7)", fontSize: FS.badge, fontWeight: "800", letterSpacing: 1.2 },
-  heroTitle: { color: "#fff", fontSize: FS.sectionTitle, fontWeight: "800", lineHeight: 29, marginTop: 6 },
-  heroSub: { color: "rgba(255,255,255,0.75)", fontSize: FS.btnSecondary, lineHeight: 20, marginTop: 8 },
+  heroEyebrow: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1.2,
+  },
+  heroTitle: { color: "#fff", fontSize: 21, fontWeight: "800", lineHeight: 27, marginTop: 6 },
+  heroSub: { color: "rgba(255,255,255,0.75)", fontSize: 13, lineHeight: 19, marginTop: 8 },
   heroIcon: {
     width: 56,
     height: 56,
@@ -552,35 +612,17 @@ const s = StyleSheet.create({
     padding: 18,
     marginBottom: 20,
   },
-  summaryTop: { flexDirection: "row", justifyContent: "space-between", gap: 12, alignItems: "center" },
-  summaryCopy: {
-    flex: 1,
-    minWidth: 0,
-    paddingRight: 4,
-  },
-  summaryRingWrap: {
-    flexShrink: 0,
-    width: 122,
-    alignItems: "flex-start",
-    marginLeft: -6,
-  },
-  cardLabel: { color: C.sub, fontSize: FS.badge, fontWeight: "800", letterSpacing: 1.1 },
-  cardTitle: { color: C.text, fontSize: FS.sectionTitle, fontWeight: "800", marginTop: 6 },
-  cardSub: { color: C.dim, fontSize: FS.btnSecondary, lineHeight: 20, marginTop: 6 },
-  ringContent: {
-    width: 70,
+  summaryTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 16,
     alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 4,
   },
-  ringValue: {
-    color: C.text,
-    fontSize: FS.sectionTitle,
-    fontWeight: "900",
-    textAlign: "center",
-    includeFontPadding: false,
-  },
-  ringLabel: { color: C.sub, fontSize: FS.badge, textAlign: "center" },
+  cardLabel: { color: C.sub, fontSize: 11, fontWeight: "800", letterSpacing: 1.1 },
+  cardTitle: { color: C.text, fontSize: 20, fontWeight: "800", marginTop: 6 },
+  cardSub: { color: C.dim, fontSize: 13, lineHeight: 19, marginTop: 6 },
+  ringValue: { color: C.text, fontSize: 22, fontWeight: "900" },
+  ringLabel: { color: C.sub, fontSize: 11 },
   summaryStats: {
     flexDirection: "row",
     marginTop: 18,
@@ -591,14 +633,23 @@ const s = StyleSheet.create({
     paddingVertical: 14,
   },
   summaryStat: { flex: 1, alignItems: "center" },
-  summaryValue: { color: C.text, fontSize: FS.cardTitle, fontWeight: "800" },
-  summaryLabel: { color: C.sub, fontSize: FS.badge, marginTop: 4 },
+  summaryValue: { color: C.text, fontSize: 18, fontWeight: "800" },
+  summaryLabel: { color: C.sub, fontSize: 11, marginTop: 4 },
   summaryDivider: { width: 1, backgroundColor: C.border },
   macroSection: { marginTop: 18 },
-  sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
-  sectionHeaderTight: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  sectionTitle: { color: C.text, fontSize: FS.sectionTitle, fontWeight: "800" },
-  sectionSub: { color: C.sub, fontSize: FS.btnSecondary, marginTop: 2 },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  sectionHeaderTight: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  sectionTitle: { color: C.text, fontSize: 22, fontWeight: "800" },
+  sectionSub: { color: C.sub, fontSize: 13, marginTop: 2 },
   scanMiniBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -610,7 +661,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  scanMiniTxt: { color: C.purple, fontSize: FS.badge, fontWeight: "700" },
+  scanMiniTxt: { color: C.purple, fontSize: 12, fontWeight: "700" },
   mealCard: {
     backgroundColor: C.card,
     borderRadius: 22,
@@ -621,15 +672,27 @@ const s = StyleSheet.create({
   },
   mealHead: { flexDirection: "row", justifyContent: "space-between", gap: 12 },
   mealTitleRow: { flexDirection: "row", gap: 12, flex: 1 },
-  mealIconWrap: { width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  mealIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   mealEmoji: { fontSize: 20 },
-  mealName: { color: C.text, fontSize: FS.cardTitle, fontWeight: "700" },
-  mealSub: { color: C.sub, fontSize: FS.sub, marginTop: 3 },
-  mealCalories: { color: C.lime, fontSize: FS.bodyLarge, fontWeight: "800" },
+  mealName: { color: C.text, fontSize: 18, fontWeight: "700" },
+  mealSub: { color: C.sub, fontSize: 12, marginTop: 3 },
+  mealCalories: { color: C.lime, fontSize: 16, fontWeight: "800" },
   pillRow: { flexDirection: "row", gap: 8, marginTop: 14 },
-  macroPill: { flex: 1, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 10, borderWidth: 1 },
-  macroPillValue: { fontSize: FS.btnSecondary, fontWeight: "800" },
-  macroPillLabel: { color: C.sub, fontSize: FS.label, marginTop: 2 },
+  macroPill: {
+    flex: 1,
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    borderWidth: 1,
+  },
+  macroPillValue: { fontSize: 14, fontWeight: "800" },
+  macroPillLabel: { color: C.sub, fontSize: 11, marginTop: 2 },
   foodList: { marginTop: 14, gap: 8 },
   foodRow: {
     flexDirection: "row",
@@ -643,10 +706,18 @@ const s = StyleSheet.create({
     paddingVertical: 11,
     gap: 10,
   },
-  foodName: { color: C.text, fontSize: FS.body, fontWeight: "700" },
-  foodMeta: { color: C.sub, fontSize: FS.badge, marginTop: 2 },
-  foodCals: { color: C.accent, fontSize: FS.btnSecondary, fontWeight: "700" },
-  deleteBtn: { padding: 6 },
+  foodName: { color: C.text, fontSize: 14, fontWeight: "700" },
+  foodMeta: { color: C.sub, fontSize: 11, marginTop: 2 },
+  foodCals: { color: C.accent, fontSize: 13, fontWeight: "700" },
+  deleteBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,107,107,0.10)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 6,
+  },
   emptyMeal: {
     marginTop: 14,
     paddingVertical: 16,
@@ -656,7 +727,7 @@ const s = StyleSheet.create({
     backgroundColor: C.cardAlt,
     alignItems: "center",
   },
-  emptyMealTxt: { color: C.sub, fontSize: FS.sub },
+  emptyMealTxt: { color: C.sub, fontSize: 13 },
   mealActions: { flexDirection: "row", gap: 10, marginTop: 14 },
   mealPrimaryBtn: {
     flex: 1,
@@ -668,7 +739,7 @@ const s = StyleSheet.create({
     borderRadius: 14,
     paddingVertical: 13,
   },
-  mealPrimaryTxt: { color: "#fff", fontSize: FS.sub, fontWeight: "800" },
+  mealPrimaryTxt: { color: "#fff", fontSize: 13, fontWeight: "800" },
   mealSecondaryBtn: {
     flex: 1,
     alignItems: "center",
@@ -679,7 +750,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: C.border,
   },
-  mealSecondaryTxt: { color: C.text, fontSize: FS.sub, fontWeight: "700" },
+  mealSecondaryTxt: { color: C.text, fontSize: 13, fontWeight: "700" },
   waterCard: {
     backgroundColor: C.card,
     borderRadius: 22,
@@ -688,8 +759,14 @@ const s = StyleSheet.create({
     padding: 18,
     marginTop: 8,
   },
-  waterStat: { color: C.blue, fontSize: FS.btnSecondary, fontWeight: "700" },
-  waterBar: { height: 10, borderRadius: 5, backgroundColor: `${C.blue}18`, marginTop: 14, overflow: "hidden" },
+  waterStat: { color: C.blue, fontSize: 14, fontWeight: "700" },
+  waterBar: {
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: `${C.blue}18`,
+    marginTop: 14,
+    overflow: "hidden",
+  },
   waterFill: { height: "100%", backgroundColor: C.blue, borderRadius: 5 },
   waterBtns: { flexDirection: "row", gap: 8, marginTop: 16 },
   waterBtn: {
@@ -703,7 +780,7 @@ const s = StyleSheet.create({
     borderColor: `${C.blue}30`,
   },
   waterUndo: { backgroundColor: "rgba(255,107,107,0.08)", borderColor: "rgba(255,107,107,0.25)" },
-  waterBtnTxt: { color: C.blue, fontSize: FS.sub, fontWeight: "700" },
+  waterBtnTxt: { color: C.blue, fontSize: 13, fontWeight: "700" },
   yaraCard: {
     backgroundColor: C.card,
     borderRadius: 22,
@@ -737,10 +814,10 @@ const s = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  planRefreshTxt: { color: C.lime, fontSize: FS.badge, fontWeight: "800" },
+  planRefreshTxt: { color: C.lime, fontSize: 12, fontWeight: "800" },
   planLoading: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 16 },
-  planLoadingTxt: { color: C.sub, fontSize: FS.sub, flex: 1, lineHeight: 19 },
-  planBody: { color: C.text, fontSize: FS.btnSecondary, lineHeight: 22, marginTop: 16 },
-  planEmpty: { color: C.sub, fontSize: FS.sub, lineHeight: 20, marginTop: 16 },
-  planError: { color: "#FF6B6B", fontSize: FS.sub, lineHeight: 20, marginTop: 16 },
+  planLoadingTxt: { color: C.sub, fontSize: 13, flex: 1, lineHeight: 19 },
+  planBody: { color: C.text, fontSize: 14, lineHeight: 22, marginTop: 16 },
+  planEmpty: { color: C.sub, fontSize: 13, lineHeight: 20, marginTop: 16 },
+  planError: { color: "#FF6B6B", fontSize: 13, lineHeight: 20, marginTop: 16 },
 });

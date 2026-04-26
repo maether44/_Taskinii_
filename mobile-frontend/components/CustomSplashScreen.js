@@ -1,41 +1,48 @@
 import React, { useEffect, useRef, useState } from "react";
-import {
-  View,
-  Text,
-  Image,
-  StyleSheet,
-  Animated,
-  Easing,
-  Dimensions,
-} from "react-native";
+import { View, Text, Image, StyleSheet, Animated, Easing, Dimensions } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 
 const { width: W, height: H } = Dimensions.get("window");
 
 export default function CustomSplashScreen({ onDone }) {
-  const mascotY       = useRef(new Animated.Value(-80)).current;
-  const mascotScale   = useRef(new Animated.Value(0.7)).current;
+  const mascotY = useRef(new Animated.Value(-80)).current;
+  const mascotScale = useRef(new Animated.Value(0.7)).current;
   const mascotOpacity = useRef(new Animated.Value(0)).current;
-  const cardOpacity   = useRef(new Animated.Value(0)).current;
-  const cardY         = useRef(new Animated.Value(14)).current;
-  const glowPulse     = useRef(new Animated.Value(1)).current;
+  const cardOpacity = useRef(new Animated.Value(0)).current;
+  const cardY = useRef(new Animated.Value(14)).current;
+  const glowPulse = useRef(new Animated.Value(1)).current;
   const [pct, setPct] = useState(0);
 
   useEffect(() => {
     // Glow breathes
     Animated.loop(
       Animated.sequence([
-        Animated.timing(glowPulse, { toValue: 1.12, duration: 2500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(glowPulse, { toValue: 1.0,  duration: 2500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      ])
+        Animated.timing(glowPulse, {
+          toValue: 1.12,
+          duration: 2500,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(glowPulse, {
+          toValue: 1.0,
+          duration: 2500,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]),
     ).start();
 
     // Mascot drops in
     setTimeout(() => {
       Animated.parallel([
         Animated.timing(mascotOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
-        Animated.spring(mascotY,     { toValue: 0, friction: 5, tension: 70, useNativeDriver: true }),
-        Animated.spring(mascotScale, { toValue: 1, friction: 5, tension: 70, useNativeDriver: true }),
+        Animated.spring(mascotY, { toValue: 0, friction: 5, tension: 70, useNativeDriver: true }),
+        Animated.spring(mascotScale, {
+          toValue: 1,
+          friction: 5,
+          tension: 70,
+          useNativeDriver: true,
+        }),
       ]).start();
     }, 100);
 
@@ -43,7 +50,12 @@ export default function CustomSplashScreen({ onDone }) {
     setTimeout(() => {
       Animated.parallel([
         Animated.timing(cardOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
-        Animated.timing(cardY, { toValue: 0, duration: 400, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(cardY, {
+          toValue: 0,
+          duration: 400,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
       ]).start();
     }, 1000);
 
@@ -71,7 +83,6 @@ export default function CustomSplashScreen({ onDone }) {
 
   return (
     <View style={s.root}>
-
       {/* ── Purple atmospheric glow ABOVE logo ── */}
       <Animated.View style={[s.glowTop, { transform: [{ scale: glowPulse }] }]} />
 
@@ -79,12 +90,16 @@ export default function CustomSplashScreen({ onDone }) {
       <Animated.View style={[s.glowBottom, { transform: [{ scale: glowPulse }] }]} />
 
       <View style={s.scene}>
-
         {/* Mascot */}
-        <Animated.View style={[s.mascotWrap, {
-          opacity: mascotOpacity,
-          transform: [{ translateY: mascotY }, { scale: mascotScale }],
-        }]}>
+        <Animated.View
+          style={[
+            s.mascotWrap,
+            {
+              opacity: mascotOpacity,
+              transform: [{ translateY: mascotY }, { scale: mascotScale }],
+            },
+          ]}
+        >
           <Image
             source={require("../assets/BodyQ_Logo.png")}
             style={s.mascotImg}
@@ -93,10 +108,15 @@ export default function CustomSplashScreen({ onDone }) {
         </Animated.View>
 
         {/* Card */}
-        <Animated.View style={[s.card, {
-          opacity: cardOpacity,
-          transform: [{ translateY: cardY }],
-        }]}>
+        <Animated.View
+          style={[
+            s.card,
+            {
+              opacity: cardOpacity,
+              transform: [{ translateY: cardY }],
+            },
+          ]}
+        >
           <View style={s.cardHead}>
             <View style={s.headLeft}>
               <View style={s.pulseDot} />
@@ -119,7 +139,6 @@ export default function CustomSplashScreen({ onDone }) {
             </View>
           </View>
         </Animated.View>
-
       </View>
 
       <Text style={s.version}>BodyQ · v2.0.0</Text>
@@ -178,7 +197,7 @@ const s = StyleSheet.create({
   },
 
   mascotWrap: { marginBottom: 40 },
-  mascotImg:  { width: 264, height: 264 },
+  mascotImg: { width: 264, height: 264 },
 
   card: {
     width: "100%",
@@ -201,12 +220,15 @@ const s = StyleSheet.create({
   },
   headLeft: { flexDirection: "row", alignItems: "center" },
   pulseDot: {
-    width: 7, height: 7, borderRadius: 999,
+    width: 7,
+    height: 7,
+    borderRadius: 999,
     backgroundColor: "#c8ff1e",
     marginRight: 8,
     shadowColor: "#c8ff1e",
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.9, shadowRadius: 6,
+    shadowOpacity: 0.9,
+    shadowRadius: 6,
   },
   cardLabel: {
     fontFamily: "Outfit-SemiBold",

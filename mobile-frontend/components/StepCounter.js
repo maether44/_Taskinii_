@@ -1,17 +1,17 @@
-import { View, Text, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useToday } from '../context/TodayContext';
-import { DEFAULT_TARGETS } from '../constants/targets';
+import { View, Text, StyleSheet } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useToday } from "../context/TodayContext";
+import { DEFAULT_TARGETS } from "../constants/targets";
 
 const C = {
-  bg: '#0F0B1E',
-  card: '#181430',
-  border: '#251E42',
-  purple: '#7C5CFC',
-  lime: '#C8F135',
-  text: '#fff',
-  error: '#FF6B6B',
-  success: '#51CF66',
+  bg: "#0F0B1E",
+  card: "#181430",
+  border: "#251E42",
+  purple: "#7C5CFC",
+  lime: "#C8F135",
+  text: "#fff",
+  error: "#FF6B6B",
+  success: "#51CF66",
 };
 
 export function StepCounter() {
@@ -28,7 +28,7 @@ export function StepCounter() {
     );
   }
 
-  if (pedometerPermission && pedometerPermission !== 'granted') {
+  if (pedometerPermission && pedometerPermission !== "granted") {
     return (
       <View style={s.errorCard}>
         <Ionicons name="lock" size={24} color={C.error} />
@@ -79,43 +79,43 @@ const s = StyleSheet.create({
     marginBottom: 12,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 16,
   },
   label: {
     fontSize: 12,
-    color: '#8C80B1',
+    color: "#8C80B1",
     marginBottom: 4,
   },
   stepCount: {
     fontSize: 32,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: C.text,
   },
   goal: {
     fontSize: 12,
-    color: '#6B5F8A',
+    color: "#6B5F8A",
     marginTop: 2,
   },
   progressBar: {
     height: 8,
     backgroundColor: C.border,
     borderRadius: 4,
-    overflow: 'hidden',
+    overflow: "hidden",
     marginBottom: 12,
   },
   progressFill: {
-    height: '100%',
+    height: "100%",
     borderRadius: 4,
   },
   stats: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 8,
   },
   progress: {
     fontSize: 12,
-    color: '#8C80B1',
+    color: "#8C80B1",
   },
   errorCard: {
     backgroundColor: C.card,
@@ -123,17 +123,17 @@ const s = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: C.error,
-    alignItems: 'center',
+    alignItems: "center",
     gap: 8,
   },
   errorTxt: {
     color: C.error,
     fontSize: 12,
-    textAlign: 'center',
+    textAlign: "center",
   },
   successSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
     marginTop: 8,
   },

@@ -1,8 +1,8 @@
-import React from 'react';
-import { ScrollView, StyleProp, StyleSheet, ViewStyle } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { COLORS } from '../../theme/tokens';
+import React from "react";
+import { ScrollView, StyleProp, StyleSheet, ViewStyle } from "react-native";
+import Animated, { FadeInDown } from "react-native-reanimated";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { COLORS } from "../../theme/tokens";
 
 interface ScreenWrapperProps {
   children: React.ReactNode;
@@ -30,17 +30,12 @@ export default function ScreenWrapper({
       {children}
     </ScrollView>
   ) : (
-    <Animated.View style={[s.flex, contentStyle]}>
-      {children}
-    </Animated.View>
+    <Animated.View style={[s.flex, contentStyle]}>{children}</Animated.View>
   );
 
   return (
     <SafeAreaView style={[s.safe, { backgroundColor: bg }, style]}>
-      <Animated.View
-        entering={FadeInDown.duration(280).springify()}
-        style={s.flex}
-      >
+      <Animated.View entering={FadeInDown.duration(280).springify()} style={s.flex}>
         {inner}
       </Animated.View>
     </SafeAreaView>
@@ -48,7 +43,7 @@ export default function ScreenWrapper({
 }
 
 const s = StyleSheet.create({
-  safe:          { flex: 1 },
-  flex:          { flex: 1 },
+  safe: { flex: 1 },
+  flex: { flex: 1 },
   scrollContent: { flexGrow: 1 },
 });

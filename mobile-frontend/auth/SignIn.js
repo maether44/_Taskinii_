@@ -32,9 +32,9 @@ const SignIn = () => {
   const [loading, setLoading] = useState(false);
 
   // ── Forgot Password state ──────────────────────────────────────────────────
-  const [fpVisible, setFpVisible]   = useState(false);
-  const [fpEmail, setFpEmail]       = useState("");
-  const [fpSending, setFpSending]   = useState(false);
+  const [fpVisible, setFpVisible] = useState(false);
+  const [fpEmail, setFpEmail] = useState("");
+  const [fpSending, setFpSending] = useState(false);
 
   const onSubmit = async (data) => {
     setLoading(true);
@@ -61,10 +61,7 @@ const SignIn = () => {
       if (error) throw error;
       setFpVisible(false);
       setFpEmail("");
-      Alert.alert(
-        "Email sent ✉️",
-        "Check your inbox for a password reset link."
-      );
+      Alert.alert("Email sent ✉️", "Check your inbox for a password reset link.");
     } catch (err) {
       Alert.alert("Error", err?.message || "Could not send reset email.");
     } finally {
@@ -76,9 +73,7 @@ const SignIn = () => {
     <AuthLayout>
       <View style={styles.header}>
         <Text style={styles.title}>Welcome Back!</Text>
-        <Text style={styles.subtitle}>
-          Sign in to continue your fitness journey
-        </Text>
+        <Text style={styles.subtitle}>Sign in to continue your fitness journey</Text>
       </View>
 
       <View style={styles.form}>

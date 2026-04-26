@@ -1,24 +1,14 @@
 import { useRef, useState } from "react";
 import { Animated } from "react-native";
 import { generateAIPlan } from "../lib/groqAPI";
-import {
-  calcBMR,
-  calcTDEE,
-  calcCalTarget,
-  calcProtein,
-  calcBMI,
-} from "../lib/calculations";
+import { calcBMR, calcTDEE, calcCalTarget, calcProtein, calcBMI } from "../lib/calculations";
 import { STEPS } from "../constants/onBoardingData";
 
-import {
-  getProfile,
-  saveOnboardingProfile,
-  saveCalorieTargets,
-} from "../services/profileService";
+import { saveOnboardingProfile, saveCalorieTargets } from "../services/profileService";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
-import { error as logError } from '../lib/logger';
-import { scheduleStore } from '../store/scheduleStore';
+import { error as logError } from "../lib/logger";
+import { scheduleStore } from "../store/scheduleStore";
 
 export function useOnboarding() {
   const { user: authUser } = useAuth();
@@ -32,7 +22,7 @@ export function useOnboarding() {
   const fade = useRef(new Animated.Value(1)).current;
 
   // Step answers
-  const [coachName, setCoachName] = useState("Yara");
+  const [coachName, setCoachName] = useState("Alexi");
   const [goal, setGoal] = useState(null);
   const [gender, setGender] = useState(null);
   const [dob, setDob] = useState("");
@@ -72,13 +62,7 @@ export function useOnboarding() {
   };
 
   const toggleFocus = (id) => {
-    setFocus((p) =>
-      p.includes(id)
-        ? p.filter((x) => x !== id)
-        : p.length < 3
-          ? [...p, id]
-          : p,
-    );
+    setFocus((p) => (p.includes(id) ? p.filter((x) => x !== id) : p.length < 3 ? [...p, id] : p));
   };
 
   // Per-step validation
@@ -114,7 +98,7 @@ export function useOnboarding() {
   };
 
   const getAnswers = () => ({
-    coachName: coachName.trim() || "Yara",
+    coachName: coachName.trim() || "Alexi",
     goal,
     gender,
     dob,
@@ -191,12 +175,12 @@ export function useOnboarding() {
       // Save AI plan to training_plans table if one was generated
       if (aiPlan?.days?.length) {
         const { error: planErr } = await supabase
-          .from('training_plans')
+          .from("training_plans")
           .upsert(
             { user_id: user.id, plan_json: aiPlan, created_at: new Date().toISOString() },
-            { onConflict: 'user_id' },
+            { onConflict: "user_id" },
           );
-        if (planErr) logError('[onboarding] training_plans save failed:', planErr.message);
+        if (planErr) logError("[onboarding] training_plans save failed:", planErr.message);
 
         // Populate the schedule store so TodayScheduleWidget shows the plan
         const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -222,9 +206,7 @@ export function useOnboarding() {
       onComplete?.();
     } catch (err) {
       logError("Failed to save onboarding:", err);
-      setLoadError(
-        err.message || "Failed to save your profile. Please try again.",
-      );
+      setLoadError(err.message || "Failed to save your profile. Please try again.");
     } finally {
       setSavingProfile(false);
     }

@@ -34,14 +34,18 @@ function ScanFrame({ active }) {
 
   useEffect(() => {
     if (!active) return;
-    const pulseAnim = Animated.loop(Animated.sequence([
-      Animated.timing(pulse, { toValue: 1.03, duration: 800, useNativeDriver: true }),
-      Animated.timing(pulse, { toValue: 1, duration: 800, useNativeDriver: true }),
-    ]));
-    const line = Animated.loop(Animated.sequence([
-      Animated.timing(lineAnim, { toValue: 1, duration: 1600, useNativeDriver: true }),
-      Animated.timing(lineAnim, { toValue: 0, duration: 1600, useNativeDriver: true }),
-    ]));
+    const pulseAnim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1.03, duration: 800, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: 800, useNativeDriver: true }),
+      ]),
+    );
+    const line = Animated.loop(
+      Animated.sequence([
+        Animated.timing(lineAnim, { toValue: 1, duration: 1600, useNativeDriver: true }),
+        Animated.timing(lineAnim, { toValue: 0, duration: 1600, useNativeDriver: true }),
+      ]),
+    );
     pulseAnim.start();
     line.start();
     return () => {
@@ -88,7 +92,12 @@ function ModeToggle({ mode, onChange }) {
     <View style={s.toggleWrap}>
       <Animated.View style={[s.toggleSlider, { transform: [{ translateX }] }]} />
       {["barcode", "photo"].map((item) => (
-        <TouchableOpacity key={item} style={s.toggleBtn} onPress={() => onChange(item)} activeOpacity={0.8}>
+        <TouchableOpacity
+          key={item}
+          style={s.toggleBtn}
+          onPress={() => onChange(item)}
+          activeOpacity={0.8}
+        >
           <Ionicons
             name={item === "barcode" ? "barcode-outline" : "camera-outline"}
             size={15}
@@ -105,7 +114,11 @@ function ModeToggle({ mode, onChange }) {
 
 function ActionCard({ icon, title, subtitle, active, onPress }) {
   return (
-    <TouchableOpacity style={[s.actionCard, active && s.actionCardActive]} onPress={onPress} activeOpacity={0.88}>
+    <TouchableOpacity
+      style={[s.actionCard, active && s.actionCardActive]}
+      onPress={onPress}
+      activeOpacity={0.88}
+    >
       <View style={[s.actionIcon, active && s.actionIconActive]}>
         <Ionicons name={icon} size={18} color={active ? "#0D0D0D" : "#fff"} />
       </View>
@@ -143,7 +156,16 @@ export default function FoodScannerScreen() {
 
   const { logScannedFood } = useNutrition();
   const { profile } = useProfile();
-  const { scanning, foodResult, error, loading, handleBarcode, handlePhotoCapture, handlePhotoLibrary, reset } = useFoodScanner();
+  const {
+    scanning,
+    foodResult,
+    error,
+    loading,
+    handleBarcode,
+    handlePhotoCapture,
+    handlePhotoLibrary,
+    reset,
+  } = useFoodScanner();
   const goalType = profile?.goal ?? "general_health";
 
   useEffect(() => {
@@ -154,9 +176,12 @@ export default function FoodScannerScreen() {
     }
   }, [foodResult, mealType]);
 
-  const onBarcodeScanned = useCallback(({ data }) => {
-    if (!scanning && !loading && mode === "barcode") handleBarcode(data);
-  }, [scanning, loading, mode, handleBarcode]);
+  const onBarcodeScanned = useCallback(
+    ({ data }) => {
+      if (!scanning && !loading && mode === "barcode") handleBarcode(data);
+    },
+    [scanning, loading, mode, handleBarcode],
+  );
 
   const onCapture = async () => {
     if (mode !== "photo" || loading || !cameraRef.current) return;
@@ -202,7 +227,9 @@ export default function FoodScannerScreen() {
         <View style={s.permCard}>
           <Ionicons name="camera-outline" size={40} color={LIME} />
           <Text style={s.permTitle}>Camera access needed</Text>
-          <Text style={s.permSub}>BodyQ uses your camera to scan barcodes and analyze meal photos.</Text>
+          <Text style={s.permSub}>
+            BodyQ uses your camera to scan barcodes and analyze meal photos.
+          </Text>
           <TouchableOpacity style={s.permBtn} onPress={requestPermission}>
             <Text style={s.permBtnTxt}>Grant access</Text>
           </TouchableOpacity>
@@ -227,13 +254,22 @@ export default function FoodScannerScreen() {
 
           <LinearGradient
             colors={["rgba(0,0,0,0.65)", "transparent", "transparent", "rgba(0,0,0,0.88)"]}
-            locations={[0, 0.22, 0.60, 1]}
+            locations={[0, 0.22, 0.6, 1]}
             style={StyleSheet.absoluteFill}
             pointerEvents="none"
           />
 
-          <View style={[s.header, { paddingTop: Math.max(insets.top + 8, Platform.OS === "ios" ? 58 : 38) }]}>
-            <TouchableOpacity style={s.iconBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+          <View
+            style={[
+              s.header,
+              { paddingTop: Math.max(insets.top + 8, Platform.OS === "ios" ? 58 : 38) },
+            ]}
+          >
+            <TouchableOpacity
+              style={s.iconBtn}
+              onPress={() => navigation.goBack()}
+              activeOpacity={0.8}
+            >
               <Ionicons name="chevron-back" size={22} color="#fff" />
             </TouchableOpacity>
             <View style={{ alignItems: "center" }}>
@@ -261,7 +297,9 @@ export default function FoodScannerScreen() {
               <View style={s.loadingCard}>
                 <ActivityIndicator size="large" color={LIME} />
                 <Text style={s.loadingTxt}>
-                  {mode === "barcode" ? "Looking up nutrition..." : "Yara is estimating this meal..."}
+                  {mode === "barcode"
+                    ? "Looking up nutrition..."
+                    : "Alexi is estimating this meal..."}
                 </Text>
               </View>
             </View>
@@ -276,8 +314,19 @@ export default function FoodScannerScreen() {
             </View>
           )}
 
-          <View style={[s.controls, { paddingBottom: Math.max(insets.bottom + 18, Platform.OS === "ios" ? 46 : 30) }]}>
-            <ModeToggle mode={mode} onChange={(nextMode) => { reset(); setMode(nextMode); }} />
+          <View
+            style={[
+              s.controls,
+              { paddingBottom: Math.max(insets.bottom + 18, Platform.OS === "ios" ? 46 : 30) },
+            ]}
+          >
+            <ModeToggle
+              mode={mode}
+              onChange={(nextMode) => {
+                reset();
+                setMode(nextMode);
+              }}
+            />
             <View style={s.actionGrid}>
               <ActionCard
                 icon="barcode-outline"
@@ -302,7 +351,11 @@ export default function FoodScannerScreen() {
             </View>
             {mode === "photo" && (
               <View style={s.photoActions}>
-                <TouchableOpacity style={s.photoLibraryBtn} onPress={handlePhotoLibrary} activeOpacity={0.85}>
+                <TouchableOpacity
+                  style={s.photoLibraryBtn}
+                  onPress={handlePhotoLibrary}
+                  activeOpacity={0.85}
+                >
                   <Ionicons name="images-outline" size={18} color="#fff" />
                   <Text style={s.photoLibraryTxt}>Choose from gallery</Text>
                 </TouchableOpacity>
@@ -420,9 +473,32 @@ const s = StyleSheet.create({
   },
   actionTitle: { color: "#fff", fontSize: 14, fontWeight: "800" },
   actionSubtitle: { color: "#ffffff75", fontSize: 12, lineHeight: 17, marginTop: 2 },
-  toggleWrap: { flexDirection: "row", backgroundColor: "rgba(255,255,255,0.11)", borderRadius: 32, padding: 4, width: 244, position: "relative" },
-  toggleSlider: { position: "absolute", top: 4, left: 4, width: 116, height: 36, backgroundColor: LIME, borderRadius: 28 },
-  toggleBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, height: 36, zIndex: 1 },
+  toggleWrap: {
+    flexDirection: "row",
+    backgroundColor: "rgba(255,255,255,0.11)",
+    borderRadius: 32,
+    padding: 4,
+    width: 244,
+    position: "relative",
+  },
+  toggleSlider: {
+    position: "absolute",
+    top: 4,
+    left: 4,
+    width: 116,
+    height: 36,
+    backgroundColor: LIME,
+    borderRadius: 28,
+  },
+  toggleBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    height: 36,
+    zIndex: 1,
+  },
   toggleTxt: { fontSize: 13, fontWeight: "700" },
   photoActions: { width: "100%", alignItems: "center", gap: 12 },
   photoLibraryBtn: {
@@ -449,9 +525,20 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  captureBtn: { width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center" },
+  captureBtn: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   photoHint: { color: "#ffffff88", fontSize: 12, textAlign: "center" },
-  loadingOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 20, alignItems: "center", justifyContent: "center" },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   loadingCard: {
     backgroundColor: "rgba(14,14,14,0.92)",
     borderRadius: 20,
@@ -463,7 +550,14 @@ const s = StyleSheet.create({
     minWidth: 220,
   },
   loadingTxt: { color: "#fff", fontSize: 14, fontWeight: "600", textAlign: "center" },
-  errorWrap: { position: "absolute", bottom: 160, left: 24, right: 24, zIndex: 15, alignItems: "center" },
+  errorWrap: {
+    position: "absolute",
+    bottom: 160,
+    left: 24,
+    right: 24,
+    zIndex: 15,
+    alignItems: "center",
+  },
   errorCard: {
     backgroundColor: "rgba(255,107,107,0.15)",
     borderRadius: 12,
@@ -488,7 +582,13 @@ const s = StyleSheet.create({
   },
   permTitle: { color: "#fff", fontSize: 18, fontWeight: "800", marginTop: 4 },
   permSub: { color: "#ffffff66", fontSize: 13, textAlign: "center", lineHeight: 20 },
-  permBtn: { backgroundColor: LIME, borderRadius: 14, paddingHorizontal: 28, paddingVertical: 12, marginTop: 8 },
+  permBtn: {
+    backgroundColor: LIME,
+    borderRadius: 14,
+    paddingHorizontal: 28,
+    paddingVertical: 12,
+    marginTop: 8,
+  },
   permBtnTxt: { color: "#0D0D0D", fontSize: 14, fontWeight: "800" },
   resultWrap: { backgroundColor: "#0F0B1E" },
 });
