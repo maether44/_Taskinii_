@@ -18,7 +18,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { FS } from '../constants/typography';
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useInsights } from '../hooks/useInsights';
 import { useMilestones } from '../context/MilestoneContext';
@@ -83,6 +83,12 @@ export default function Insights() {
 
   const { currentStreak, getProgress, isUnlocked, fetchUnlocks, checkMilestones } = useMilestones();
   const milestoneProgress = getProgress();
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refresh();
+    setRefreshing(false);
+  }, [refresh]);
 
   function reportPeriodLabel(type) {
     const now = new Date();
@@ -204,7 +210,13 @@ export default function Insights() {
 
   return (
     <View style={st.root}>
-      <ScrollView contentContainerStyle={st.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={st.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#C8F135" colors={['#C8F135']} />
+        }
+      >
 
         {/* ── Header ── */}
         <View style={st.header}>

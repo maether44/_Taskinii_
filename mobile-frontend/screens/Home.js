@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -45,6 +45,7 @@ export default function Home({ navigation }) {
   const { user: authUser } = useAuth();
   const totalSteps = stats?.steps || 0;
   const remainingCalories = Math.max(0, Number(stats?.calories?.remaining) || 0);
+  const [refreshing, setRefreshing] = useState(false);
   const [displayCal, setDisplayCal] = useState(0);
   const displayCalRef = useRef(0);
   const [lastSession, setLastSession] = useState(null);
@@ -101,6 +102,12 @@ export default function Home({ navigation }) {
       })();
     }, [refresh, authUserId]),
   );
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refresh();
+    setRefreshing(false);
+  }, [refresh]);
 
   // ── Motivational quote: one per day ───────────────────────────────────
   useEffect(() => {
@@ -169,7 +176,13 @@ export default function Home({ navigation }) {
 
   return (
     <View style={styles.root}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#C8F135" colors={['#C8F135']} />
+        }
+      >
         {/* 1. TOP HEADER SECTION */}
         <View style={styles.header}>
           <View>

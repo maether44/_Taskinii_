@@ -29,6 +29,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { error as logError } from '../lib/logger';
+import { confirmAction } from '../lib/confirmAction';
 import { calcMacroTargets, normalizeGoal } from '../lib/calculations';
 import {
   AVATAR_BUCKET,
@@ -846,7 +847,14 @@ export default function Profile({ replayTour }) {
           <Text style={s.tourBtnTxt}>🗺️ Replay App Tour</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={s.signOutBtn} onPress={signOut}>
+        <TouchableOpacity style={s.signOutBtn} onPress={async () => {
+          const ok = await confirmAction({
+            title: 'Sign Out',
+            message: 'Are you sure you want to sign out?',
+            confirmText: 'Sign Out',
+          });
+          if (ok) signOut();
+        }}>
           <Text style={s.signOutTxt}>Sign Out</Text>
         </TouchableOpacity>
 

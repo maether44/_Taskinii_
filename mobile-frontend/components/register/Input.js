@@ -35,6 +35,8 @@ const Input = ({
                         secureTextEntry={isSecure}
                         onFocus={() => setIsFocused(true)}
                         onBlur={() => setIsFocused(false)}
+                        accessibilityLabel={label || placeholder}
+                        accessibilityRole="text"
                     />
                     {secureTextEntry && (
                         <Eye

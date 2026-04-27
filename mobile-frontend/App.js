@@ -21,6 +21,7 @@ import { supabase } from './lib/supabase';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { TodayProvider } from './context/TodayContext';
 import { MilestoneProvider, useMilestones } from './context/MilestoneContext';
+import { NetworkProvider } from './context/NetworkContext';
 
 // ✅ Custom splash screen
 import CustomSplashScreen from './components/CustomSplashScreen';
@@ -41,6 +42,7 @@ import FoodScannerScreen from './components/food-scanner/FoodScannerScreen';
 import WorkoutSummary from './screens/workout/WorkoutSummary';
 import FlappyBirdGame from './screens/workout/FlappyBirdGame';
 import CustomMealBuilder from './screens/nutrition/CustomMealBuilder';
+import ManualWorkout from './screens/workout/ManualWorkout';
 import CommunityCenter from './screens/community/CommunityCenter';
 import MessagesInbox from './screens/community/MessagesInbox';
 import DMThread from './screens/community/DMThread';
@@ -52,6 +54,7 @@ import YaraAssistant from './components/YaraAssistant';
 import AppTour from './components/onBoarding/AppTour';
 import CelebrationOverlay from './components/CelebrationOverlay';
 import CelebrationInterstitial from './components/reports/CelebrationInterstitial';
+import ErrorBoundary from './components/ErrorBoundary';
 import { warn } from './lib/logger';
 
 SplashScreen.preventAutoHideAsync();
@@ -119,6 +122,7 @@ function Navigation() {
           <Stack.Screen name="DMThread" component={DMThread} />
           <Stack.Screen name="Schedule" component={ScheduleScreen} />
           <Stack.Screen name="CustomMealBuilder" component={CustomMealBuilder} />
+          <Stack.Screen name="ManualWorkout" component={ManualWorkout} />
         </>
       )}
     </Stack.Navigator>
@@ -180,6 +184,8 @@ export default function App() {
   // ✅ Splash finished → show the real app
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+      <ErrorBoundary>
+      <NetworkProvider>
       <SafeAreaProvider>
         <AuthProvider>
           <TodayProvider>
@@ -206,6 +212,8 @@ export default function App() {
           </TodayProvider>
         </AuthProvider>
       </SafeAreaProvider>
+      </NetworkProvider>
+      </ErrorBoundary>
     </GestureHandlerRootView>
   );
 }

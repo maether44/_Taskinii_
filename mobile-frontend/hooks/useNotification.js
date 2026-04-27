@@ -3,13 +3,9 @@ import * as Notifications from 'expo-notifications';
 import { supabase } from '../lib/supabase';
 import { warn } from '../lib/logger';
 import { listThreads } from '../services/dmService';
+import { WORKOUT_REMINDER_HOURS, HYDRATION_REMINDER_HOUR } from '../constants/appDefaults';
 
-const TIME_TO_HOUR = {
-  morning: 7,
-  afternoon: 13,
-  evening: 18,
-  any: 8,
-};
+const TIME_TO_HOUR = WORKOUT_REMINDER_HOURS;
 
 const HYDRATION_ID = 'hydration-5pm';
 const TEST_WORKOUT_SEND_NOW = false;
@@ -44,7 +40,7 @@ const useNotification = (ml, waterGoalMl = 2000, enabledNotifications = {}) => {
 
         const now = new Date();
         const reminderTime = new Date();
-        reminderTime.setHours(17, 0, 0, 0);
+        reminderTime.setHours(HYDRATION_REMINDER_HOUR, 0, 0, 0);
         if (reminderTime <= now) {
           reminderTime.setDate(reminderTime.getDate() + 1);
         }

@@ -107,7 +107,13 @@ function WaterCup({ index, filled, animDelay, onPress }) {
   }, [index, onPress]);
 
   return (
-    <Pressable onPress={handlePress} hitSlop={6} style={cup.wrap}>
+    <Pressable
+      onPress={handlePress}
+      hitSlop={6}
+      style={cup.wrap}
+      accessibilityRole="button"
+      accessibilityLabel={`Water cup ${index + 1}, ${filled ? 'filled' : 'empty'}. ${CUP_ML} ml`}
+    >
       <Animated.View style={[cup.outer, scaleStyle]}>
 
         {/* Glow burst ring */}

@@ -21,6 +21,7 @@ import Button from "../components/register/Button";
 import { Mail, Lock, LogIn } from "lucide-react-native";
 import { useNavigation } from "@react-navigation/native";
 import { supabase } from "../lib/supabase";
+import { handleError } from "../lib/errorHandler";
 
 const SignIn = () => {
   const navigation = useNavigation();
@@ -44,7 +45,7 @@ const SignIn = () => {
     });
     setLoading(false);
     if (error) {
-      Alert.alert("Sign In Error", error.message);
+      handleError(error, 'SignIn', { title: 'Sign In Error' });
     }
     // Navigation handled automatically by AuthContext
   };
@@ -66,7 +67,9 @@ const SignIn = () => {
         "Check your inbox for a password reset link."
       );
     } catch (err) {
-      Alert.alert("Error", err?.message || "Could not send reset email.");
+      handleError(err, 'SignIn.resetPassword', {
+        fallbackMessage: 'Could not send reset email.',
+      });
     } finally {
       setFpSending(false);
     }

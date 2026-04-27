@@ -3,16 +3,20 @@ import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
+import { lightTap } from '../../lib/haptics';
 
 const Button = ({ onPress, title, variant = 'primary', icon: Icon, disabled }) => {
     const isPrimary = variant === 'primary';
 
     return (
         <TouchableOpacity
-            onPress={onPress}
+            onPress={() => { lightTap(); onPress?.(); }}
             activeOpacity={0.8}
             style={[styles.container, disabled && styles.disabled]}
             disabled={disabled}
+            accessibilityRole="button"
+            accessibilityLabel={title}
+            accessibilityState={{ disabled: !!disabled }}
         >
             {isPrimary ? (
                 <LinearGradient

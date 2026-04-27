@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -18,6 +19,7 @@ import { StepCounter } from "../components/StepCounter";
 import { useNutrition } from "../hooks/useNutrition";
 import { useProfile } from "../hooks/useProfile";
 import { DEFAULT_TARGETS } from "../constants/targets";
+import { confirmAction } from "../lib/confirmAction";
 import {
   getAiAssistantErrorMessage,
   invokeAiAssistant,
@@ -188,6 +190,7 @@ export default function Nutrition({ navigation }) {
     logWater,
     refresh,
   } = useNutrition();
+  const [refreshing, setRefreshing] = useState(false);
   const [mealPlan, setMealPlan] = useState("");
   const [mealPlanLoading, setMealPlanLoading] = useState(false);
   const [mealPlanError, setMealPlanError] = useState("");
@@ -250,6 +253,12 @@ export default function Nutrition({ navigation }) {
     refresh();
   }, [refresh]));
 
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refresh();
+    setRefreshing(false);
+  }, [refresh]);
+
   useEffect(() => {
     if (loading) return;
     if (!userId) return;
@@ -293,7 +302,13 @@ export default function Nutrition({ navigation }) {
 
   return (
     <View style={s.root}>
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={s.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#C8F135" colors={['#C8F135']} />
+        }
+      >
         <View style={s.header}>
           <View style={{ flex: 1 }}>
             <Text style={s.title}>Food diary</Text>
@@ -442,7 +457,10 @@ export default function Nutrition({ navigation }) {
                         </Text>
                       </View>
                       <Text style={s.foodCals}>{item.calories} kcal</Text>
-                      <TouchableOpacity onPress={() => deleteFoodLog(item.id)} style={s.deleteBtn}>
+                      <TouchableOpacity onPress={async () => {
+                        const ok = await confirmAction({ message: `Remove ${item.name} from your log?` });
+                        if (ok) deleteFoodLog(item.id);
+                      }} style={s.deleteBtn}>
                         <Ionicons name="trash-outline" size={16} color="#FF6B6B" />
                       </TouchableOpacity>
                     </View>

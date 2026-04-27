@@ -88,13 +88,17 @@ export default function NavBar() {
         <Tab.Screen
           name="Home"
           component={Home}
-          options={{ tabBarIcon: ({ color }) => <Ionicons name="flash" size={24} color={color} /> }}
+          options={{
+            tabBarAccessibilityLabel: 'Home tab',
+            tabBarIcon: ({ color }) => <Ionicons name="flash" size={24} color={color} />,
+          }}
         />
 
         <Tab.Screen
           name="Fuel"
           component={Nutrition}
           options={{
+            tabBarAccessibilityLabel: 'Nutrition tab',
             tabBarIcon: ({ color }) => (
               <MaterialCommunityIcons name="food-apple" size={24} color={color} />
             ),
@@ -105,6 +109,7 @@ export default function NavBar() {
           name="Train"
           component={TrainingStack}
           options={{
+            tabBarAccessibilityLabel: 'Training tab',
             tabBarIcon: ({ color }) => <Ionicons name="barbell" size={24} color={color} />,
           }}
         />
@@ -113,6 +118,7 @@ export default function NavBar() {
           name="Insights"
           component={Insights}
           options={{
+            tabBarAccessibilityLabel: 'Insights tab',
             tabBarIcon: ({ color }) => <Ionicons name="analytics" size={24} color={color} />,
           }}
         />

@@ -15,6 +15,7 @@ import AuthLayout from "../components/AuthLayout";
 import Input from "../components/register/Input";
 import Button from "../components/register/Button";
 import { useSignUp } from "../hooks/useSignUp";
+import { handleError } from "../lib/errorHandler";
 
 const SignUp = () => {
   const navigation = useNavigation();
@@ -37,8 +38,7 @@ const SignUp = () => {
     });
 
     if (!authData) {
-      // error is already set in the hook, just show it
-      Alert.alert("Error", error);
+      handleError(error, 'SignUp');
       return;
     }
 

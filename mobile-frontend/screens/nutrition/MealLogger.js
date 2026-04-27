@@ -13,6 +13,7 @@ import {
   View,
 } from "react-native";
 import { searchFoodLibrary } from "../../services/foodScannerApi";
+import { lightTap, successTap } from "../../lib/haptics";
 import { useNutrition } from "../../hooks/useNutrition";
 import { error as logError } from '../../lib/logger';
 
@@ -117,6 +118,7 @@ export default function MealLogger() {
       ? prev
       : [...prev, scaleFood(food, 100)]);
     setTab("added");
+    lightTap();
   };
 
   const removeFood = (foodId) => {
@@ -153,6 +155,7 @@ export default function MealLogger() {
     });
     setSaving(false);
     if (success) {
+      successTap();
       await refresh();
       navigation.goBack();
     }
