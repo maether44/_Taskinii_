@@ -1,4 +1,4 @@
-// src/screens/onboarding/OnboardingDone.js
+﻿// src/screens/onboarding/OnboardingDone.js
 // Final onboarding step — shows generated plan, creates Supabase account
 import { useEffect, useRef, useState } from "react";
 import {
@@ -123,10 +123,10 @@ export default function OnboardingDone({ plan = {}, profile = {}, onComplete }) 
           {/* AI note */}
           {plan.aiNote ? (
             <>
-              <Text style={s.sectionLabel}>YARA SAYS</Text>
-              <View style={s.yaraCard}>
-                <Text style={s.yaraEmoji}>🤖</Text>
-                <Text style={s.yaraTxt}>{plan.aiNote}</Text>
+              <Text style={s.sectionLabel}>ALEXI SAYS</Text>
+              <View style={s.alexiCard}>
+                <Text style={s.alexiEmoji}>🤖</Text>
+                <Text style={s.alexiTxt}>{plan.aiNote}</Text>
               </View>
             </>
           ) : null}
@@ -146,7 +146,7 @@ export default function OnboardingDone({ plan = {}, profile = {}, onComplete }) 
           </TouchableOpacity>
 
           <Text style={s.disclaimer}>
-            Your plan adapts as you log workouts and meals. Yara will guide you every step.
+            Your plan adapts as you log workouts and meals. ALEXI will guide you every step.
           </Text>
         </Animated.View>
       </ScrollView>
@@ -217,7 +217,7 @@ const s = StyleSheet.create({
   trainingVal: { color: C.text, fontSize: 16, fontWeight: "800" },
   trainingSub: { color: C.sub, fontSize: 12, marginTop: 2 },
 
-  yaraCard: {
+  alexiCard: {
     flexDirection: "row",
     gap: 12,
     backgroundColor: C.card,
@@ -227,8 +227,8 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: C.purple + "22",
   },
-  yaraEmoji: { fontSize: 24, marginTop: 2 },
-  yaraTxt: { flex: 1, color: C.sub, fontSize: 13, lineHeight: 21 },
+  alexiEmoji: { fontSize: 24, marginTop: 2 },
+  alexiTxt: { flex: 1, color: C.sub, fontSize: 13, lineHeight: 21 },
 
   startBtn: {
     backgroundColor: C.lime,

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ScheduleScreen.jsx
  * - Exercise checkboxes + "Complete Day" button
  * - Missed workout warning + carryover to next day
@@ -243,7 +243,7 @@ function EmptyState() {
       <Animated.Text style={[s.emptyEmoji, { transform: [{ scale: pulse }] }]}>👩‍⚕️</Animated.Text>
       <Text style={s.emptyTitle}>No schedule yet</Text>
       <Text style={s.emptySub}>
-        Ask Yara to build your weekly plan.{"\n"}"Give me my weekly schedule"
+        Ask ALEXI to build your weekly plan.{"\n"}"Give me my weekly schedule"
       </Text>
     </View>
   );
@@ -390,7 +390,7 @@ export default function ScheduleScreen() {
           <Text style={s.headerTitle}>Weekly Plan</Text>
           {schedule?.generated_at && (
             <Text style={s.headerSub}>
-              Yara ·{" "}
+              ALEXI ·{" "}
               {new Date(schedule.generated_at).toLocaleDateString("en-US", {
                 month: "short",
                 day: "numeric",

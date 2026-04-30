@@ -1,4 +1,4 @@
-import { supabase } from "../lib/supabase";
+﻿import { supabase } from "../lib/supabase";
 import { calcMacroTargets, dobToISO, normalizeGoal } from "../lib/calculations";
 import { refreshAll } from "./embeddingService";
 
@@ -33,7 +33,7 @@ export const saveOnboardingProfile = async (userId, answers) => {
     sleep_quality: answers.sleep,
     stress_level: answers.stress,
     diet_pref: answers.diet,
-    coach_name: answers.coachName ?? "Yara",
+    coach_name: answers.coachName ?? "Alexi",
   });
 
   if (error) throw new Error(error.message);

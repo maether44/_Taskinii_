@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+﻿import React, { useEffect, useRef, useState } from "react";
 import { Animated, Easing, Image, StyleSheet, TouchableOpacity, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 
@@ -7,7 +7,7 @@ const GLOW_MID = SIZE + 16;
 const GLOW_OUT = SIZE + 36;
 
 // Drawn fallback — shown if PNG is missing/empty
-function YaraFallback() {
+function AlexiFallback() {
   return (
     <View style={styles.fallback}>
       {/* Outer flame ring */}
@@ -32,7 +32,7 @@ function YaraFallback() {
   );
 }
 
-export default function YaraToggle() {
+export default function AlexiToggle() {
   const navigation = useNavigation();
   const [imgError, setImgError] = useState(false);
 
@@ -120,12 +120,12 @@ export default function YaraToggle() {
 
       {/* ── Mascot image + tap ─────────────────────────────── */}
       <TouchableOpacity
-        onPress={() => navigation.navigate("YaraAssistant")}
+        onPress={() => navigation.navigate("AlexiAssistant")}
         activeOpacity={0.85}
         style={styles.touchable}
       >
         {imgError ? (
-          <YaraFallback />
+          <AlexiFallback />
         ) : (
           <View style={styles.imageClip}>
             <Image

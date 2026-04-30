@@ -17,7 +17,8 @@
       "bundleIdentifier": "com.yourname.bodyq",
       "infoPlist": {
         "NSMotionUsageDescription": "BodyQ uses your motion data to count steps and track your activity progress automatically.",
-        "NSCameraUsageDescription": "BodyQ uses the camera to provide real-time AI posture correction and rep counting during your workouts."
+        "NSCameraUsageDescription": "BodyQ uses the camera to provide real-time AI posture correction and rep counting during your workouts.",
+        "NSMicrophoneUsageDescription": "Required by the camera framework. BodyQ does not record audio."
       }
     },
     "android": {
@@ -45,8 +46,6 @@
         }
       ],
       "expo-asset",
-      "@react-native-voice/voice",
-      "expo-audio",
       "@react-native-community/datetimepicker"
     ],
     "extra": {}

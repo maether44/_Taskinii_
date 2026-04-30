@@ -1,4 +1,4 @@
-/* eslint-disable no-undef */
+﻿/* eslint-disable no-undef */
 import { useEffect, useRef, useState } from "react";
 import {
   Animated,
@@ -50,7 +50,7 @@ function scoreColor(pct) {
   return C.red;
 }
 
-function yaraMessage(score) {
+function alexiMessage(score) {
   if (score >= 90)
     return {
       tag: "ELITE FORM",
@@ -149,8 +149,8 @@ export default function WorkoutSummary({ route, navigation }) {
   const trophyOpacity = useRef(new Animated.Value(0)).current;
   const cardSlide = useRef(new Animated.Value(40)).current;
   const cardOpacity = useRef(new Animated.Value(0)).current;
-  const yaraSlide = useRef(new Animated.Value(40)).current;
-  const yaraOpacity = useRef(new Animated.Value(0)).current;
+  const alexiSlide = useRef(new Animated.Value(40)).current;
+  const alexiOpacity = useRef(new Animated.Value(0)).current;
   const actionsOpacity = useRef(new Animated.Value(0)).current;
 
   // ── Fetch confirmed data from Supabase ──────────────────────
@@ -180,13 +180,13 @@ export default function WorkoutSummary({ route, navigation }) {
 
       setTimeout(() => {
         Animated.parallel([
-          Animated.spring(yaraSlide, {
+          Animated.spring(alexiSlide, {
             toValue: 0,
             tension: 60,
             friction: 9,
             useNativeDriver: true,
           }),
-          Animated.timing(yaraOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
+          Animated.timing(alexiOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
         ]).start();
       }, 400);
 
@@ -228,14 +228,14 @@ export default function WorkoutSummary({ route, navigation }) {
     trophyOpacity,
     cardSlide,
     cardOpacity,
-    yaraSlide,
-    yaraOpacity,
+    alexiSlide,
+    alexiOpacity,
     actionsOpacity,
   ]);
 
   const xp = Math.min(200, reps * 5 + Math.round(score / 2));
   const ringColor = scoreColor(score);
-  const yara = yaraMessage(score);
+  const alexi = alexiMessage(score);
 
   // ── Circuit context ──────────────────────────────────────────
   const circuit = params.circuit || null;
@@ -343,27 +343,27 @@ export default function WorkoutSummary({ route, navigation }) {
           </View>
         </Animated.View>
 
-        {/* ── YARA AI CARD ── */}
+        {/* ── ALEXI AI CARD ── */}
         <Animated.View
-          style={[s.yaraCard, { opacity: yaraOpacity, transform: [{ translateY: yaraSlide }] }]}
+          style={[s.alexiCard, { opacity: alexiOpacity, transform: [{ translateY: alexiSlide }] }]}
         >
-          <View style={s.yaraHeader}>
-            <View style={[s.yaraAvatar, GLOW(C.purple, 10)]}>
-              <Text style={s.yaraEmoji}>🤖</Text>
+          <View style={s.alexiHeader}>
+            <View style={[s.alexiAvatar, GLOW(C.purple, 10)]}>
+              <Text style={s.alexiEmoji}>🤖</Text>
             </View>
             <View>
-              <Text style={s.yaraName}>Yara AI Coach</Text>
+              <Text style={s.alexiName}>ALEXI AI Coach</Text>
               <View
                 style={[
-                  s.yaraTagPill,
+                  s.alexiTagPill,
                   { backgroundColor: `${ringColor}22`, borderColor: `${ringColor}55` },
                 ]}
               >
-                <Text style={[s.yaraTagTxt, { color: ringColor }]}>{yara.tag}</Text>
+                <Text style={[s.alexiTagTxt, { color: ringColor }]}>{alexi.tag}</Text>
               </View>
             </View>
           </View>
-          <Text style={s.yaraMsg}>"{yara.msg}"</Text>
+          <Text style={s.alexiMsg}>"{alexi.msg}"</Text>
         </Animated.View>
 
         {/* ── ACTIONS ── */}
@@ -499,8 +499,8 @@ const s = StyleSheet.create({
   },
   xpTxt: { color: C.lime, fontSize: 13, fontWeight: "700" },
 
-  // ── Yara card ────────────────────────────────────────────────
-  yaraCard: {
+  // ── ALEXI card ────────────────────────────────────────────────
+  alexiCard: {
     backgroundColor: C.card,
     borderRadius: 22,
     padding: 20,
@@ -509,8 +509,8 @@ const s = StyleSheet.create({
     borderColor: C.border,
     marginBottom: 20,
   },
-  yaraHeader: { flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 14 },
-  yaraAvatar: {
+  alexiHeader: { flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 14 },
+  alexiAvatar: {
     width: 46,
     height: 46,
     borderRadius: 23,
@@ -518,17 +518,17 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  yaraEmoji: { fontSize: 22 },
-  yaraName: { color: C.text, fontSize: 14, fontWeight: "800", marginBottom: 5 },
-  yaraTagPill: {
+  alexiEmoji: { fontSize: 22 },
+  alexiName: { color: C.text, fontSize: 14, fontWeight: "800", marginBottom: 5 },
+  alexiTagPill: {
     alignSelf: "flex-start",
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
-  yaraTagTxt: { fontSize: 9, fontWeight: "900", letterSpacing: 1.2 },
-  yaraMsg: { color: "#C9C2DF", fontSize: 14, lineHeight: 23, fontStyle: "italic" },
+  alexiTagTxt: { fontSize: 9, fontWeight: "900", letterSpacing: 1.2 },
+  alexiMsg: { color: "#C9C2DF", fontSize: 14, lineHeight: 23, fontStyle: "italic" },
 
   // ── Actions ──────────────────────────────────────────────────
   actionsWrap: { width: "100%", gap: 10 },

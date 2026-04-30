@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+﻿import React, { useState, useEffect, useCallback } from "react";
 import { View, StyleSheet, ActivityIndicator } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
@@ -43,7 +43,7 @@ import FoodScannerScreen from "./components/food-scanner/FoodScannerScreen";
 import WorkoutSummary from "./screens/workout/WorkoutSummary";
 
 // Global Components
-import YaraAssistant from "./components/YaraAssistant";
+import AlexiAssistant from "./components/YaraAssistant";
 import AppTour from "./components/onBoarding/AppTour";
 import CelebrationInterstitial from "./components/reports/CelebrationInterstitial";
 import { AlexiEvents, AlexiVoiceProvider } from "./context/AlexiVoiceContext";
@@ -198,7 +198,7 @@ export default function App() {
                     >
                       <Navigation />
                     </NavigationContainer>
-                    {activeRoute !== "WorkoutActive" && <YaraAssistant />}
+                    {activeRoute !== "WorkoutActive" && <AlexiAssistant />}
                     <AppTour activeTab={activeTab} onTabPress={setActiveTab} showOnMount={true} />
                     <CelebrationOverlay />
                   </View>

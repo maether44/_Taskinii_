@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -123,7 +123,7 @@ export default function OnBoardingGoal({ onComplete }) {
             </View>
             <SpeechBubble
               question={"What's your\nmain goal?"}
-              subtitle="This shapes your workouts, nutrition and how Yara coaches you."
+              subtitle="This shapes your workouts, nutrition and how ALEXI coaches you."
               T={T}
             />
             <View style={[s.cardList, { marginTop: 28 }]}>
@@ -571,7 +571,7 @@ export default function OnBoardingGoal({ onComplete }) {
                   ob.setCoachName(clean);
                 }}
                 maxLength={20}
-                placeholder="e.g. Yara"
+                placeholder="e.g. ALEXI"
                 placeholderTextColor={T.muted}
                 autoCapitalize="words"
                 returnKeyType="done"
@@ -615,19 +615,19 @@ export default function OnBoardingGoal({ onComplete }) {
                     },
                   ]}
                 />
-                <View style={s.yaraRow}>
-                  <View style={[s.yaraAvatar, { backgroundColor: T.purple + "30" }]}>
+                <View style={s.alexiRow}>
+                  <View style={[s.alexiAvatar, { backgroundColor: T.purple + "30" }]}>
                     <Text style={{ fontSize: 20 }}>👩‍⚕️</Text>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[s.yaraName, { color: T.purple }]}>{ob.coachName}</Text>
-                    <Text style={[s.yaraRole, { color: T.sub }]}>Your Personal Coach</Text>
+                    <Text style={[s.alexiName, { color: T.purple }]}>{ob.coachName}</Text>
+                    <Text style={[s.alexiRole, { color: T.sub }]}>Your Personal Coach</Text>
                   </View>
-                  <View style={[s.yaraBadge, { backgroundColor: T.purple + "25" }]}>
-                    <Text style={[s.yaraBadgeTxt, { color: T.purple }]}>AI ✦</Text>
+                  <View style={[s.alexiBadge, { backgroundColor: T.purple + "25" }]}>
+                    <Text style={[s.alexiBadgeTxt, { color: T.purple }]}>AI ✦</Text>
                   </View>
                 </View>
-                <Text style={[s.yaraMsg, { color: T.text }]}>
+                <Text style={[s.alexiMsg, { color: T.text }]}>
                   {ob.loading && !ob.savingProfile
                     ? `I'm analysing everything you shared and building your personalised plan... 🧠`
                     : ob.aiPlan
@@ -967,20 +967,20 @@ const s = StyleSheet.create({
   },
   bubbleSub: { fontSize: 15, lineHeight: 22 },
 
-  // ── Yara (step 6) ────────────────────────────────────────
-  yaraRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 14 },
-  yaraAvatar: {
+  // ── ALEXI (step 6) ────────────────────────────────────────
+  alexiRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 14 },
+  alexiAvatar: {
     width: 46,
     height: 46,
     borderRadius: 23,
     alignItems: "center",
     justifyContent: "center",
   },
-  yaraName: { fontSize: 16, fontWeight: "800" },
-  yaraRole: { fontSize: 12, marginTop: 2 },
-  yaraBadge: { borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5 },
-  yaraBadgeTxt: { fontSize: 11, fontWeight: "700" },
-  yaraMsg: { fontSize: 14, lineHeight: 22 },
+  alexiName: { fontSize: 16, fontWeight: "800" },
+  alexiRole: { fontSize: 12, marginTop: 2 },
+  alexiBadge: { borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5 },
+  alexiBadgeTxt: { fontSize: 11, fontWeight: "700" },
+  alexiMsg: { fontSize: 14, lineHeight: 22 },
 
   // ── Forms ────────────────────────────────────────────────
   label: { fontSize: 13, fontWeight: "700", marginBottom: 10 },

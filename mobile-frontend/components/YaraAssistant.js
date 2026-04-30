@@ -1,5 +1,5 @@
-/**
- * YaraAssistant.js
+﻿/**
+ * AlexiAssistant.js
  * Floating AI coach with Claude-style conversation history sidebar.
  * Sidebar: persistent on wide screens (>600px), slide-in overlay on mobile.
  * Storage: AsyncStorage — conversations persist across sessions.
@@ -21,9 +21,6 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useRef, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Audio } from "expo-audio";
-import * as FileSystem from "expo-file-system";
-import * as Speech from "expo-speech";
 import { registerTourRef } from "./onBoarding/tourRefs";
 import { useNutrition } from "../hooks/useNutrition";
 import { useProfile } from "../hooks/useProfile";
@@ -35,7 +32,7 @@ import { log, error as logError } from "../lib/logger";
 const ALEXI_AVATAR = require("../assets/alexi_avatar.png");
 
 const SIDEBAR_W = 272;
-const STORAGE_KEY = "@yara_conversations";
+const STORAGE_KEY = "@alexi_conversations";
 const MAX_CONVS = 50;
 const IS_WIDE = Dimensions.get("window").width > 600;
 
@@ -79,7 +76,7 @@ async function getFunctionErrorDetail(error) {
   return error?.message || "";
 }
 
-async function invokeYara(body, signal) {
+async function invokeALEXI(body, signal) {
   try {
     const { data, error } = await supabase.functions.invoke("ai-assistant", { body });
     if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
@@ -175,7 +172,7 @@ const makeConv = (greeting) => ({
   id: uid(),
   title: "New conversation",
   createdAt: new Date().toISOString(),
-  messages: [{ from: "yara", text: greeting, time: fmtTime() }],
+  messages: [{ from: "alexi", text: greeting, time: fmtTime() }],
 });
 
 // ─── Typing indicator ─────────────────────────────────────────────────────────
@@ -215,7 +212,7 @@ function TypingDots() {
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function YaraAssistant() {
+export default function AlexiAssistant() {
   const { profile, name, userId } = useProfile();
   const { goals, eaten, protein, carbs, fat, waterMl, caloriesBurned, mealSections } =
     useNutrition();
@@ -229,20 +226,7 @@ export default function YaraAssistant() {
   const [conversations, setConversations] = useState([]);
   const [activeConvId, setActiveConvId] = useState(null);
 
-  // ── Voice / Hands-Free mode ──────────────────────────────────
-  // listenState: 'idle' | 'listening' | 'processing' | 'speaking'
-  const [handsFreeMode, setHandsFreeMode] = useState(false);
-  const [listenState, setListenState] = useState("idle");
-  const [voiceError, setVoiceError] = useState(null);
-  const recordingRef = useRef(null);
-  const recordTimeoutRef = useRef(null);
-  const voiceLoopRef = useRef(false); // true while hands-free loop is active
   const abortRef = useRef(null); // AbortController for in-flight requests
-
-  // Lime pulse for listening state
-  const limePulse = useRef(new Animated.Value(1)).current;
-  // Speak vibrate for speaking state
-  const speakVibrate = useRef(new Animated.Value(1)).current;
 
   // ── User Insights (sidebar panel) ─────────────────────────────────────────
   // Stores the 4 AI-generated profile insight cards fetched from user_insights.
@@ -280,7 +264,7 @@ export default function YaraAssistant() {
     try {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(convs));
     } catch (e) {
-      logError("YaraAssistant: failed to persist conversations", e);
+      logError("AlexiAssistant: failed to persist conversations", e);
     }
   };
 
@@ -308,7 +292,7 @@ export default function YaraAssistant() {
         .limit(4);
       if (!error && data) setUserInsights(data);
     } catch (e) {
-      logError("YaraAssistant: fetchUserInsights error", e);
+      logError("AlexiAssistant: fetchUserInsights error", e);
     } finally {
       setInsightsLoading(false);
     }
@@ -333,7 +317,7 @@ export default function YaraAssistant() {
       if (data?.insights?.length) setUserInsights(data.insights);
     } catch (e) {
       // Silently fail - insights are optional
-      log("YaraAssistant: refreshInsights unavailable (optional feature)");
+      log("AlexiAssistant: refreshInsights unavailable (optional feature)");
     } finally {
       setInsightsRefreshing(false);
     }
@@ -358,7 +342,7 @@ export default function YaraAssistant() {
       // Reload the current user's own insights after the bulk run
       await fetchUserInsights(userId);
     } catch (e) {
-      log("YaraAssistant: refreshAllInsights unavailable (optional feature)");
+      log("AlexiAssistant: refreshAllInsights unavailable (optional feature)");
     } finally {
       setInsightsRefreshing(false);
     }
@@ -439,270 +423,6 @@ export default function YaraAssistant() {
   const glowOpacityMid = fabScale.interpolate({ inputRange: [1, 1.08], outputRange: [0.28, 0.6] });
   const glowScaleOuter = fabScale.interpolate({ inputRange: [1, 1.08], outputRange: [1, 1.18] });
 
-  // Listening glow — rapid lime pulse
-  useEffect(() => {
-    if (listenState === "listening") {
-      const loop = Animated.loop(
-        Animated.sequence([
-          Animated.timing(limePulse, { toValue: 1.35, duration: 500, useNativeDriver: true }),
-          Animated.timing(limePulse, { toValue: 1.0, duration: 500, useNativeDriver: true }),
-        ]),
-      );
-      loop.start();
-      return () => loop.stop();
-    } else {
-      limePulse.setValue(1);
-    }
-  }, [listenState]);
-
-  // Speaking vibrate — quick micro-scale on mascot
-  useEffect(() => {
-    if (listenState === "speaking") {
-      const loop = Animated.loop(
-        Animated.sequence([
-          Animated.timing(speakVibrate, { toValue: 1.06, duration: 120, useNativeDriver: true }),
-          Animated.timing(speakVibrate, { toValue: 0.96, duration: 120, useNativeDriver: true }),
-        ]),
-      );
-      loop.start();
-      return () => loop.stop();
-    } else {
-      speakVibrate.setValue(1);
-    }
-  }, [listenState]);
-
-  // ── Voice helpers ─────────────────────────────────────────────
-
-  const stopRecordingClean = async () => {
-    clearTimeout(recordTimeoutRef.current);
-    if (recordingRef.current) {
-      try {
-        const status = await recordingRef.current.getStatusAsync();
-        if (status.isRecording) await recordingRef.current.stopAndUnloadAsync();
-      } catch (_) {}
-      recordingRef.current = null;
-    }
-  };
-
-  const speakResponse = (text, onDone) => {
-    setListenState("speaking");
-    Speech.stop();
-    Speech.speak(text, {
-      language: "en-US",
-      pitch: 1.15,
-      rate: 1.0,
-      onDone: () => {
-        setListenState("idle");
-        onDone?.();
-      },
-      onStopped: () => setListenState("idle"),
-      onError: () => setListenState("idle"),
-    });
-  };
-
-  const handleActionCommand = async (commandJson) => {
-    try {
-      const cmd = JSON.parse(commandJson);
-      if (!userId) return;
-      const TODAY = new Date().toISOString().split("T")[0];
-      if (cmd.action === "log_water") {
-        const ml = cmd.amount ?? 250;
-        const { data: ex } = await supabase
-          .from("daily_activity")
-          .select("id, water_ml")
-          .eq("user_id", userId)
-          .eq("date", TODAY)
-          .maybeSingle();
-        const newMl = (ex?.water_ml ?? 0) + ml;
-        if (ex) await supabase.from("daily_activity").update({ water_ml: newMl }).eq("id", ex.id);
-        else
-          await supabase
-            .from("daily_activity")
-            .insert({ user_id: userId, date: TODAY, water_ml: newMl });
-      }
-      if (cmd.action === "log_sleep") {
-        const hrs = cmd.hours ?? 7;
-        await supabase
-          .from("daily_activity")
-          .upsert(
-            { user_id: userId, date: TODAY, sleep_hours: hrs },
-            { onConflict: "user_id,date" },
-          );
-      }
-    } catch (e) {
-      logError("[Yara voice] action command error:", e.message);
-    }
-  };
-
-  const startListening = async () => {
-    setVoiceError(null);
-    try {
-      // Request microphone permissions
-      const permission = await Audio.requestPermissionsAsync();
-      if (!permission.granted) {
-        setVoiceError("Microphone permission denied.");
-        return;
-      }
-
-      // Set audio mode for recording
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
-        staysActiveInBackground: false,
-      });
-
-      // Create recording session with configuration
-      const recording = new Audio.Recording();
-      await recording.prepareToRecordAsync({
-        android: {
-          extension: ".m4a",
-          outputFormat: 2,
-          audioEncoder: 3,
-          sampleRate: 16000,
-          numberOfChannels: 1,
-          bitRate: 128000,
-        },
-        ios: {
-          extension: ".m4a",
-          outputFormat: "aac ",
-          audioQuality: 127,
-          sampleRate: 16000,
-          numberOfChannels: 1,
-          bitRate: 128000,
-        },
-        web: {},
-      });
-      
-      await recording.startAsync();
-      recordingRef.current = recording;
-      setListenState("listening");
-
-      // Auto-stop after 8 seconds
-      recordTimeoutRef.current = setTimeout(() => stopAndTranscribe(), 8000);
-    } catch (e) {
-      logError("[Yara voice] startListening error:", e.message);
-      setVoiceError("Could not start microphone.");
-      setListenState("idle");
-    }
-  };
-
-  const stopAndTranscribe = async () => {
-    clearTimeout(recordTimeoutRef.current);
-    if (listenState !== "listening" || !recordingRef.current) return;
-    setListenState("processing");
-
-    try {
-      const recording = recordingRef.current;
-      recordingRef.current = null;
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
-      if (!uri) throw new Error("No audio file");
-
-      // Read audio file as base64
-      const base64 = await FileSystem.readAsStringAsync(uri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-
-      // Transcribe via Groq Whisper (through our edge function)
-      const sttData = await invokeYara({ audioBase64: base64, mimeType: "audio/m4a" });
-      const transcript = sttData?.transcript?.trim();
-      if (!transcript) throw new Error("No transcript");
-
-      // Show transcript and send
-      setInput(transcript);
-      await sendVoice(transcript);
-    } catch (e) {
-      logError("[Yara voice] transcribe error:", e.message);
-      setVoiceError("Could not understand. Try again.");
-      setListenState("idle");
-      if (voiceLoopRef.current) setTimeout(startListening, 1200);
-    }
-  };
-
-  const sendVoice = async (transcript) => {
-    if (!transcript || !userId) {
-      setListenState("idle");
-      return;
-    }
-    if (typing) stopGeneration();
-    setTyping(true);
-    setInput("");
-
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    setAndPersist((prev) =>
-      prev.map((c) => {
-        if (c.id !== activeConvId) return c;
-        return {
-          ...c,
-          title: c.title === "New conversation" ? transcript.slice(0, 42) : c.title,
-          messages: [...c.messages, { from: "user", text: transcript, time: fmtTime() }],
-        };
-      }),
-    );
-
-    try {
-      let data = await invokeYara(
-        { userId, query: transcript, voiceMode: true, clientContext },
-        controller.signal,
-      );
-      if (controller.signal.aborted) return;
-      if (!data?.response)
-        data = await invokeYara(
-          { query: transcript, voiceMode: true, clientContext },
-          controller.signal,
-        );
-      if (controller.signal.aborted) return;
-      if (!data?.response) throw new Error("Empty response");
-
-      // Strip any COMMAND JSON from the spoken text
-      const commandMatch = data.response.match(/COMMAND:(\{.*\})/);
-      const spokenText = data.response.replace(/COMMAND:\{.*\}/, "").trim();
-
-      if (commandMatch) await handleActionCommand(commandMatch[1]);
-
-      setAndPersist((prev) =>
-        prev.map((c) =>
-          c.id !== activeConvId
-            ? c
-            : {
-                ...c,
-                messages: [...c.messages, { from: "yara", text: spokenText, time: fmtTime() }],
-              },
-        ),
-      );
-      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
-
-      speakResponse(spokenText, () => {
-        // Auto-restart loop if hands-free is still on
-        if (voiceLoopRef.current) setTimeout(startListening, 600);
-      });
-    } catch (e) {
-      if (e?.name === "AbortError") return;
-      logError("[Yara voice] sendVoice error:", e.message);
-      setListenState("idle");
-      if (voiceLoopRef.current) setTimeout(startListening, 1200);
-    } finally {
-      if (!controller.signal.aborted) setTyping(false);
-      abortRef.current = null;
-    }
-  };
-
-  const toggleHandsFree = async () => {
-    const next = !handsFreeMode;
-    setHandsFreeMode(next);
-    voiceLoopRef.current = next;
-    if (next) {
-      startListening();
-    } else {
-      await stopRecordingClean();
-      Speech.stop();
-      setListenState("idle");
-    }
-  };
 
   const openChat = () => {
     setOpen(true);
@@ -714,12 +434,6 @@ export default function YaraAssistant() {
 
   const closeChat = () => {
     if (sidebarOpen) closeSidebar();
-    // Stop mic + speech when closing
-    voiceLoopRef.current = false;
-    setHandsFreeMode(false);
-    setListenState("idle");
-    stopRecordingClean();
-    Speech.stop();
     Animated.parallel([
       Animated.timing(slideY, { toValue: 500, duration: 230, useNativeDriver: true }),
       Animated.timing(fadeBack, { toValue: 0, duration: 180, useNativeDriver: true }),
@@ -792,7 +506,7 @@ export default function YaraAssistant() {
                 messages: [
                   ...c.messages,
                   {
-                    from: "yara",
+                    from: "alexi",
                     text: "Still loading your profile — give it a second and try again!",
                     time: fmtTime(),
                   },
@@ -821,10 +535,10 @@ export default function YaraAssistant() {
     );
 
     try {
-      let data = await invokeYara({ userId, query: msg, clientContext }, controller.signal);
+      let data = await invokeALEXI({ userId, query: msg, clientContext }, controller.signal);
       if (controller.signal.aborted) return;
       if (!data?.response)
-        data = await invokeYara({ query: msg, clientContext }, controller.signal);
+        data = await invokeALEXI({ query: msg, clientContext }, controller.signal);
       if (controller.signal.aborted) return;
 
       if (!data?.response) throw new Error("Empty response from assistant");
@@ -835,13 +549,13 @@ export default function YaraAssistant() {
             ? c
             : {
                 ...c,
-                messages: [...c.messages, { from: "yara", text: data.response, time: fmtTime() }],
+                messages: [...c.messages, { from: "alexi", text: data.response, time: fmtTime() }],
               },
         ),
       );
     } catch (err) {
       if (err?.name === "AbortError") return;
-      logError("Yara error:", err.message);
+      logError("ALEXI error:", err.message);
       setAndPersist((prev) =>
         prev.map((c) =>
           c.id !== activeConvId
@@ -850,7 +564,7 @@ export default function YaraAssistant() {
                 ...c,
                 messages: [
                   ...c.messages,
-                  { from: "yara", text: "Connection issue — try again!", time: fmtTime() },
+                  { from: "alexi", text: "Connection issue — try again!", time: fmtTime() },
                 ],
               },
         ),
@@ -956,28 +670,11 @@ export default function YaraAssistant() {
           <View style={{ flex: 1 }}>
             <Text style={s.headerName}>Alexi</Text>
             <Text style={s.headerSub}>
-              {listenState === "listening"
-                ? "🎙 Listening…"
-                : listenState === "processing"
-                  ? "⚙ Thinking…"
-                  : listenState === "speaking"
-                    ? "🔊 Speaking…"
-                    : profile
+              {profile
                       ? "Knows your profile ✓"
                       : "Personal Coach"}
             </Text>
           </View>
-          {/* Hands-Free toggle */}
-          <TouchableOpacity
-            style={[s.handsFreeBtn, handsFreeMode && s.handsFreeBtnOn]}
-            onPress={toggleHandsFree}
-            activeOpacity={0.8}
-          >
-            <Text style={{ fontSize: 14 }}>{handsFreeMode ? "🎙" : "🎙"}</Text>
-            <Text style={[s.handsFreeTxt, handsFreeMode && { color: "#000" }]}>
-              {handsFreeMode ? "ON" : "OFF"}
-            </Text>
-          </TouchableOpacity>
           <TouchableOpacity style={s.closeBtn} onPress={closeChat}>
             <Text style={s.closeTxt}>✕</Text>
           </TouchableOpacity>
@@ -991,15 +688,15 @@ export default function YaraAssistant() {
         >
           {messages.map((m, i) => (
             <View key={i} style={[s.msgRow, m.from === "user" && s.msgRowUser]}>
-              {m.from === "yara" && (
+              {m.from === "alexi" && (
                 <View style={s.msgAvatar}>
                   <Image source={ALEXI_AVATAR} style={s.msgAvatarImg} />
                 </View>
               )}
               <View style={{ maxWidth: "75%" }}>
-                <View style={[s.bubble, m.from === "user" ? s.bubbleUser : s.bubbleYara]}>
+                <View style={[s.bubble, m.from === "user" ? s.bubbleUser : s.bubbleALEXI]}>
                   <Text
-                    style={[s.bubbleTxt, m.from === "user" ? s.bubbleTxtUser : s.bubbleTxtYara]}
+                    style={[s.bubbleTxt, m.from === "user" ? s.bubbleTxtUser : s.bubbleTxtALEXI]}
                   >
                     {m.text}
                   </Text>
@@ -1015,7 +712,7 @@ export default function YaraAssistant() {
               <View style={s.msgAvatar}>
                 <Image source={ALEXI_AVATAR} style={s.msgAvatarImg} />
               </View>
-              <View style={[s.bubble, s.bubbleYara, { paddingVertical: 12 }]}>
+              <View style={[s.bubble, s.bubbleALEXI, { paddingVertical: 12 }]}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                   <TypingDots />
                   <Text style={{ color: "#8B82AD", fontSize: 11 }}>Tap to stop</Text>
@@ -1037,24 +734,7 @@ export default function YaraAssistant() {
           </ScrollView>
         )}
 
-        {voiceError && (
-          <View style={s.voiceErrorBar}>
-            <Text style={s.voiceErrorTxt}>{voiceError}</Text>
-          </View>
-        )}
         <View style={[s.inputBar, { paddingBottom: Math.max(14, insets.bottom + 8) }]}>
-          {/* Manual mic button — always available */}
-          <TouchableOpacity
-            style={[s.micBtn, listenState === "listening" && s.micBtnActive]}
-            onPress={() => {
-              if (listenState === "listening") stopAndTranscribe();
-              else startListening();
-            }}
-            disabled={listenState === "processing" || listenState === "speaking"}
-            activeOpacity={0.8}
-          >
-            <Text style={{ fontSize: 16 }}>{listenState === "listening" ? "⏹" : "🎙"}</Text>
-          </TouchableOpacity>
           <TextInput
             style={s.input}
             value={input}
@@ -1088,38 +768,23 @@ export default function YaraAssistant() {
     <>
       {!open && (
         <Animated.View
-          ref={(r) => registerTourRef("yara_fab", r)}
+          ref={(r) => registerTourRef("alexi_fab", r)}
           collapsable={false}
           style={[s.fabWrap, { transform: [{ translateY: bobAnim }, { scale: fabScale }] }]}
         >
-          {/* Outer glow halo — lime when listening */}
+          {/* Outer glow halo */}
           <Animated.View
-            style={[
-              s.glowOuter,
-              {
-                opacity:
-                  listenState === "listening"
-                    ? limePulse.interpolate({ inputRange: [1, 1.35], outputRange: [0.5, 0.9] })
-                    : glowOpacityOuter,
-                transform: [{ scale: listenState === "listening" ? limePulse : glowScaleOuter }],
-                backgroundColor: listenState === "listening" ? "rgba(198,255,51,0.3)" : undefined,
-              },
-            ]}
+            style={[s.glowOuter, { opacity: glowOpacityOuter, transform: [{ scale: glowScaleOuter }] }]}
           />
           {/* Mid glow halo */}
           <Animated.View style={[s.glowMid, { opacity: glowOpacityMid }]} />
           {/* Core glow */}
           <View style={s.glowCore} />
-          {/* Mascot image — vibrates when speaking */}
+          {/* Mascot image */}
           <TouchableOpacity style={s.mascotTouch} onPress={openChat} activeOpacity={0.88}>
-            <Animated.View
-              style={[
-                s.mascotClip,
-                { transform: [{ scale: listenState === "speaking" ? speakVibrate : 1 }] },
-              ]}
-            >
+            <View style={s.mascotClip}>
               <Image source={ALEXI_AVATAR} style={s.mascotImg} resizeMode="cover" />
-            </Animated.View>
+            </View>
           </TouchableOpacity>
         </Animated.View>
       )}
@@ -1440,10 +1105,10 @@ const s = StyleSheet.create({
   },
   msgAvatarImg: { width: 30, height: 30, borderRadius: 15 },
   bubble: { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
-  bubbleYara: { backgroundColor: "#201C35", borderBottomLeftRadius: 4 },
+  bubbleALEXI: { backgroundColor: "#201C35", borderBottomLeftRadius: 4 },
   bubbleUser: { backgroundColor: "#7B61FF", borderBottomRightRadius: 4 },
   bubbleTxt: { fontSize: 14, lineHeight: 21 },
-  bubbleTxtYara: { color: "#E8E3FF" },
+  bubbleTxtALEXI: { color: "#E8E3FF" },
   bubbleTxtUser: { color: "#ffffff" },
   msgTime: { color: "#4A4268", fontSize: 10, marginTop: 4, marginHorizontal: 4 },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#8B82AD" },

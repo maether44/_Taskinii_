@@ -524,7 +524,7 @@
 
   <!-- ═══════════════════════════ FEED ═════════════════════════════ -->
   <div id="feedArea">
-    <video id="inputVideo" autoplay muted playsinline></video>
+    <video id="inputVideo" autoplay muted playsinline webkit-playsinline></video>
     <canvas id="outputCanvas"></canvas>
 
     <!-- placeholder -->
@@ -651,8 +651,9 @@ const EXERCISES = {
     ],
     repConfig: {
       joint:         "leftKnee",
-      upThreshold:   165,   // standing upright
-      downThreshold: 100,   // < 100° = proper squat depth
+      jointAlt:      "rightKnee",   // average both knees for accuracy
+      upThreshold:   165,
+      downThreshold: 100,
     },
     // Hip alignment must stay within spec — torso must not crash forward
     criticalJoints: ['leftHip', 'rightHip'],
@@ -674,7 +675,7 @@ const EXERCISES = {
       { id: "hipLeft",    min: 155, max: 180, cue: "Don't let hips sag — keep body straight" },
       { id: "hipRight",   min: 155, max: 180, cue: "Don't let hips sag — keep body straight" },
     ],
-    repConfig: { joint: "leftElbow", upThreshold: 160, downThreshold: 70 },
+    repConfig: { joint: "leftElbow", jointAlt: "rightElbow", upThreshold: 160, downThreshold: 70 },
     // Hips MUST stay level — a sagging body = rep aborted
     criticalJoints: ['hipLeft', 'hipRight'],
     isPlank: false,
@@ -695,7 +696,7 @@ const EXERCISES = {
       { id: "leftShoulder",  min: 0,   max: 40,  cue: "Don't swing your elbow — keep it tucked" },
       { id: "rightShoulder", min: 0,   max: 40,  cue: "Don't swing your elbow — keep it tucked" },
     ],
-    repConfig: { joint: "leftElbow", upThreshold: 45, downThreshold: 140 },
+    repConfig: { joint: "leftElbow", jointAlt: "rightElbow", upThreshold: 45, downThreshold: 140 },
     // Shoulder must stay still — any swing aborts the rep
     criticalJoints: ['leftShoulder', 'rightShoulder'],
     isPlank: false,
@@ -716,7 +717,7 @@ const EXERCISES = {
       { id: "leftHip",    min: 150, max: 180, cue: "Don't arch your back — brace your core" },
       { id: "rightHip",   min: 150, max: 180, cue: "Don't arch your back — brace your core" },
     ],
-    repConfig: { joint: "leftElbow", upThreshold: 160, downThreshold: 90 },
+    repConfig: { joint: "leftElbow", jointAlt: "rightElbow", upThreshold: 160, downThreshold: 90 },
     // Must reach full overhead extension — partial press = rep aborted
     criticalJoints: ['leftElbow', 'rightElbow'],
     isPlank: false,
@@ -829,7 +830,7 @@ const SKELETON_CONNECTIONS = [
 ─────────────────────────────────────────────────────────────────── */
 let currentExercise = 'squat';
 let repCount  = 0;
-let repState  = 'idle';     // idle | up | down | down_completed
+let repState  = 'idle';     // idle | up | down
 let plankStart = null;
 
 // ── Stability calibration ─────────────────────────────────────
@@ -847,6 +848,19 @@ let lastCue = "";
 let highlightJoint = null;
 let wasPostureCorrect = true;   // tracks frame-to-frame posture transition
 let repCountingEnabled = false; // gated until RN calls window.startAI() after countdown
+let isModelLoaded = false;     // true after first onResults fires (model fully initialised)
+
+// ── Rep accuracy ──────────────────────────────────────────────
+// 5-frame rolling average per joint to smooth out MediaPipe jitter
+const angleBuffers = {};
+const SMOOTH_FRAMES = 5;
+// Must stay in DOWN state for at least 250 ms before a rep is counted
+const MIN_DOWN_MS = 250;
+let downStartTime = null;
+
+// ── Posture rep counting ──────────────────────────────────────
+let postureHoldStart  = null;  // when the current good-posture hold began
+let postureRepCounted = false; // true while user is still in the same hold
 
 // debounce rep flash
 let repFlashTimeout = null;
@@ -946,6 +960,10 @@ function doReset() {
   isCalibrated  = false;
   wasPostureCorrect  = true;
   repCountingEnabled = false;
+  downStartTime      = null;
+  postureHoldStart   = null;
+  postureRepCounted  = false;
+  Object.keys(angleBuffers).forEach(k => delete angleBuffers[k]);
 
   repCountEl.textContent = '0';
   formPctEl.textContent  = '—';
@@ -963,20 +981,7 @@ function doReset() {
    ERROR SOUND — low sawtooth buzz on form break during rep
 ─────────────────────────────────────────────────────────────────── */
 function playErrorSound() {
-  try {
-    const actx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc  = actx.createOscillator();
-    const gain = actx.createGain();
-    osc.connect(gain);
-    gain.connect(actx.destination);
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(130, actx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(55, actx.currentTime + 0.28);
-    gain.gain.setValueAtTime(0.28, actx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + 0.28);
-    osc.start(actx.currentTime);
-    osc.stop(actx.currentTime + 0.28);
-  } catch (_) {}
+  // Disabled — AudioContext creation fights the iOS camera AVAudioSession.
 }
 
 /* ───────────────────────────────────────────────────────────────────
@@ -1003,6 +1008,16 @@ function scoreColor(pct) {
    MAIN POSE RESULTS HANDLER  — called every frame by MediaPipe
 ─────────────────────────────────────────────────────────────────── */
 function onResults(results) {
+  try {
+
+  // ── MODEL_READY handshake (first frame = model fully loaded) ─
+  if (!isModelLoaded) {
+    isModelLoaded = true;
+    if (window.ReactNativeWebView) {
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'MODEL_READY' }));
+    }
+  }
+
   // ── FPS ──────────────────────────────────────────────────────
   const now = performance.now();
   fps = Math.round(1000 / (now - lastFrameTime));
@@ -1029,12 +1044,16 @@ function onResults(results) {
 
   const ex = EXERCISES[currentExercise];
 
-  // ── Calculate angles ─────────────────────────────────────────
+  // ── Calculate angles (5-frame rolling average per joint) ─────
   currentAngles = {};
   for (const ag of ex.angleGroups) {
     const [ai, bi, ci] = ag.pts;
     if (pts[ai] && pts[bi] && pts[ci]) {
-      currentAngles[ag.id] = angleBetween(pts[ai], pts[bi], pts[ci]);
+      const raw = angleBetween(pts[ai], pts[bi], pts[ci]);
+      if (!angleBuffers[ag.id]) angleBuffers[ag.id] = [];
+      angleBuffers[ag.id].push(raw);
+      if (angleBuffers[ag.id].length > SMOOTH_FRAMES) angleBuffers[ag.id].shift();
+      currentAngles[ag.id] = angleBuffers[ag.id].reduce((a, b) => a + b, 0) / angleBuffers[ag.id].length;
     }
   }
 
@@ -1066,6 +1085,7 @@ function onResults(results) {
   if (postureMode && !postureReportSent) {
     postureScoreBuffer.push(formScore);
     phaseEl.textContent = `SCANNING ${postureScoreBuffer.length}/60`;
+    stateEl.textContent = formScore + '%';
     if (postureScoreBuffer.length >= 60) {
       postureReportSent = true;
       const avg = Math.round(postureScoreBuffer.reduce((a, b) => a + b, 0) / postureScoreBuffer.length);
@@ -1079,6 +1099,40 @@ function onResults(results) {
         }));
       }
       cueBox.textContent = verdict;
+    }
+  }
+
+  // ── Posture rep counting: count 2-second good-posture holds ──
+  // After the initial 60-frame scan, user practices holding good posture.
+  // Each 2-second hold = 1 rep. Must break posture between reps.
+  if (postureMode && postureReportSent && repCountingEnabled) {
+    const goodPosture = formScore >= 75;
+    if (goodPosture && !postureRepCounted) {
+      if (!postureHoldStart) postureHoldStart = Date.now();
+      const holdMs = Date.now() - postureHoldStart;
+      if (holdMs >= 2000) {
+        repCount++;
+        repCountEl.textContent = repCount;
+        flashRep();
+        postureRepCounted = true;  // require breaking posture before next rep
+        phaseEl.textContent = 'HOLD ✓';
+        stateEl.textContent = repCount + ' reps';
+        if (window.ReactNativeWebView) {
+          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'REP_COUNTED', count: repCount }));
+        }
+      } else {
+        const remaining = Math.ceil((2000 - holdMs) / 1000);
+        phaseEl.textContent = remaining > 0 ? `HOLD ${remaining}s` : 'HOLD';
+        stateEl.textContent = formScore + '%';
+      }
+    } else if (goodPosture && postureRepCounted) {
+      phaseEl.textContent = 'RELAX';
+      stateEl.textContent = repCount + ' reps';
+    } else {
+      postureHoldStart  = null;
+      postureRepCounted = false;
+      phaseEl.textContent = formScore >= 55 ? 'ALMOST' : 'FIX POSTURE';
+      stateEl.textContent = formScore + '%';
     }
   }
 
@@ -1128,16 +1182,24 @@ function onResults(results) {
     stateEl.textContent  = '—';
 
   } else if (ex.repConfig && repCountingEnabled) {
-    const { joint, upThreshold, downThreshold } = ex.repConfig;
-    const angle = currentAngles[joint];
+    const { joint, jointAlt, upThreshold, downThreshold } = ex.repConfig;
+
+    // Bilateral averaging: use average of left+right when both are visible
+    let angle = currentAngles[joint];
+    if (jointAlt && currentAngles[jointAlt] !== undefined) {
+      angle = angle !== undefined
+        ? (angle + currentAngles[jointAlt]) / 2
+        : currentAngles[jointAlt];
+    }
+
     if (angle !== undefined) {
       const inverted = upThreshold < downThreshold; // e.g. bicep curl
 
       // ── Stability calibration: must hold start position for 2s ──
       if (!isCalibrated) {
         const atStart = inverted
-          ? angle > downThreshold - 10   // arm extended for curl
-          : angle > upThreshold - 10;    // standing for squat/press/etc.
+          ? angle > downThreshold - 10
+          : angle > upThreshold - 10;
 
         if (atStart) {
           if (!stableStart) stableStart = Date.now();
@@ -1147,7 +1209,7 @@ function onResults(results) {
           stateEl.textContent = Math.round(angle) + '°';
           if (elapsed >= STABILITY_MS) {
             isCalibrated = true;
-            repState = inverted ? 'idle' : 'up'; // start waiting for first DOWN
+            repState = inverted ? 'idle' : 'up';
             cueBox.textContent = '✓ Calibrated — begin your reps!';
             cueBox.className = 'good';
             if (window.ReactNativeWebView) {
@@ -1159,31 +1221,34 @@ function onResults(results) {
           phaseEl.textContent = 'STAND STILL';
           stateEl.textContent = Math.round(angle) + '°';
         }
-        return; // don't count reps until calibrated
+        return;
       }
 
-      // ── Rep state machine (strict quality gate: 100% green required) ─
+      // ── Rep state machine ─────────────────────────────────────
       if (!inverted) {
-        // Normal (squat, pushup, press, deadlift, lunge):
-        // up (standing) → down (low angle) → up (count rep)
+        // Normal: up → down → up (count rep)
         if (repState === 'up') {
           if (angle < downThreshold) {
             repState = 'down';
+            downStartTime = Date.now();
             if (window.ReactNativeWebView) {
               window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'SYNC_STATUS', inSync: isPostureCorrect }));
             }
           }
         } else if (repState === 'down') {
           if (!isPostureCorrect && wasPostureCorrect) {
-            // Posture broke mid-rep — abort and demand a fresh rep
+            // Posture broke mid-rep — abort
             repState = 'up';
+            downStartTime = null;
             playErrorSound();
             if (window.ReactNativeWebView) {
               window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'SYNC_STATUS', inSync: false }));
             }
-          } else if (angle > upThreshold && isPostureCorrect) {
-            // Full clean rep completed
+          } else if (angle > upThreshold && isPostureCorrect &&
+                     downStartTime && (Date.now() - downStartTime) >= MIN_DOWN_MS) {
+            // Clean rep: full depth held long enough + good form on the way up
             repState = 'up';
+            downStartTime = null;
             repCount++;
             repCountEl.textContent = repCount;
             flashRep();
@@ -1193,25 +1258,27 @@ function onResults(results) {
           }
         }
       } else {
-        // Inverted (bicep curl): arm extended (high angle) → contracted (low) → extended (count rep)
+        // Inverted (bicep curl): extended → contracted → extended (count rep)
         if (repState === 'idle' || repState === 'up') {
           if (angle > downThreshold) {
-            repState = 'down'; // fully extended
+            repState = 'down';
+            downStartTime = Date.now();
             if (window.ReactNativeWebView) {
               window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'SYNC_STATUS', inSync: isPostureCorrect }));
             }
           }
         } else if (repState === 'down') {
           if (!isPostureCorrect && wasPostureCorrect) {
-            // Posture broke mid-rep — abort
             repState = 'idle';
+            downStartTime = null;
             playErrorSound();
             if (window.ReactNativeWebView) {
               window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'SYNC_STATUS', inSync: false }));
             }
-          } else if (angle < upThreshold && isPostureCorrect) {
-            // Full clean rep completed
+          } else if (angle < upThreshold && isPostureCorrect &&
+                     downStartTime && (Date.now() - downStartTime) >= MIN_DOWN_MS) {
             repState = 'up';
+            downStartTime = null;
             repCount++;
             repCountEl.textContent = repCount;
             flashRep();
@@ -1246,6 +1313,10 @@ function onResults(results) {
 
   // ── Draw skeleton ─────────────────────────────────────────────
   drawSkeleton(pts, ex);
+
+  } catch (err) {
+    console.warn('[BodyQ] onResults error:', err && err.message);
+  }
 }
 
 /* ───────────────────────────────────────────────────────────────────
@@ -1367,7 +1438,8 @@ function drawSkeleton(pts, ex) {
    MEDIAPIPE POSE SETUP
 ─────────────────────────────────────────────────────────────────── */
 let pose = null;
-let mpCamera = null;
+let activeStream = null;  // the single getUserMedia stream
+let processingFrame = false;
 
 function initPose() {
   pose = new Pose({
@@ -1388,68 +1460,105 @@ function initPose() {
 
 /* ───────────────────────────────────────────────────────────────────
    CAMERA CONTROL
+   Uses a single getUserMedia stream assigned directly to the video
+   element, then feeds frames to MediaPipe via requestAnimationFrame.
+   This avoids the double-stream bug that caused a black screen when
+   the MediaPipe Camera helper issued its own separate getUserMedia.
 ─────────────────────────────────────────────────────────────────── */
 async function startCamera() {
   if (cameraRunning) return;
 
-  // ── Insecure context check (iOS requires https:// or localhost) ──
-  if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.protocol !== 'about:') {
+  // Guard: camera requires a secure context (https or localhost/about:)
+  if (
+    location.protocol !== 'https:' &&
+    location.hostname  !== 'localhost' &&
+    location.protocol  !== 'about:'
+  ) {
     const msg = 'Insecure Context — Camera Blocked by iOS';
     console.error('[BodyQ]', msg, location.protocol);
     showBlockedPopup(msg);
     return;
   }
 
-  // ── mediaDevices guard ──────────────────────────────────────
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    const msg = 'Insecure Context — Camera Blocked by iOS';
     console.error('[BodyQ] navigator.mediaDevices unavailable');
-    showBlockedPopup(msg);
+    showBlockedPopup('Camera API unavailable in this context');
     return;
   }
 
   try {
-    // Explicitly request getUserMedia so iOS prompts inside WebView
-    await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
-
-    if (!pose) initPose();
-
-    placeholder.style.display = 'none';
-    videoEl.style.display = 'block';
-    canvasEl.style.display = 'block';
-
-    let lastFrameReceived = Date.now();
-    mpCamera = new Camera(videoEl, {
-      onFrame: async () => {
-        lastFrameReceived = Date.now();
-        try {
-          await pose.send({ image: videoEl });
-        } catch (e) {
-          console.warn('[BodyQ] pose.send error:', e);
+    // Initialise MediaPipe Pose before touching the camera
+    if (!pose) {
+      try { initPose(); } catch (e) {
+        console.error('[BodyQ] initPose failed:', e && e.message);
+        if (window.ReactNativeWebView) {
+          window.ReactNativeWebView.postMessage(
+            JSON.stringify({ type: 'POSE_INIT_ERROR', msg: String(e) })
+          );
         }
-      },
-      width: 1280,
-      height: 720,
+        return;
+      }
+    }
+
+    // Single getUserMedia call — stream goes straight to the video element.
+    // 640×480 is the most reliable constraint in WKWebView; higher res can
+    // silently fail on some devices and leave the feed black.
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+      audio: false,
     });
 
-    // Watchdog: if no frames arrive for 8 s, restart the pipeline automatically
-    const watchdogId = setInterval(async () => {
-      if (!cameraRunning) { clearInterval(watchdogId); return; }
-      if (Date.now() - lastFrameReceived > 8000) {
-        console.warn('[BodyQ] Frame watchdog — restarting pipeline');
-        try {
-          if (mpCamera) { mpCamera.stop(); mpCamera = null; }
-          pose = null;
-          cameraRunning = false;
-          clearInterval(watchdogId);
-          await startCamera();
-        } catch (_) {}
-      }
-    }, 4000);
+    activeStream    = stream;
+    videoEl.srcObject = stream;
 
-    await mpCamera.start();
+    // Wait for the browser to know the video dimensions before playing
+    await new Promise((resolve) => {
+      if (videoEl.readyState >= 1) { resolve(); return; }
+      videoEl.onloadedmetadata = resolve;
+      setTimeout(resolve, 3000); // safety fallback
+    });
+
+    try {
+      await videoEl.play();
+    } catch (playErr) {
+      console.warn('[BodyQ] videoEl.play() error:', playErr);
+    }
+
+    placeholder.style.display = 'none';
+    videoEl.style.display     = 'block';
+    canvasEl.style.display    = 'block';
+
+    console.log(
+      '[BodyQ] Stream started successfully',
+      videoEl.videoWidth + 'x' + videoEl.videoHeight
+    );
+
+    if (window.ReactNativeWebView) {
+      window.ReactNativeWebView.postMessage(
+        JSON.stringify({ type: 'CAMERA_FEED_ACTIVE' })
+      );
+    }
+
     cameraRunning = true;
 
+    // rAF loop — skips frames while the previous pose.send() is still running
+    // to avoid queuing up more work than MediaPipe can handle.
+    (function processFrame() {
+      if (!cameraRunning) return;
+      if (
+        !processingFrame &&
+        videoEl.readyState >= 2 &&
+        videoEl.videoWidth  > 0
+      ) {
+        processingFrame = true;
+        pose.send({ image: videoEl })
+          .catch((e) => console.warn('[BodyQ] pose.send:', e && e.message))
+          .finally(() => { processingFrame = false; });
+      }
+      requestAnimationFrame(processFrame);
+    })();
+
+    // Signal React Native that the camera + AI pipeline is ready
     if (window.ReactNativeWebView) {
       window.ReactNativeWebView.postMessage('AI_READY');
     }
@@ -1457,10 +1566,15 @@ async function startCamera() {
     statusDot.classList.add('active');
     startBtn.style.display = 'none';
     stopBtn.style.display  = '';
-    phaseEl.textContent = 'DETECTING…';
+    phaseEl.textContent    = 'DETECTING…';
 
   } catch (err) {
     console.error('[BodyQ] Camera error:', err);
+    if (window.ReactNativeWebView) {
+      window.ReactNativeWebView.postMessage(
+        JSON.stringify({ type: 'CAMERA_ERROR', msg: String(err) })
+      );
+    }
     cueBox.textContent = '⚠ Camera access denied. Please allow permissions and reload.';
     cueBox.className   = '';
   }
@@ -1524,99 +1638,6 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
-// ── Level 2: Context-Aware Voice Commands ────────────────────────
-// Runs in parallel with MediaPipe — lightweight, no frame processing.
-(function initVoiceCommands() {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-  // Tell RN whether SR is supported so it can show/hide the indicator
-  function postCmd(action) {
-    if (window.ReactNativeWebView) {
-      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'VOICE_COMMAND', action }));
-    }
-  }
-
-  // Expose a global so RN can trigger help overlay directly (mic button tap)
-  window.openHelpOverlay  = function() { postCmd('OPEN_HELP');  };
-  window.closeHelpOverlay = function() { postCmd('CLOSE_HELP'); };
-
-  if (!SR) {
-    // Android WebView and some browsers don't support SpeechRecognition.
-    // Notify RN so it hides the "LISTENING" indicator.
-    if (window.ReactNativeWebView) {
-      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'VOICE_COMMAND', action: 'SR_UNSUPPORTED' }));
-    }
-    return;
-  }
-
-  const recognition = new SR();
-  recognition.continuous      = true;
-  recognition.interimResults  = false;
-  recognition.lang            = 'en-US';
-
-  let voiceActive = false;
-
-  recognition.onresult = function(event) {
-    for (let i = event.resultIndex; i < event.results.length; i++) {
-      const result = event.results[i];
-      if (!result.isFinal) continue;
-      // Lower confidence threshold to 0.5 — mobile mics are noisier
-      if (result[0].confidence < 0.5) continue;
-      const raw = result[0].transcript.toLowerCase().trim();
-      // Strip "Aria" / "Hey Aria" wake-word prefix before matching commands
-      const t = raw.replace(/^(?:hey\s+)?aria[,.]?\s*/, '');
-      if (t.includes('show me how to move') || t.includes('show me how') || t.includes('how to move') || t.includes('help')) {
-        postCmd('OPEN_HELP');
-      } else if (t.includes('close') || t.includes('back to workout') || t.includes('hide') || t.includes('dismiss')) {
-        postCmd('CLOSE_HELP');
-      }
-    }
-  };
-
-  // Auto-restart if recognition stops (silence timeout, etc.)
-  recognition.onend = function() {
-    if (voiceActive) {
-      try { recognition.start(); } catch (_) {}
-    }
-  };
-
-  recognition.onerror = function(e) {
-    if (e.error === 'not-allowed') { voiceActive = false; return; }
-    if (voiceActive) {
-      setTimeout(() => { try { recognition.start(); } catch (_) {} }, 1000);
-    }
-  };
-
-  recognition.onstart = function() {
-    if (window.ReactNativeWebView) {
-      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'VOICE_COMMAND', action: 'SR_STARTED' }));
-    }
-  };
-
-  // Start voice as soon as the camera initialises — wrap original startCamera
-  const _origStartCamera = window.startCamera;
-  window.startCamera = async function() {
-    if (_origStartCamera) await _origStartCamera();
-    if (!voiceActive) {
-      voiceActive = true;
-      try { recognition.start(); } catch (_) {}
-    }
-  };
-
-  // RN sends { type: 'STOP_VOICE' } on unmount to save battery
-  const _origOnMsg = window.onRNMessage;
-  window.onRNMessage = function(payload) {
-    try {
-      const msg = JSON.parse(payload);
-      if (msg.type === 'STOP_VOICE') {
-        voiceActive = false;
-        try { recognition.stop(); } catch (_) {}
-        return;
-      }
-    } catch (_) {}
-    if (_origOnMsg) _origOnMsg(payload);
-  };
-})();
 
 </script>
 </body>

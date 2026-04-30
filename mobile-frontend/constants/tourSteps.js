@@ -1,4 +1,4 @@
-// export const TOUR_VERSION = 0; // bump to reset tour for all users
+﻿// export const TOUR_VERSION = 0; // bump to reset tour for all users
 
 export const STEPS = [
   {
@@ -74,7 +74,7 @@ export const STEPS = [
     body: "Camera-based posture scan. Do it weekly — most injuries start with bad form.",
   },
   {
-    refKey: "yara_fab",
+    refKey: "ALEXI_fab",
     tab: "Home",
     side: "top",
     emoji: "👩‍⚕️",

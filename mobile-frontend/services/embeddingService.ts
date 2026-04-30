@@ -1,9 +1,9 @@
-/**
+﻿/**
  * mobile-frontend/services/embeddingService.ts
  *
  * Fire-and-forget helper that triggers the embed-user-data edge function
  * after the mobile app mutates user data. Keeps RAG vectors fresh so the
- * next Yara conversation has up-to-date context.
+ * next ALEXI conversation has up-to-date context.
  *
  * All calls are non-blocking — failures are logged but never surface to
  * the user or interrupt the calling flow.

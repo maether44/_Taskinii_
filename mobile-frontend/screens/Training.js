@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from "react";
+﻿import React, { useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -1175,7 +1175,7 @@ export default function Training({ navigation }) {
     }
   }, []);
 
-  const topMuscle = fatigueList[0]; // most fatigued overall (for Yara card)
+  const topMuscle = fatigueList[0]; // most fatigued overall (for ALEXI card)
 
   const openMachineModal = useCallback((machine) => {
     setSelectedMachine(machine);
@@ -1485,18 +1485,18 @@ export default function Training({ navigation }) {
             </View>
           </View>
 
-          {/* Yara Insight */}
+          {/* ALEXI Insight */}
           {fatigueList.length > 0 && (
-            <View style={[s.glassCard, s.yaraGlass, SHADOW]}>
+            <View style={[s.glassCard, s.alexiGlass, SHADOW]}>
               <BlurView intensity={22} tint="dark" style={StyleSheet.absoluteFillObject} />
               <LinearGradient
                 colors={["rgba(124,92,252,0.18)", "rgba(74,47,200,0.08)"]}
                 style={StyleSheet.absoluteFillObject}
               />
               <View style={s.glassCardBorder} pointerEvents="none" />
-              <View style={s.yaraHeader}>
-                <Text style={s.yaraTitle}>YARA INSIGHT</Text>
-                <View style={s.yaraLiveDot} />
+              <View style={s.alexiHeader}>
+                <Text style={s.alexiTitle}>ALEXI INSIGHT</Text>
+                <View style={s.alexiLiveDot} />
               </View>
               {nutritionTip && (
                 <View style={s.nutritionTipRow}>
@@ -1504,7 +1504,7 @@ export default function Training({ navigation }) {
                   <Text style={s.nutritionTipTxt}>{nutritionTip}</Text>
                 </View>
               )}
-              <Text style={s.yaraText}>
+              <Text style={s.alexiText}>
                 {topMuscle
                   ? topMuscle.fatigue_pct >= 70
                     ? `"Your ${topMuscle.muscle_name} are at ${topMuscle.fatigue_pct}% fatigue — danger zone. Skip direct loading, focus on antagonists."`
@@ -2108,16 +2108,16 @@ const s = StyleSheet.create({
   legendDot: { width: 7, height: 7, borderRadius: 3.5 },
   legendTxt: { color: C.sub, fontSize: 9, fontWeight: "700" },
 
-  // Yara
-  yaraCard: { borderRadius: 18, padding: 16, marginBottom: 4 },
-  yaraHeader: {
+  // ALEXI
+  alexiCard: { borderRadius: 18, padding: 16, marginBottom: 4 },
+  alexiHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 8,
   },
-  yaraTitle: { color: "rgba(255,255,255,0.6)", fontSize: 9, fontWeight: "900", letterSpacing: 1.5 },
-  yaraLiveDot: {
+  alexiTitle: { color: "rgba(255,255,255,0.6)", fontSize: 9, fontWeight: "900", letterSpacing: 1.5 },
+  alexiLiveDot: {
     width: 7,
     height: 7,
     borderRadius: 3.5,
@@ -2126,7 +2126,7 @@ const s = StyleSheet.create({
     shadowRadius: 8,
     shadowOpacity: 1,
   },
-  yaraText: { color: "#FFF", fontSize: 13, lineHeight: 20, fontWeight: "500" },
+  alexiText: { color: "#FFF", fontSize: 13, lineHeight: 20, fontWeight: "500" },
 
   // Streak
   streakCard: {
@@ -2586,7 +2586,7 @@ const s = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.08)",
   },
   heatmapInner: { flexDirection: "row", padding: 16 },
-  yaraGlass: { marginTop: 2 },
+  alexiGlass: { marginTop: 2 },
   streakGlass: { marginTop: 2, padding: 18 },
 
   // ── Environment badge (inside hero card) ─────────────────

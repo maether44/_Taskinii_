@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { callYaraCoach } from "../lib/groqAPI";
+import { callAlexiCoach } from "../lib/groqAPI";
 import { getChatHistory, saveMessage } from "../services/chatService";
 import { useAuth } from "../context/AuthContext";
 
@@ -11,19 +11,19 @@ function fmtTime() {
   });
 }
 
-function buildWelcome(profile) {
+function buildWelcome(profile: any) {
   return profile
     ? `Hey — I'm Alexi, your personal coach. I already know your profile so ask me anything about your training, nutrition or recovery. What's on your mind?`
     : "Hey! I'm Alexi — your personal coach. I'm here for everything: training, nutrition, recovery, mindset. What's on your mind today?";
 }
 
-export function useAlexiChat(profile) {
+export function useAlexiChat(profile: any) {
   const { user } = useAuth();
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState<{ from: string; text: string; time: string }[]>([]);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const [open, setOpen] = useState(false);
-  const apiHistory = useRef([]);
+  const apiHistory = useRef<{ role: string; content: string }[]>([]);
 
   // Load persisted chat history on mount
   useEffect(() => {
@@ -59,7 +59,7 @@ export function useAlexiChat(profile) {
     loadHistory();
   }, [user]);
 
-  const send = async (text) => {
+  const send = async (text?: string) => {
     const msg = (text || input).trim();
     if (!msg || typing) return;
 
@@ -73,7 +73,7 @@ export function useAlexiChat(profile) {
     if (user) await saveMessage(user.id, "user", msg).catch(console.error);
 
     try {
-      const reply = await callYaraCoach(apiHistory.current, profile, null);
+      const reply = await callAlexiCoach(apiHistory.current, profile, null);
       apiHistory.current = [...apiHistory.current, { role: "assistant", content: reply }];
 
       // Save Alexi's reply to DB

@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+﻿import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -410,7 +410,7 @@ export default function Nutrition({ navigation }) {
         <View style={s.planCard}>
           <View style={s.planHead}>
             <View>
-              <Text style={s.cardLabel}>YARA PLAN</Text>
+              <Text style={s.cardLabel}>ALEXI PLAN</Text>
               <Text style={s.cardTitle}>Today's meal game plan</Text>
             </View>
             <TouchableOpacity
@@ -544,8 +544,8 @@ export default function Nutrition({ navigation }) {
           </View>
         </View>
 
-        <View style={s.yaraCard}>
-          <Text style={s.cardLabel}>YARA</Text>
+        <View style={s.alexiCard}>
+          <Text style={s.cardLabel}>ALEXI</Text>
           <Text style={s.cardTitle}>Daily meal coaching works best with real logs</Text>
           <Text style={s.cardSub}>
             Every meal you save here becomes part of the nutrition context Alexi can use when you
@@ -781,7 +781,7 @@ const s = StyleSheet.create({
   },
   waterUndo: { backgroundColor: "rgba(255,107,107,0.08)", borderColor: "rgba(255,107,107,0.25)" },
   waterBtnTxt: { color: C.blue, fontSize: 13, fontWeight: "700" },
-  yaraCard: {
+  alexiCard: {
     backgroundColor: C.card,
     borderRadius: 22,
     borderWidth: 1,

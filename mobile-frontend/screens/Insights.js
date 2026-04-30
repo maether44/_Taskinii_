@@ -23,7 +23,7 @@ import { useInsights } from '../hooks/useInsights';
 import { useReports } from '../hooks/useReports';
 import { useAuth } from '../context/AuthContext';
 import { useMilestones } from '../context/MilestoneContext';
-import { generateAndCacheInsights } from '../services/yaraInsightsService';
+import { generateAndCacheInsights } from '../services/alexiInsightsService';
 import { AppEvents, on } from '../lib/eventBus';
 import { error as logError } from '../lib/logger';
 import ReportCard from '../components/reports/ReportCard';

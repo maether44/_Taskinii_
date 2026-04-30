@@ -1,4 +1,4 @@
-/**
+﻿/**
  * mobile-frontend/hooks/useInsights.js
  *
  * Powers the Insights screen with real Supabase data.
@@ -12,7 +12,7 @@
  *
  * RETURNS
  *   isLoading, error, refresh
- *   rawStats         — full payload forwarded to yaraInsightsService (now includes muscleFatigue)
+ *   rawStats         — full payload forwarded to alexiInsightsService (now includes muscleFatigue)
  *   userId
  *   metrics          — 4 summary cards: Streak, Workouts, Avg Steps, Avg Sleep
  *   trendData        — { Week, Month, '3 Months' } health-score arrays for the chart

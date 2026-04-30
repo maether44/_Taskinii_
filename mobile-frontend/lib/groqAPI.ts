@@ -1,4 +1,4 @@
-const GROQ_API_KEY = process.env.EXPO_PUBLIC_GROQ_API_KEY!;
+﻿const GROQ_API_KEY = process.env.EXPO_PUBLIC_GROQ_API_KEY!;
 
 const INTERNAL_LINE_RE =
   /^[^\n]*(COMMAND\s*:|MEMORIES\s*:|log_water|log_sleep|log_weight|log_food|log_workout|forget_fact|navigate)[^\n]*$/gim;
@@ -138,9 +138,9 @@ export async function generateAIPlan(answers) {
   return parseGroqResponse(text);
 }
 
-// ─── Yara chatbot (onboarding profile shape) ──────────────────────────────────
-function buildYaraSystem(profile) {
-  const base = `You are Yara, a warm and direct personal fitness and sports coach inside a mobile app.
+// ─── ALEXI chatbot (onboarding profile shape) ──────────────────────────────────
+function buildAlexiSystem(profile) {
+  const base = `You are ALEXI, a warm and direct personal fitness and sports coach inside a mobile app.
 
 Your voice:
 - Conversational, human, coach-like. No AI stiffness.
@@ -196,7 +196,7 @@ Use this to give precise, personalised advice every time.`
   );
 }
 
-export async function callYara(history, profile) {
+export async function callALEXI(history, profile) {
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -206,7 +206,7 @@ export async function callYara(history, profile) {
     body: JSON.stringify({
       model: "llama-3.1-8b-instant",
       max_tokens: 512,
-      messages: [{ role: "system", content: buildYaraSystem(profile) }, ...history],
+      messages: [{ role: "system", content: buildAlexiSystem(profile) }, ...history],
     }),
   });
 
@@ -217,9 +217,9 @@ export async function callYara(history, profile) {
   );
 }
 
-// ─── Yara coach (Supabase profile shape) ─────────────────────────────────────
-function buildYaraCoachSystem(profile: any, targets: any, scheduleMode = false) {
-  const base = `You are Yara, a warm and direct personal fitness coach inside the BodyQ app.
+// ─── ALEXI coach (Supabase profile shape) ─────────────────────────────────────
+function buildAlexiCoachSystem(profile: any, targets: any, scheduleMode = false) {
+  const base = `You are ALEXI, a warm and direct personal fitness coach inside the BodyQ app.
 
 Your voice:
 - Conversational, human, coach-like. No AI stiffness.
@@ -270,17 +270,17 @@ Use this to give precise, personalised advice every time.`
   );
 }
 
-// callAriaCoach — identical to callYaraCoach but under the Aria brand name.
+// callAriaCoach — identical to callAlexiCoach but under the Aria brand name.
 // useAlexiChat.ts and AlexiAssistant.js import this.
 export async function callAriaCoach(
   history: { role: string; content: string }[],
   profile: any,
   targets: any,
 ): Promise<string> {
-  return callYaraCoach(history, profile, targets);
+  return callAlexiCoach(history, profile, targets);
 }
 
-export async function callYaraCoach(
+export async function callAlexiCoach(
   history: { role: string; content: string }[],
   profile: any,
   targets: any,
@@ -298,7 +298,7 @@ export async function callYaraCoach(
       temperature: scheduleMode ? 0.3 : 0.7,
       response_format: scheduleMode ? { type: "json_object" } : undefined,
       messages: [
-        { role: "system", content: buildYaraCoachSystem(profile, targets, scheduleMode) },
+        { role: "system", content: buildAlexiCoachSystem(profile, targets, scheduleMode) },
         ...history,
       ],
     }),

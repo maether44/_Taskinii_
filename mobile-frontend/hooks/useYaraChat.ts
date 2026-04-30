@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { getChatHistory, saveMessage } from "../services/chatService";
 import { useAuth } from "../context/AuthContext";
@@ -31,8 +31,8 @@ function fmtTime() {
 
 function buildWelcome(profile) {
   return profile
-    ? `Hey — I'm Yara, your personal coach. I already know your profile so ask me anything about your training, nutrition or recovery. What's on your mind?`
-    : "Hey! I'm Yara — your personal coach. I'm here for everything: training, nutrition, recovery, mindset. What's on your mind today?";
+    ? `Hey — I'm ALEXI, your personal coach. I already know your profile so ask me anything about your training, nutrition or recovery. What's on your mind?`
+    : "Hey! I'm ALEXI — your personal coach. I'm here for everything: training, nutrition, recovery, mindset. What's on your mind today?";
 }
 
 function buildTodaySnapshot(profile) {
@@ -46,7 +46,7 @@ function buildTodaySnapshot(profile) {
   };
 }
 
-export function useYaraChat(profile) {
+export function useAlexiChat(profile) {
   const { user } = useAuth();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -56,7 +56,7 @@ export function useYaraChat(profile) {
 
   useEffect(() => {
     const loadHistory = async () => {
-      const welcome = { from: "yara", text: buildWelcome(profile), time: fmtTime() };
+      const welcome = { from: "alexi", text: buildWelcome(profile), time: fmtTime() };
 
       if (!user) {
         setMessages([welcome]);
@@ -70,7 +70,7 @@ export function useYaraChat(profile) {
           setMessages([welcome]);
         } else {
           const uiMessages = safeHistory.map((m) => ({
-            from: m.role === "assistant" ? "yara" : "user",
+            from: m.role === "assistant" ? "alexi" : "user",
             text: m.content,
             time: "",
           }));
@@ -123,14 +123,14 @@ export function useYaraChat(profile) {
       apiHistory.current = [...apiHistory.current, { role: "assistant", content: reply }];
 
       if (user) await saveMessage(user.id, "assistant", reply).catch(console.error);
-      setMessages((prev) => [...prev, { from: "yara", text: reply, time: fmtTime() }]);
+      setMessages((prev) => [...prev, { from: "alexi", text: reply, time: fmtTime() }]);
     } catch (err) {
-      logError("Yara error:", err);
+      logError("ALEXI error:", err);
       apiHistory.current = apiHistory.current.slice(0, -1);
       setMessages((prev) => [
         ...prev,
         {
-          from: "yara",
+          from: "alexi",
           text: "Sorry, connection issue. Try again!",
           time: fmtTime(),
         },

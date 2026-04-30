@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Shared font-size scale for the whole app.
  * Import this anywhere instead of hardcoding numbers.
  *
@@ -28,7 +28,7 @@ export const FS = {
   // Sub-labels beneath titles, hints, meta info
   sub: 13,
 
-  // Tiny ALL-CAPS labels ("TODAY", "YARA", "YARA PLAN")
+  // Tiny ALL-CAPS labels ("TODAY", "ALEXI", "ALEXI PLAN")
   label: 12,
 
   // Primary button text

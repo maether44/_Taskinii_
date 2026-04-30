@@ -1,4 +1,4 @@
-/* eslint-disable no-undef */
+﻿/* eslint-disable no-undef */
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import {
   View,
@@ -18,7 +18,8 @@ import Reanimated, {
   interpolate,
 } from "react-native-reanimated";
 import { WebView } from "react-native-webview";
-import { Camera } from "expo-camera";
+import { Audio } from "expo-av";
+import { useCameraPermissions } from "expo-camera";
 import { Asset } from "expo-asset";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
@@ -29,7 +30,7 @@ import { useAlexiVoice, AlexiEvents } from "../../context/AlexiVoiceContext";
 
 const { height: SH } = Dimensions.get("window");
 
-// ── Yara breathing tips (every 3 reps) ────────────────────────
+// ── ALEXI breathing tips (every 3 reps) ────────────────────────
 const BREATHING_TIPS = [
   "Breathe out on the way up",
   "Keep your core tight",
@@ -235,7 +236,7 @@ const EXERCISE_INSTRUCTIONS = {
     "Look straight ahead, chin parallel to the floor.",
     "Let shoulders relax — avoid shrugging or rounding.",
     "Feet hip-width apart, weight evenly distributed.",
-    "Hold still for 5 seconds while Yara measures alignment.",
+    "Hold still for 5 seconds while ALEXI measures alignment.",
   ],
 };
 
@@ -311,10 +312,8 @@ function HelpOverlay({ visible, exerciseKey, onClose }) {
           ))}
         </ScrollView>
 
-        {/* Voice hint */}
         <View style={hw.footer}>
-          <View style={hw.voiceDot} />
-          <Text style={hw.footerTxt}>Say "close" or tap outside to dismiss</Text>
+          <Text style={hw.footerTxt}>Tap outside to dismiss</Text>
         </View>
       </Reanimated.View>
     </Reanimated.View>
@@ -390,7 +389,6 @@ const hw = StyleSheet.create({
     marginTop: 16,
     paddingHorizontal: 20,
   },
-  voiceDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: "#C6FF33" },
   footerTxt: { color: "rgba(255,255,255,0.4)", fontSize: 11 },
 });
 
@@ -403,7 +401,10 @@ function formatTimer(secs) {
 // ─────────────────────────────────────────────────────────────
 export default function WorkoutActive({ route, navigation }) {
   const { user } = useAuth();
-  const { pausePassive, resumePassive } = useAlexiVoice();
+  useAlexiVoice(); // keep context subscription for AlexiEvents
+  // Hook-based permission — resolves before any WebView or camera touches hardware
+  const [permission, requestPermission] = useCameraPermissions();
+  const hasPermission = permission?.granted ?? null;
   const rawKey = route.params?.exerciseKey || route.params?.exerciseName || "squat";
   const isPostureMode = rawKey === "posture_check" || route.params?.mode === "posture";
   const htmlKey = isPostureMode ? "posture_check" : resolveHtmlKey(rawKey);
@@ -429,14 +430,17 @@ export default function WorkoutActive({ route, navigation }) {
   const repTimestampsRef = useRef([]);
   const tapCountRef = useRef(0);
   const tapTimerRef = useRef(null);
+  // Coordination refs for safe camera start
+  const webViewLoadedRef = useRef(false);  // true after WebView onLoad fires
+  const countdownDoneRef = useRef(false);  // true after 3-2-1-GO! completes
+  // Stable key — forces a fresh native WebView on each screen mount
+  const webViewKey = useRef("wv-" + Date.now()).current;
 
   // ── Animated values ─────────────────────────────────────────
   const countScaleAnim = useRef(new Animated.Value(0.3)).current;
   const countOpacityAnim = useRef(new Animated.Value(0)).current;
   const glowOpacityAnim = useRef(new Animated.Value(0)).current;
   const syncScaleAnim = useRef(new Animated.Value(0)).current;
-  // Mic pulse indicator
-  const micPulseAnim = useRef(new Animated.Value(1)).current;
 
   // ── Reanimated shared values ─────────────────────────────────
   const guideProg = useSharedValue(0); // 0=hidden 1=shown
@@ -456,8 +460,8 @@ export default function WorkoutActive({ route, navigation }) {
   }));
 
   // ── State ───────────────────────────────────────────────────
-  const [hasPermission, setHasPermission] = useState(null);
   const [htmlContent, setHtmlContent] = useState(null);
+  const [modelReady, setModelReady] = useState(false);
   const [cue, setCue] = useState("Get ready…");
   const [repCount, setRepCount] = useState(0);
   const [formScore, setFormScore] = useState(0);
@@ -469,27 +473,13 @@ export default function WorkoutActive({ route, navigation }) {
   const [guideVisible, setGuideVisible] = useState(false);
   // Once true, keeps the guide WebView mounted for instant re-show
   const [guideEverShown, setGuideEverShown] = useState(false);
-  // Voice-command triggered help overlay
   const [isHelpVisible, setIsHelpVisible] = useState(false);
-  // Whether SpeechRecognition is supported in this WebView
-  const [srSupported, setSrSupported] = useState(true);
   // ── Rest timer between circuit exercises ────────────────────
   const [showRest, setShowRest] = useState(false);
   const [restSecs, setRestSecs] = useState(0);
   const restIntervalRef = useRef(null);
   const REST_DURATION = 60;
 
-  // ── Global Alexi passive loop — pause immediately, resume after camera releases ─
-  // Pausing prevents Alexi's recorder racing the WebView camera init (iOS only
-  // allows one audio session owner at a time).  On unmount we wait 2 s before
-  // resumePassive so the camera codec fully releases before Alexi opens the mic.
-  useEffect(() => {
-    pausePassive();
-    return () => {
-      setTimeout(() => resumePassive(), 2000);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // ── Subscribe to global Alexi commands (e.g. triggered by other paths) ───────
   useEffect(() => {
@@ -501,18 +491,24 @@ export default function WorkoutActive({ route, navigation }) {
 
   // ── Cleanup on unmount ──────────────────────────────────────
   useEffect(() => {
-    const wv = webViewRef.current;
     return () => {
       isMountedRef.current = false;
       pulseLoopActive.current = false;
       clearInterval(timerIntervalRef.current);
       clearInterval(restIntervalRef.current);
       clearTimeout(tapTimerRef.current);
-      Speech.stop().catch(() => {});
-      wv?.injectJavaScript(
-        'if(window.onRNMessage) window.onRNMessage(\'{"type":"STOP_VOICE"}\'); true;',
-      );
     };
+  }, []);
+
+  // ── Release audio bus so the WebView camera can initialise ──
+  // expo-av's AVAudioSession must not claim recording mode while
+  // the WebView's getUserMedia(audio:false) is opening the camera.
+  useEffect(() => {
+    Audio.setAudioModeAsync({
+      allowsRecordingIOS: false,
+      staysActiveInBackground: false,
+      playsInSilentModeIOS: true,
+    }).catch(() => {});
   }, []);
 
   // ── Hide tab bar ────────────────────────────────────────────
@@ -529,11 +525,9 @@ export default function WorkoutActive({ route, navigation }) {
       });
   }, [navigation]);
 
-  // ── Camera permission + HTML preload ────────────────────────
+  // ── HTML preload (permission is handled by useCameraPermissions hook) ──
   useEffect(() => {
     (async () => {
-      const { status } = await Camera.requestCameraPermissionsAsync();
-      setHasPermission(status === "granted");
       try {
         const asset = Asset.fromModule(require("../../assets/ai_coach.html"));
         await asset.downloadAsync();
@@ -569,15 +563,7 @@ export default function WorkoutActive({ route, navigation }) {
 
   // ── Mic pulse loop ──────────────────────────────────────────
   useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(micPulseAnim, { toValue: 1.4, duration: 900, useNativeDriver: true }),
-        Animated.timing(micPulseAnim, { toValue: 1.0, duration: 900, useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [micPulseAnim]);
+  }, []);
 
   // ── IN SYNC detection ────────────────────────────────────────
   const updateSync = useCallback(
@@ -644,10 +630,14 @@ export default function WorkoutActive({ route, navigation }) {
       if (i >= steps.length) {
         setIsCountingDown(false);
         setCountStep(null);
-        webViewRef.current?.injectJavaScript("window.startCamera && window.startCamera(); true;");
+        countdownDoneRef.current = true;
+        if (webViewLoadedRef.current) {
+          webViewRef.current?.injectJavaScript(
+            "try{window.startCamera&&window.startCamera()}catch(e){} true;",
+          );
+        }
         startTimeRef.current = Date.now();
         setTimerRunning(true);
-        // Smooth fade-in instead of abrupt opacity flip
         cameraAlpha.value = withSpring(1, { damping: 22, stiffness: 120 });
         return;
       }
@@ -685,7 +675,7 @@ export default function WorkoutActive({ route, navigation }) {
     };
 
     showStep();
-  }, [countScaleAnim, countOpacityAnim, speakYara, cameraAlpha]);
+  }, [countScaleAnim, countOpacityAnim, cameraAlpha]);
 
   useEffect(() => {
     startCountdown();
@@ -694,27 +684,45 @@ export default function WorkoutActive({ route, navigation }) {
   // ── WebView message bridge ──────────────────────────────────
   const onMessage = useCallback(
     (e) => {
-      const data = e.nativeEvent.data;
-
-      if (data === "AI_READY") {
-        if (isPostureMode) {
-          webViewRef.current?.injectJavaScript(
-            "window.startPostureMode && window.startPostureMode(); true;",
-          );
-          webViewRef.current?.injectJavaScript("window.startAI && window.startAI(); true;");
-        } else {
-          if (htmlKey) {
-            webViewRef.current?.injectJavaScript(
-              `window.applyExerciseChange && window.applyExerciseChange('${htmlKey}'); true;`,
-            );
-          }
-          webViewRef.current?.injectJavaScript("window.startAI && window.startAI(); true;");
-        }
-        return;
-      }
-
       try {
-        const msg = JSON.parse(data);
+        const data = e.nativeEvent.data;
+
+        if (data === "AI_READY") {
+          // Delay AI startup — separates camera init, countdown animation,
+          // and AI logic so they don't all compete for the hardware at once.
+          setTimeout(() => {
+            if (isPostureMode) {
+              webViewRef.current?.injectJavaScript(
+                "try{window.startPostureMode&&window.startPostureMode()}catch(e){} true;",
+              );
+              webViewRef.current?.injectJavaScript(
+                "try{window.startAI&&window.startAI()}catch(e){} true;",
+              );
+            } else {
+              if (htmlKey) {
+                webViewRef.current?.injectJavaScript(
+                  `try{window.applyExerciseChange&&window.applyExerciseChange('${htmlKey}')}catch(e){} true;`,
+                );
+              }
+              webViewRef.current?.injectJavaScript(
+                "try{window.startAI&&window.startAI()}catch(e){} true;",
+              );
+            }
+          }, 2000);
+          return;
+        }
+
+        let msg;
+        try {
+          msg = JSON.parse(data);
+        } catch (_) {
+          return;
+        }
+
+        if (msg.type === "MODEL_READY") {
+          setModelReady(true);
+          return;
+        }
 
         if (msg.type === "cue") {
           setCue(msg.text);
@@ -750,13 +758,6 @@ export default function WorkoutActive({ route, navigation }) {
         if (msg.type === "POSTURE_SCORE") {
           setFormScore(msg.score);
           setCue(msg.verdict);
-        }
-
-        if (msg.type === "VOICE_COMMAND") {
-          if (msg.action === "OPEN_HELP") setIsHelpVisible(true);
-          if (msg.action === "CLOSE_HELP") setIsHelpVisible(false);
-          if (msg.action === "SR_UNSUPPORTED") setSrSupported(false);
-          if (msg.action === "SR_STARTED") setSrSupported(true);
         }
 
         if (msg.type === "SYNC_STATUS") {
@@ -878,7 +879,6 @@ export default function WorkoutActive({ route, navigation }) {
       htmlKey,
       rawKey,
       user,
-      speakYara,
       updateSync,
       syncScaleAnim,
       hasNext,
@@ -891,7 +891,7 @@ export default function WorkoutActive({ route, navigation }) {
 
   const handleFinish = useCallback(() => {
     webViewRef.current?.injectJavaScript(
-      "if (window.getSessionState) window.getSessionState(); true;",
+      "try{window.getSessionState&&window.getSessionState()}catch(e){} true;",
     );
   }, []);
 
@@ -909,7 +909,7 @@ export default function WorkoutActive({ route, navigation }) {
       setCue("Finishing session…");
       setTimeout(() => {
         webViewRef.current?.injectJavaScript(
-          "if (window.getSessionState) window.getSessionState(); true;",
+          "try{window.getSessionState&&window.getSessionState()}catch(e){} true;",
         );
       }, 800);
     }
@@ -931,7 +931,7 @@ export default function WorkoutActive({ route, navigation }) {
   const startRestTimer = useCallback(() => {
     setRestSecs(REST_DURATION);
     setShowRest(true);
-    speakYara("Great work! Rest up. Next exercise coming soon.");
+    // speakYara disabled — speech fights the camera's hardware clock
     restIntervalRef.current = setInterval(() => {
       setRestSecs((prev) => {
         if (prev <= 1) {
@@ -942,9 +942,35 @@ export default function WorkoutActive({ route, navigation }) {
         return prev - 1;
       });
     }, 1000);
-  }, [REST_DURATION, speakYara, advanceToNext]);
+  }, [REST_DURATION, advanceToNext]);
 
-  // ── Unsupported / No permission screens ────────────────────
+  // ── Permission guards — must resolve before any WebView or camera init ──
+  if (!permission) {
+    return (
+      <View style={[s.container, s.center]}>
+        <StatusBar hidden />
+        <Text style={s.errorTitle}>Checking Camera…</Text>
+      </View>
+    );
+  }
+
+  if (!permission.granted) {
+    return (
+      <View style={[s.container, s.center]}>
+        <StatusBar hidden />
+        <Text style={s.errorTitle}>Camera Access Required</Text>
+        <Text style={s.errorSub}>BodyQ needs the camera for AI posture tracking.</Text>
+        <TouchableOpacity style={s.backLink} onPress={requestPermission}>
+          <Text style={s.backLinkTxt}>Grant Permission</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[s.backLink, { marginTop: 8 }]} onPress={() => navigation.goBack()}>
+          <Text style={s.backLinkTxt}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // ── Unsupported exercise screen ─────────────────────────────
   if (htmlKey === null && !isPostureMode) {
     return (
       <View style={[s.container, s.center]}>
@@ -959,48 +985,36 @@ export default function WorkoutActive({ route, navigation }) {
     );
   }
 
-  if (hasPermission === false) {
-    return (
-      <View style={[s.container, s.center]}>
-        <StatusBar hidden />
-        <Text style={s.errorTitle}>Camera Permission Denied</Text>
-        <TouchableOpacity style={s.backLink} onPress={() => navigation.goBack()}>
-          <Text style={s.backLinkTxt}>Go Back</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
   return (
     <View style={s.container}>
       <StatusBar hidden />
 
       {/* ══ FULL-SCREEN AI CAMERA ══════════════════════════════ */}
-      {htmlContent && (
+      {htmlContent && hasPermission === true && (
         <Reanimated.View style={[StyleSheet.absoluteFillObject, cameraStyle]}>
           <WebView
+            key={webViewKey}
             ref={webViewRef}
-            originWhitelist={["*"]}
             source={{ html: htmlContent, baseUrl: "https://localhost" }}
             style={StyleSheet.absoluteFillObject}
+            javaScriptEnabled
             allowsInlineMediaPlayback
-            mediaPlaybackRequiresUserAction={false}
-            mediaCapturePermissionGrantType="manual"
-            startInLoadingState={false}
             onPermissionRequest={(e) => {
-              // Grant camera only — Alexi (native) owns the mic exclusively.
-              // Filtering out RECORD_AUDIO prevents the WebView from fighting
-              // the native audio session for the microphone on Android.
+              // Grant camera only — deny audio to avoid AVAudioSession conflict.
               const cameraResources = (e.resources ?? []).filter(
                 (r) => !r.toLowerCase().includes("audio") && !r.toLowerCase().includes("record"),
               );
               if (cameraResources.length > 0) e.grant(cameraResources);
               else e.deny();
             }}
-            javaScriptEnabled
-            domStorageEnabled
-            scrollEnabled={false}
-            bounces={false}
+            onLoad={() => {
+              webViewLoadedRef.current = true;
+              if (countdownDoneRef.current) {
+                webViewRef.current?.injectJavaScript(
+                  "try{window.startCamera&&window.startCamera()}catch(e){} true;",
+                );
+              }
+            }}
             onMessage={onMessage}
           />
         </Reanimated.View>
@@ -1034,17 +1048,13 @@ export default function WorkoutActive({ route, navigation }) {
             </BlurView>
           )}
 
-          {/* Top-right: Neon Lime mic button → opens HelpOverlay (tap fallback + voice) */}
+          {/* Top-right: Help button */}
           <TouchableOpacity
             style={s.micGuideBtn}
-            onPress={() => {
-              setIsHelpVisible(true);
-            }}
+            onPress={() => setIsHelpVisible(true)}
             activeOpacity={0.8}
           >
-            <Animated.View style={{ transform: [{ scale: micPulseAnim }] }}>
-              <Ionicons name="mic" size={18} color="#000" />
-            </Animated.View>
+            <Ionicons name="help-circle-outline" size={18} color="#000" />
           </TouchableOpacity>
 
           {/* Top-right below mic: Hologram Guide button */}
@@ -1071,20 +1081,12 @@ export default function WorkoutActive({ route, navigation }) {
             </BlurView>
           </View>
 
-          {/* Bottom-left: Yara coach indicator */}
+          {/* Bottom-left: ALEXI coach indicator */}
           <BlurView intensity={20} tint="dark" style={s.micTag}>
             <Ionicons name="volume-high-outline" size={10} color="rgba(200,241,53,0.8)" />
-            <Text style={s.micLabel}>YARA COACH</Text>
+            <Text style={s.micLabel}>ALEXI COACH</Text>
           </BlurView>
 
-          {/* Bottom-right: Level 2 voice listening indicator (hidden if SR unsupported) */}
-          {srSupported && (
-            <BlurView intensity={20} tint="dark" style={s.voiceTag}>
-              <Animated.View style={[s.voiceTagDot, { transform: [{ scale: micPulseAnim }] }]} />
-              <Ionicons name="mic" size={10} color="#C6FF33" />
-              <Text style={s.voiceTagTxt}>LISTENING</Text>
-            </BlurView>
-          )}
         </>
       )}
 
@@ -1190,7 +1192,6 @@ export default function WorkoutActive({ route, navigation }) {
                   <Ionicons name="sync-outline" size={12} color="#C8F135" />
                   <Text style={s.guideTipText}>Match the skeleton's tempo and depth</Text>
                 </View>
-                <Text style={s.guideVoiceHint}>Say "close" or tap outside to dismiss</Text>
               </View>
             </View>
 
@@ -1483,23 +1484,6 @@ const s = StyleSheet.create({
     marginLeft: 4,
   },
 
-  // ── Level 2 voice indicator (bottom-right) ──────────────────
-  voiceTag: {
-    position: "absolute",
-    bottom: 110,
-    right: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    borderRadius: 12,
-    overflow: "hidden",
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    zIndex: 40,
-  },
-  voiceTagDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#C6FF33" },
-  voiceTagTxt: { color: "#C6FF33", fontSize: 8, fontWeight: "900", letterSpacing: 1 },
-
   // ── Hologram Guide: backdrop + modal card ───────────────────
   guideBackdrop: {
     ...StyleSheet.absoluteFillObject,
@@ -1603,12 +1587,6 @@ const s = StyleSheet.create({
     color: "rgba(255,255,255,0.75)",
     fontSize: 12,
     fontWeight: "600",
-  },
-  guideVoiceHint: {
-    color: "rgba(124,92,252,0.6)",
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 0.3,
   },
   guideBorder: {
     ...StyleSheet.absoluteFillObject,

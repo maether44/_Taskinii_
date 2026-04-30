@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+﻿import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "../lib/supabase";
 import { getHomeSnapshot } from "../services/dashboardService";
 import { RECOVERY_MAP } from "../services/workoutService";
@@ -117,7 +117,7 @@ export function useDashboard() {
     },
     workoutCalories: workoutCals,
     muscleFatigue,
-    yaraInsight: (() => {
+    alexiInsight: (() => {
       const top = muscleFatigue.find((m) => m.fatigue_pct >= 70);
       if (top) {
         const recovery = RECOVERY_MAP[top.muscle_name] ?? "a different muscle group";

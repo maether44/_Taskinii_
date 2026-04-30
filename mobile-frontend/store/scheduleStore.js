@@ -1,12 +1,12 @@
-/**
+﻿/**
  * scheduleStore.js
  * Pub/sub store with AsyncStorage persistence.
  * Tracks exercise completion per day.
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const SCHEDULE_KEY = "@yara_schedule";
-const COMPLETION_KEY = "@yara_completion"; // { "2025-04-16": { done: true, checked: [0,2] } }
+const SCHEDULE_KEY = "@alexi_schedule";
+const COMPLETION_KEY = "@alexi_completion"; // { "2025-04-16": { done: true, checked: [0,2] } }
 
 const createStore = () => {
   let state = null;
@@ -31,7 +31,7 @@ const createStore = () => {
       } catch (_) {}
     },
 
-    // ── Save new schedule from Yara ───────────────────────────
+    // ── Save new schedule from ALEXI ───────────────────────────
     set: async (newState) => {
       state = newState;
       notify();

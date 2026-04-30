@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+﻿import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
@@ -25,7 +25,7 @@ const BentoCard = ({ children, style, delay = 0 }) => (
 );
 
 export default function Home({ navigation }) {
-  const { isLoading, error, user, stats, logWater, logSleep, refresh, yaraInsight, muscleFatigue } =
+  const { isLoading, error, user, stats, logWater, logSleep, refresh, alexiInsight, muscleFatigue } =
     useDashboard();
   const { steps: liveSteps } = useShakySteps(user?.id);
   const totalSteps = (stats?.steps || 0) + liveSteps;
@@ -112,7 +112,7 @@ export default function Home({ navigation }) {
           </Pressable>
         </View>
 
-        {/* 2. YARA AI INSIGHT (Glow Card) */}
+        {/* 2. ALEXI AI INSIGHT (Glow Card) */}
         <BentoCard delay={100}>
           <LinearGradient
             colors={["#7C5CFC", "#4A2FC8"]}
@@ -121,10 +121,10 @@ export default function Home({ navigation }) {
             style={styles.aiCard}
           >
             <View style={styles.aiHeader}>
-              <Text style={styles.aiTitle}>YARA COACH</Text>
+              <Text style={styles.aiTitle}>ALEXI COACH</Text>
               <View style={styles.liveDot} />
             </View>
-            <Text style={styles.aiText}>"{yaraInsight}"</Text>
+            <Text style={styles.aiText}>"{alexiInsight}"</Text>
           </LinearGradient>
         </BentoCard>
 

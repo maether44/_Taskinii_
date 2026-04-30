@@ -1,6 +1,6 @@
-/**
+﻿/**
  * TodayScheduleWidget.js
- * Home page widget showing today's Yara schedule.
+ * Home page widget showing today's ALEXI schedule.
  * Reads from scheduleStore — no extra API calls.
  */
 import React, { useEffect, useState } from 'react';
@@ -175,7 +175,7 @@ export default function TodayScheduleWidget({ navigation }) {
 
       {/* AI badge */}
       <View style={styles.aiBadge}>
-        <Text style={styles.aiBadgeTxt}>✦ Yara AI</Text>
+        <Text style={styles.aiBadgeTxt}>✦ ALEXI AI</Text>
       </View>
     </Animated.View>
   );

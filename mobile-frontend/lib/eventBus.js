@@ -1,8 +1,8 @@
-import { error as logError } from "./logger";
+﻿import { error as logError } from "./logger";
 /**
  * AppEventBus — lightweight pub/sub for cross-screen communication.
  *
- * Events emitted here let any subscriber (hooks, contexts, Yara) react
+ * Events emitted here let any subscriber (hooks, contexts, ALEXI) react
  * without tight coupling between screens.
  *
  * Usage:

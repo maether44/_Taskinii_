@@ -1,25 +1,8 @@
 /**
- * AlexiVoiceContext.js — Siri-Clone Architecture
+ * AlexiVoiceContext.js — Text-Only Chat Assistant
  *
- * Passive loop records 3-second chunks continuously, transcribes every chunk,
- * and wakes on the fuzzy wake word "Alexi / Alex / Lexi". No silence gate —
- * every chunk is sent to Whisper so Alexi is never deaf.
- *
- * CRASH FIX: REC_OPTIONS = Audio.RecordingOptionsPresets.HIGH_QUALITY
- *   Do NOT spread this or add custom properties. Accessing
- *   Audio.AndroidOutputFormat / Audio.IOSOutputFormat via spread is undefined
- *   in some SDK 54 builds and causes "Cannot read property 'prototype' of
- *   undefined". The plain preset is pre-resolved and always safe.
- *
- * Hardware safety:
- *   ONE Audio.Recording lives in _rec. stopAnyRecording() calls
- *   stopAndUnloadAsync() then waits a mandatory 500ms for iOS AVAudioSession
- *   to fully release the mic hardware before the next createAsync call.
- *
- * Three-layer command resolution:
- *   L1 — phonetic snap  : fix Whisper hallucinations (≤ 3 words)
- *   L2 — local regex    : navigation + logging — no network call
- *   L3 — LLM fallback   : complex queries (llama-3.1-8b-instant, ≤ 100 tok)
+ * Provides the Alexi chat assistant context: show/hide panel, execute text
+ * commands, navigate screens, log data. No microphone or voice I/O.
  */
 
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
@@ -46,91 +29,18 @@ import RAnimated, {
 } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from "expo-av";
-import * as FileSystem from "expo-file-system/legacy";
 import * as Haptics from "expo-haptics";
-import * as Speech from "expo-speech";
 import { supabase } from "../lib/supabase";
 
-// ─── Audio modes ───────────────────────────────────────────────────────────────
-// DoNotMix during recording  → mic gets a clean signal, no bleed.
-// allowsRecordingIOS: false during playback → forces TTS to main speaker
-//   even when the phone is on Silent / Vibrate (exactly like Siri).
-const RECORDING_MODE = {
-  allowsRecordingIOS: true,
-  playsInSilentModeIOS: true,
-  interruptionModeIOS: InterruptionModeIOS.DoNotMix,
-  shouldDuckAndroid: false,
-  interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
-  playThroughEarpieceAndroid: false,
-  staysActiveInBackground: false,
-};
-
-const PLAYBACK_MODE = {
-  allowsRecordingIOS: false, // KEY: main speaker even on Silent
-  playsInSilentModeIOS: true,
-  interruptionModeIOS: InterruptionModeIOS.DuckOthers,
-  shouldDuckAndroid: true,
-  interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
-  playThroughEarpieceAndroid: false,
-  staysActiveInBackground: false,
-};
-
-// CRITICAL — plain preset, no spread, no custom properties.
-// Any spread that touches Audio.AndroidOutputFormat causes a prototype crash.
-const REC_OPTIONS = Audio.RecordingOptionsPresets.HIGH_QUALITY;
-
 // ─── Constants ────────────────────────────────────────────────────────────────
-const CHUNK_MS = 3000; // passive loop recording window
-const CMD_LISTEN_MS = 5000; // command window after bare "Alexi"
 const ALEXI_AUTOHIDE_MS = 7000;
 const MIN_VISIBLE_MS = 4000;
 const MUTE_KEY = "@alexi_muted";
 const DEBUG_OVERLAY = false;
 
-// Fuzzy wake word — includes Whisper hallucination variants:
-//   "election" = Whisper hears "Alexi" as "Election"
-//   "i legacy" = Whisper hears "Alexi" as "I legacy" / "I Lexi"
-//   "a lexi"   = split transcription artefact
-const WAKE_RE =
-  /\b(alexi|alexie|alexey|alexy|alexis|alex|lexi|lex|alexa|election|a lexi)\b|i legacy|i lexi/i;
-const WAKE_SPLIT_RE =
-  /\b(alexi|alexie|alexey|alexy|alexis|alex|lexi|lex|alexa|election)\b|i legacy|i lexi/i;
-
 const { width: SW, height: SH } = Dimensions.get("window");
 
-// ─── Hardware singleton ────────────────────────────────────────────────────────
-// ONE Audio.Recording exists at a time, tracked here at module level.
-let _rec = null;
-
-async function stopAnyRecording() {
-  const r = _rec;
-  _rec = null;
-  if (r) {
-    try {
-      await r.stopAndUnloadAsync();
-    } catch (_) {}
-    // Mandatory 500ms gap — iOS AVAudioSession needs time to release the mic.
-    await new Promise((res) => setTimeout(res, 500));
-  }
-}
-
-// ─── Confirm chime ─────────────────────────────────────────────────────────────
-const CONFIRM_TONE_B64 =
-  "UklGRlQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YTAAAAA" +
-  "AAAAAAP//AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wD/AP8A/wAA";
-
-async function playConfirmSound() {
-  try {
-    const { sound } = await Audio.Sound.createAsync(
-      { uri: `data:audio/wav;base64,${CONFIRM_TONE_B64}` },
-      { volume: 0.18, shouldPlay: true },
-    );
-    sound.setOnPlaybackStatusUpdate((s) => {
-      if (s.didJustFinish) sound.unloadAsync().catch(() => {});
-    });
-  } catch (_) {}
-}
+function playConfirmSound() {} // no-op — voice removed
 
 // ─── Cross-screen event bus ────────────────────────────────────────────────────
 export const AlexiEvents = {
@@ -426,7 +336,7 @@ const AlexiVoiceContext = createContext(null);
 export function AlexiVoiceProvider({ children }) {
   const [passiveState, setPassiveState] = useState("idle");
   const [isMuted, setIsMuted] = useState(false);
-  const [permGranted, setPermGranted] = useState(false);
+  const permGranted = false; // voice removed — no mic permission needed
   const [lastTranscript, setLastTranscript] = useState("");
   const [debugLog, setDebugLog] = useState("Ready");
   const [isAlexiVisible, setIsAlexiVisible] = useState(false);
@@ -547,86 +457,10 @@ export function AlexiVoiceProvider({ children }) {
     })();
   }, []);
 
-  // ── speak() ──────────────────────────────────────────────────────────────────
-  // Sets PLAYBACK_MODE (allowsRecordingIOS: false) before TTS so the voice
-  // routes to the main speaker even if the phone is on Silent Mode.
-  const speak = (text) =>
-    new Promise(async (resolve) => {
-      let done = false;
-      const finish = async () => {
-        if (done) return;
-        done = true;
-        await new Promise((r) => setTimeout(r, 500));
-        try {
-          await Audio.setAudioModeAsync(RECORDING_MODE);
-        } catch (_) {}
-        setPassiveState("listening");
-        resolve();
-      };
-      const guard = setTimeout(finish, 8000);
-      try {
-        Speech.stop();
-        await stopAnyRecording();
-        setPassiveState("speaking");
-        setResponseText(text);
-        try {
-          await Audio.setAudioModeAsync(PLAYBACK_MODE);
-        } catch (_) {}
-        Speech.speak(text, {
-          language: "en-US",
-          pitch: 1.0,
-          rate: 1.0,
-          onDone: () => {
-            clearTimeout(guard);
-            finish();
-          },
-          onStopped: () => {
-            clearTimeout(guard);
-            finish();
-          },
-          onError: () => {
-            clearTimeout(guard);
-            finish();
-          },
-        });
-      } catch (_) {
-        clearTimeout(guard);
-        finish();
-      }
-    });
-
-  // ── transcribeURI ─────────────────────────────────────────────────────────────
-  const transcribeURI = useCallback(async (uri) => {
-    setDebugLog("Transcribing…");
-    try {
-      const base64 = await FileSystem.readAsStringAsync(uri, { encoding: "base64" });
-      console.log("[Alexi] Sending Base64 to Edge Function... size:", base64.length);
-      const { data, error } = await supabase.functions.invoke("ai-assistant", {
-        body: {
-          audioBase64: base64,
-          mimeType: "audio/m4a",
-          userName: userNameRef.current ?? undefined,
-        },
-      });
-      console.log(
-        "[Alexi] Edge Function Raw Response:",
-        JSON.stringify(data),
-        error?.message ?? "no error",
-      );
-      if (error) {
-        console.error("[Alexi] Edge Function error:", error.message);
-        setDebugLog(`STT error: ${error.message}`);
-        return "";
-      }
-      const t = (data?.transcript ?? "").trim();
-      setLastTranscript(t);
-      setDebugLog(`Heard: "${t || "(silence)"}"`);
-      return t;
-    } catch (e) {
-      console.error("[Alexi] transcribeURI crash:", e?.message);
-      setDebugLog(`Transcribe crash: ${e?.message}`);
-      return "";
-    }
+  // ── speak() — text-only, no TTS ──────────────────────────────────────────────
+  const speak = useCallback((text) => {
+    setResponseText(text);
+    return Promise.resolve();
   }, []);
 
   // ── executeCommand ────────────────────────────────────────────────────────────
@@ -971,390 +805,34 @@ export function AlexiVoiceProvider({ children }) {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── runPassiveLoop — the "Siri Ear" ──────────────────────────────────────────
-  // Records 3-second chunks, sends EVERY chunk to Whisper (no silence gate —
-  // that was the deaf bug), wakes on fuzzy wake word, executes commands.
-  const runPassiveLoop = useCallback(async () => {
-    console.log("[Alexi] Loop function called");
-    const myGen = ++loopGenRef.current;
-    const alive = () => loopGenRef.current === myGen && isMountedRef.current && !mutedRef.current;
-
-    // ── Permission check ──────────────────────────────────────────────────────
-    let perm = await Audio.getPermissionsAsync().catch(() => ({ status: "denied" }));
-    if (perm.status !== "granted") {
-      perm = await Audio.requestPermissionsAsync().catch(() => ({ status: "denied" }));
-      setPermGranted(perm.status === "granted");
-      if (perm.status !== "granted") {
-        setPassiveState("no_permission");
-        setDebugLog("Microphone permission denied");
-        Alert.alert(
-          "Microphone Required",
-          "Enable microphone access in Settings → BodyQ → Microphone.",
-          [{ text: "OK" }],
-        );
-        return;
-      }
-    } else {
-      setPermGranted(true);
-    }
-
-    console.log("[Alexi] Permission status:", perm.status);
-    await new Promise((r) => setTimeout(r, 800));
-    if (!alive()) return;
-
-    setPassiveState("listening");
-    setDebugLog("Listening…");
-    console.log("[Alexi] Starting while loop. Muted:", mutedRef.current);
-
-    while (alive()) {
-      // ── Paused (app backgrounded) ───────────────────────────────────────────
-      if (pausedRef.current) {
-        setPassiveState("paused");
-        await new Promise((r) => setTimeout(r, 500));
-        continue;
-      }
-
-      let uri = null;
-
-      try {
-        // ── Set mic audio session ─────────────────────────────────────────────
-        try {
-          await Audio.setAudioModeAsync(RECORDING_MODE);
-        } catch (_) {}
-
-        // ── Start recording ───────────────────────────────────────────────────
-        console.log("[Alexi] Attempting to start hardware...");
-        const { recording } = await Audio.Recording.createAsync(REC_OPTIONS);
-        _rec = recording;
-
-        // ── Hold for 3 seconds ────────────────────────────────────────────────
-        await new Promise((r) => setTimeout(r, CHUNK_MS));
-        if (!alive()) {
-          await stopAnyRecording();
-          break;
-        }
-
-        // ── Stop and retrieve URI ─────────────────────────────────────────────
-        _rec = null;
-        try {
-          await recording.stopAndUnloadAsync();
-          await new Promise((r) => setTimeout(r, 500)); // mandatory iOS hardware gap
-          uri = recording.getURI();
-        } catch (_) {
-          await new Promise((r) => setTimeout(r, 500));
-          continue;
-        }
-      } catch (e) {
-        // Any mic error → clean up + 3s before retry (avoids error spam)
-        console.error("[Alexi] passive loop error:", e?.message);
-        await stopAnyRecording();
-        setPassiveState("listening");
-        await new Promise((r) => setTimeout(r, 3000));
-        continue;
-      }
-
-      if (!uri) continue;
-
-      // ── Transcribe every chunk (no silence gate) ──────────────────────────
-      setPassiveState("transcribing");
-      // transcribeURI never throws — returns '' on any error so the loop retries
-      const raw = await transcribeURI(uri);
-
-      if (!raw) {
-        setPassiveState("listening");
-        continue;
-      }
-
-      console.log("[Alexi] Heard:", raw);
-
-      // ── L1: hallucination fix ─────────────────────────────────────────────
-      const fixed = applyHallucMap(raw);
-
-      // ── Wake-word check (fuzzy) ───────────────────────────────────────────
-      const hasWake = WAKE_RE.test(fixed);
-      if (!hasWake && !isAlexiVisibleRef.current) {
-        setPassiveState("listening");
-        continue;
-      }
-
-      // ── WAKE — haptic + Siri orb fires immediately ────────────────────────
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-      flashBorder();
-      showAlexi();
-      setPassiveState("capturing");
-      const wakeTimestamp = Date.now();
-
-      const ensureMinVisible = async () => {
-        const elapsed = Date.now() - wakeTimestamp;
-        if (elapsed < MIN_VISIBLE_MS)
-          await new Promise((r) => setTimeout(r, MIN_VISIBLE_MS - elapsed));
-      };
-
-      // ── Extract inline command (text after wake word) ─────────────────────
-      const wakeMatch = fixed.match(WAKE_SPLIT_RE);
-      const cmdRaw = wakeMatch
-        ? fixed
-            .split(WAKE_SPLIT_RE)
-            .pop()
-            .replace(/^[,.\s!?]+/, "")
-            .trim()
-        : fixed;
-      const cmdText = snapShortTranscript(cmdRaw);
-
-      if (cmdText && cmdText.split(/\s+/).filter(Boolean).length >= 2) {
-        // Inline: "Alexi, go to training" — execute immediately
-        console.log("[Alexi] Inline command:", cmdText);
-        await executeCommand(cmdText);
-        await ensureMinVisible();
-        hideAlexiAfter(ALEXI_AUTOHIDE_MS);
-        setPassiveState("listening");
-        continue;
-      }
-
-      // ── Bare "Alexi" — open 5-second command window ───────────────────────
-      await speak("Yes?");
-      if (!alive()) break;
-
-      setPassiveState("capturing");
-
-      let cmdUri = null;
-      try {
-        try {
-          await Audio.setAudioModeAsync(RECORDING_MODE);
-        } catch (_) {}
-        const { recording: cmdRec } = await Audio.Recording.createAsync(REC_OPTIONS);
-        _rec = cmdRec;
-        await new Promise((r) => setTimeout(r, CMD_LISTEN_MS));
-        if (!alive()) {
-          await stopAnyRecording();
-          break;
-        }
-        _rec = null;
-        await cmdRec.stopAndUnloadAsync();
-        await new Promise((r) => setTimeout(r, 500));
-        cmdUri = cmdRec.getURI();
-      } catch (e) {
-        console.error("[Alexi] command window error:", e?.message);
-        await stopAnyRecording();
-        await new Promise((r) => setTimeout(r, 3000));
-      }
-
-      if (cmdUri) {
-        setPassiveState("transcribing");
-        let cmdTx = "";
-        try {
-          cmdTx = await transcribeURI(cmdUri);
-        } catch (_) {}
-        if (cmdTx) {
-          const fixedCmd = applyHallucMap(cmdTx);
-          const snapped = snapShortTranscript(fixedCmd);
-          console.log("[Alexi] Command window:", snapped);
-          await executeCommand(snapped);
-        }
-      }
-
-      await ensureMinVisible();
-      hideAlexiAfter(ALEXI_AUTOHIDE_MS);
-      setPassiveState("listening");
-    }
-
-    await stopAnyRecording();
-    setIsAlexiVisible(false);
-    setPassiveState("idle");
-  }, [executeCommand, flashBorder, showAlexi, hideAlexi, hideAlexiAfter, transcribeURI]);
-
-  // ── wakeAlexi — tap / long-press trigger ─────────────────────────────────────
-  const wakeAlexi = useCallback(async () => {
+  // ── wakeAlexi — tap trigger: open the chat panel ─────────────────────────────
+  const wakeAlexi = useCallback(() => {
     if (mutedRef.current) return;
-
-    loopGenRef.current++; // invalidate passive loop iteration
-    await stopAnyRecording();
-
-    let perm = await Audio.getPermissionsAsync().catch(() => ({ status: "denied" }));
-    if (perm.status !== "granted") {
-      perm = await Audio.requestPermissionsAsync().catch(() => ({ status: "denied" }));
-      if (perm.status !== "granted") {
-        Alert.alert(
-          "Microphone Required",
-          "Enable microphone access in Settings → BodyQ → Microphone.",
-        );
-        if (loopRef.current) runPassiveLoop();
-        return;
-      }
-    }
-
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     flashBorder();
     showAlexi();
-    setPassiveState("capturing");
-    setDebugLog("Listening…");
+    AlexiEvents.emit("open_chat", { query: null });
+  }, [flashBorder, showAlexi]);
 
-    let uri = null;
-    try {
-      await Audio.setAudioModeAsync(RECORDING_MODE);
-      const { recording } = await Audio.Recording.createAsync(REC_OPTIONS);
-      _rec = recording;
-      await new Promise((r) => setTimeout(r, CMD_LISTEN_MS));
-      _rec = null;
-      await recording.stopAndUnloadAsync();
-      await new Promise((r) => setTimeout(r, 500));
-      uri = recording.getURI();
-    } catch (e) {
-      console.error("[Alexi] wakeAlexi mic failed:", e?.message);
-      await stopAnyRecording();
-      setPassiveState("idle");
-      hideAlexiAfter(1000);
-      if (loopRef.current) runPassiveLoop();
-      return;
-    }
+  // ── Public controls (no-ops — voice removed) ─────────────────────────────────
+  const startPassive  = useCallback(() => {}, []);
+  const stopPassive   = useCallback(() => {}, []);
+  const pausePassive  = useCallback(() => {}, []);
+  const resumePassive = useCallback(() => {}, []);
 
-    if (!uri) {
-      setPassiveState("idle");
-      hideAlexiAfter(1000);
-      if (loopRef.current) runPassiveLoop();
-      return;
-    }
-
-    setPassiveState("transcribing");
-    let raw = "";
-    try {
-      raw = await transcribeURI(uri);
-    } catch (_) {
-      setPassiveState("idle");
-      hideAlexiAfter(1000);
-      if (loopRef.current) runPassiveLoop();
-      return;
-    }
-
-    if (!raw) {
-      setPassiveState("idle");
-      hideAlexiAfter(1000);
-      if (loopRef.current) runPassiveLoop();
-      return;
-    }
-
-    console.log("[Alexi] wakeAlexi heard:", raw);
-
-    const fixed = applyHallucMap(raw);
-    const wm = fixed.match(WAKE_SPLIT_RE);
-    const cmdRaw = wm
-      ? fixed
-          .split(WAKE_SPLIT_RE)
-          .pop()
-          .replace(/^[,.\s!?]+/, "")
-          .trim()
-      : fixed;
-    const cmdText = snapShortTranscript(cmdRaw) || snapShortTranscript(fixed);
-
-    if (cmdText) {
-      console.log("[Alexi] wakeAlexi command:", cmdText);
-      await executeCommand(cmdText);
-    } else {
-      setPassiveState("idle");
-      hideAlexiAfter(1000);
-    }
-
-    if (loopRef.current && !mutedRef.current && isMountedRef.current) {
-      runPassiveLoop();
-    }
-  }, [executeCommand, flashBorder, showAlexi, hideAlexiAfter, transcribeURI, runPassiveLoop]);
-
-  // ── Public loop controls ──────────────────────────────────────────────────────
-  const startPassive = useCallback(async () => {
-    if (mutedRef.current) return;
-    loopRef.current = true;
-    pausedRef.current = false;
-    runPassiveLoop();
-  }, [runPassiveLoop]);
-
-  const stopPassive = useCallback(async () => {
-    loopRef.current = false;
-    loopGenRef.current++;
-    await stopAnyRecording();
-    Speech.stop();
-    setIsAlexiVisible(false);
-    setPassiveState("idle");
-    setDebugLog("Stopped");
+  const setMutedState = useCallback(async (muted) => {
+    mutedRef.current = muted;
+    setIsMuted(muted);
+    await AsyncStorage.setItem(MUTE_KEY, String(muted));
+    setPassiveState(muted ? "muted" : "idle");
   }, []);
 
-  const pausePassive = useCallback(async () => {
-    pausedRef.current = true;
-    await stopAnyRecording();
-    setPassiveState("paused");
-    setDebugLog("Paused");
-  }, []);
-
-  const resumePassive = useCallback(() => {
-    if (!mutedRef.current) {
-      pausedRef.current = false;
-      setDebugLog("Resuming…");
-    }
-  }, []);
-
-  const setMutedState = useCallback(
-    async (muted) => {
-      mutedRef.current = muted;
-      setIsMuted(muted);
-      await AsyncStorage.setItem(MUTE_KEY, String(muted));
-      if (muted) {
-        loopRef.current = false;
-        loopGenRef.current++;
-        await stopAnyRecording();
-        Speech.stop();
-        setPassiveState("muted");
-        setDebugLog("Muted");
-      } else {
-        setDebugLog("Unmuted — starting listener");
-        loopRef.current = true;
-        pausedRef.current = false;
-        runPassiveLoop();
-      }
-    },
-    [runPassiveLoop],
-  );
-
-  // ── AppState — pause on background, resume on foreground ─────────────────────
-  useEffect(() => {
-    const sub = AppState.addEventListener("change", async (nextState) => {
-      const wasActive = appStateRef.current === "active";
-      const isActive = nextState === "active";
-      appStateRef.current = nextState;
-      if (wasActive && !isActive && loopRef.current && !pausedRef.current) {
-        await pausePassive();
-      } else if (!wasActive && isActive && loopRef.current && !mutedRef.current) {
-        resumePassive();
-      }
-    });
-    return () => sub.remove();
-  }, [pausePassive, resumePassive]);
-
-  // ── Auto-start after onboarding ───────────────────────────────────────────────
   useEffect(() => {
     isMountedRef.current = true;
-    const t = setTimeout(async () => {
-      console.log(
-        "[Alexi] Auto-start check. Muted:",
-        mutedRef.current,
-        "Mounted:",
-        isMountedRef.current,
-      );
-      if (mutedRef.current) return;
-      if (!isMountedRef.current) return;
-      // Onboarding gate bypassed for diagnostics
-      loopRef.current = true;
-      console.log("[Alexi] Calling startPassive()");
-      startPassive();
-    }, 1500);
     return () => {
       isMountedRef.current = false;
-      clearTimeout(t);
       clearTimeout(hideTimerRef.current);
-      loopRef.current = false;
-      loopGenRef.current++;
-      stopAnyRecording();
-      Speech.stop();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const value = {
@@ -1382,6 +860,7 @@ export function AlexiVoiceProvider({ children }) {
     resumePassive,
     setMutedState,
     executeCommand,
+    speakYara: speak,
   };
 
   return <AlexiVoiceContext.Provider value={value}>{children}</AlexiVoiceContext.Provider>;
@@ -1523,9 +1002,8 @@ const glwStyles = StyleSheet.create({
 
 // ─── AlexiEarDot ──────────────────────────────────────────────────────────────
 export function AlexiEarDot() {
-  const { passiveState, earDotScale, wakeAlexi } = useAlexiVoice();
-  const isActive = ["listening", "capturing", "transcribing", "speaking"].includes(passiveState);
-  if (!isActive) return null;
+  // Voice removed — ear dot never shown
+  return null;
   const color =
     passiveState === "speaking"
       ? "#9B7FFF"
@@ -1572,53 +1050,15 @@ const earStyles = StyleSheet.create({
 
 // ─── AlexiVoiceOrb ────────────────────────────────────────────────────────────
 export function AlexiVoiceOrb({ style }) {
-  const { passiveState, isMuted, pulseAnim, wakeAlexi, startPassive, setMutedState } =
-    useAlexiVoice();
-  const isListening = passiveState === "listening";
-  const isCapturing = passiveState === "capturing";
-  const isTranscribing = passiveState === "transcribing";
-  const isSpeaking = passiveState === "speaking";
-  const isOff = ["idle", "paused", "muted", "no_permission", "error"].includes(passiveState);
+  const { isMuted, setMutedState } = useAlexiVoice();
 
-  const orbBg = isMuted
-    ? "rgba(255,80,80,0.10)"
-    : isListening || isCapturing
-      ? "rgba(198,255,51,0.15)"
-      : isTranscribing
-        ? "rgba(255,200,50,0.15)"
-        : isSpeaking
-          ? "rgba(130,80,255,0.18)"
-          : "rgba(255,255,255,0.05)";
-  const orbBorder = isMuted
-    ? "rgba(255,80,80,0.45)"
-    : isListening || isCapturing
-      ? "rgba(198,255,51,0.65)"
-      : isTranscribing
-        ? "rgba(255,200,50,0.55)"
-        : isSpeaking
-          ? "rgba(130,80,255,0.65)"
-          : "rgba(255,255,255,0.18)";
-  const iconColor = isMuted
-    ? "#FF6464"
-    : isListening || isCapturing
-      ? "#C6FF33"
-      : isTranscribing
-        ? "#FFC832"
-        : isSpeaking
-          ? "#9B7FFF"
-          : "#555";
-  const iconName = isMuted
-    ? "mic-off-outline"
-    : isSpeaking
-      ? "volume-high-outline"
-      : isOff
-        ? "mic-outline"
-        : "mic";
+  const orbBg     = isMuted ? "rgba(255,80,80,0.10)" : "rgba(198,255,51,0.12)";
+  const orbBorder = isMuted ? "rgba(255,80,80,0.45)" : "rgba(198,255,51,0.55)";
+  const iconColor = isMuted ? "#FF6464" : "#C6FF33";
 
   const handlePress = () => {
     if (isMuted) setMutedState(false);
-    else if (isOff) startPassive();
-    else wakeAlexi();
+    else AlexiEvents.emit("open_chat", { query: null });
   };
 
   return (
@@ -1627,10 +1067,7 @@ export function AlexiVoiceOrb({ style }) {
       onPress={handlePress}
       activeOpacity={0.75}
     >
-      {isListening && (
-        <Animated.View style={[orbStyles.pulse, { transform: [{ scale: pulseAnim }] }]} />
-      )}
-      <Ionicons name={iconName} size={17} color={iconColor} />
+      <Ionicons name={isMuted ? "chatbubble-ellipses-outline" : "chatbubble-ellipses"} size={17} color={iconColor} />
     </TouchableOpacity>
   );
 }
@@ -1879,7 +1316,7 @@ export function AlexiCompanion() {
       >
         <RAnimated.View style={[cStyles.avatarWrap, avatarStyle]}>
           <Image
-            source={require("../assets/yara_spirit.png")}
+            source={require("../assets/alexi_avatar.png")}
             style={cStyles.avatar}
             resizeMode="cover"
           />
