@@ -10,6 +10,7 @@ import {
   listPostComments,
   togglePostLike,
 } from '../../services/communityService';
+import { getProfile } from '../../services/profileService';
 import { useUnreadMessageSummary } from '../../hooks/useNotification';
 
 function formatDate(iso) {
@@ -46,7 +47,7 @@ export default function CommunityCenter({ navigation }) {
     return null;
   };
 
-  const getCurrentUserDisplayName = () => {
+  const getLocalDisplayNameFallback = () => {
     const fullName = user?.user_metadata?.full_name;
     if (typeof fullName === 'string' && fullName.trim()) return fullName.trim();
 
@@ -57,6 +58,21 @@ export default function CommunityCenter({ navigation }) {
     if (typeof emailPrefix === 'string' && emailPrefix.trim()) return emailPrefix.trim();
 
     return 'You';
+  };
+
+  const getCurrentUserDisplayName = async () => {
+    if (!user?.id) return getLocalDisplayNameFallback();
+
+    try {
+      const profile = await getProfile(user.id);
+      if (typeof profile?.full_name === 'string' && profile.full_name.trim()) {
+        return profile.full_name.trim();
+      }
+    } catch {
+      // Fall back to local metadata when profile fetch fails.
+    }
+
+    return getLocalDisplayNameFallback();
   };
 
   const getCurrentUserAvatar = () => {
@@ -208,46 +224,25 @@ export default function CommunityCenter({ navigation }) {
 
   const loadCommentsForPost = async (postId, { force = false } = {}) => {
     if (!postId) return;
-    if (!force && commentsByPostId[postId]) return;
     if (commentsLoadingByPostId[postId]) return;
 
     setCommentsLoadingByPostId((prev) => ({ ...prev, [postId]: true }));
     try {
       const items = await listPostComments({ postId });
 
-      const authorFallbackById = new Map(
-        posts
-          .filter((post) => post?.authorId)
-          .map((post) => [
-            post.authorId,
-            {
-              author: post.author,
-              handle: post.handle,
-              authorAvatarUri: normalizeAvatarUri(post.authorAvatarUri),
-            },
-          ]),
-      );
-
-      const currentUserName = getCurrentUserDisplayName();
+      const currentUserName = await getCurrentUserDisplayName();
       const currentUserAvatar = getCurrentUserAvatar();
 
       const enrichedItems = (items || []).map((comment) => {
-        const fallback = authorFallbackById.get(comment.authorId);
         const isCurrentUserComment = !!user?.id && comment.authorId === user.id;
-        const hasGenericAuthor = !comment.author || comment.author === 'User';
 
         return {
           ...comment,
-          author:
-            (isCurrentUserComment ? currentUserName : null) ||
-            (!hasGenericAuthor ? comment.author : null) ||
-            fallback?.author ||
-            'User',
-          handle: comment.handle || fallback?.handle || '@user',
+          author: (isCurrentUserComment ? currentUserName : null) || comment.author || 'User',
+          handle: comment.handle || '@user',
           authorAvatarUri:
             normalizeAvatarUri(comment.authorAvatarUri) ||
             (isCurrentUserComment ? currentUserAvatar : null) ||
-            fallback?.authorAvatarUri ||
             null,
         };
       });
@@ -285,16 +280,19 @@ export default function CommunityCenter({ navigation }) {
     const draft = (commentDraftByPostId[postId] || '').trim();
     if (!draft) return;
 
+    const currentUserName = await getCurrentUserDisplayName();
+    const currentUserAvatar = getCurrentUserAvatar();
+
     const optimisticId = `temp-${Date.now()}`;
     const optimisticComment = {
       id: optimisticId,
       postId,
       authorId: user.id,
-      author: getCurrentUserDisplayName(),
+      author: currentUserName,
       handle: '@you',
       content: draft,
       createdAt: new Date().toISOString(),
-      authorAvatarUri: getCurrentUserAvatar(),
+      authorAvatarUri: currentUserAvatar,
     };
 
     setCommentPostingByPostId((prev) => ({ ...prev, [postId]: true }));
@@ -317,8 +315,8 @@ export default function CommunityCenter({ navigation }) {
         postId,
         userId: user.id,
         content: draft,
-        currentUserName: getCurrentUserDisplayName(),
-        currentUserAvatar: getCurrentUserAvatar(),
+        currentUserName,
+        currentUserAvatar,
       });
 
       setCommentsByPostId((prev) => ({

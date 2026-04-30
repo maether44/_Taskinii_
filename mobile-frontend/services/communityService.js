@@ -253,60 +253,13 @@ export async function listPostComments({ postId, limit = 50 }) {
   if (authorIds.length) {
     // Use the profile service to fetch user profiles in batch
     profileMap = await getProfilesByIds(authorIds);
-
-    const missingAuthorIds = authorIds.filter((id) => !profileMap.has(id));
-    if (missingAuthorIds.length) {
-      const { data: feedRows } = await supabase
-        .from('community_feed')
-        .select('author_id, author_name, author_avatar')
-        .in('author_id', missingAuthorIds)
-        .limit(500);
-
-      (feedRows || []).forEach((row) => {
-        if (!row?.author_id) return;
-
-        const existing = feedAuthorMap.get(row.author_id);
-        if (!existing) {
-          feedAuthorMap.set(row.author_id, {
-            full_name: row.author_name || null,
-            avatar_url: row.author_avatar || null,
-          });
-          return;
-        }
-
-        if (!existing.full_name && row.author_name) {
-          existing.full_name = row.author_name;
-        }
-        if (!existing.avatar_url && row.author_avatar) {
-          existing.avatar_url = row.author_avatar;
-        }
-      });
-
-      // // One more pass: fetch any still-missing profiles directly from profiles table
-      // const stillMissingIds = missingAuthorIds.filter((id) => !feedAuthorMap.has(id));
-      // if (stillMissingIds.length) {
-      //   const { data: retryProfileRows } = await supabase
-      //     .from('profiles')
-      //     .select('id, full_name, avatar_url')
-      //     .in('id', stillMissingIds);
-
-      //   (retryProfileRows || []).forEach((row) => {
-      //     if (!feedAuthorMap.has(row.id)) {
-      //       feedAuthorMap.set(row.id, {
-      //         full_name: row.full_name || null,
-      //         avatar_url: row.avatar_url || null,
-      //       });
-      //     }
-      //   });
-      // }
-    }
   }
 
   const avatarUrlCache = new Map();
 
   return Promise.all(
     (commentRows || []).map(async (row) => {
-      const profile = profileMap.get(row.user_id) || feedAuthorMap.get(row.user_id);
+      const profile = profileMap.get(row.user_id);
       let authorAvatarUri = null;
       if (profile?.avatar_url) {
         if (avatarUrlCache.has(profile.avatar_url)) {
@@ -321,9 +274,9 @@ export async function listPostComments({ postId, limit = 50 }) {
         id: row.id,
         postId: row.post_id,
         authorId: row.user_id,
-        author: profile?.full_name || 'User',
-        handle: deriveHandle(profile?.full_name),
-        content: row.content || '',
+        author: profile?.full_name,
+        // handle: deriveHandle(profile?.full_name),
+        content: row.content,
         createdAt: row.created_at,
         authorAvatarUri,
       };
