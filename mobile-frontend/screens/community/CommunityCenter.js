@@ -1,6 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, FlatList, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  Alert,
+  FlatList,
+  Image,
+  Pressable,
+  Share,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as ExpoLinking from 'expo-linking';
 import { Ionicons, Fontisto } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -20,6 +31,12 @@ function formatDate(iso) {
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
+  });
+}
+
+function buildFriendInviteLink(userId) {
+  return ExpoLinking.createURL('/invite', {
+    queryParams: { ref: String(userId || '') },
   });
 }
 
@@ -364,6 +381,26 @@ export default function CommunityCenter({ navigation }) {
     }
   };
 
+  const handleShareInvite = async () => {
+    if (!user?.id) {
+      Alert.alert('Sign in required', 'Please sign in to share your invite link.');
+      return;
+    }
+
+    try {
+      const displayName = await getCurrentUserDisplayName();
+      const inviteLink = buildFriendInviteLink(user.id);
+
+      await Share.share({
+        title: 'Join me on BodyQ',
+        message: `${displayName} invited you to connect on BodyQ.\n\nOpen this link to join: ${inviteLink}`,
+        url: inviteLink,
+      });
+    } catch (error) {
+      Alert.alert('Invite failed', error?.message || 'Could not share invite link right now.');
+    }
+  };
+
   const renderPost = ({ item }) => {
     const normalizedAvatarUri = normalizeAvatarUri(item.authorAvatarUri);
 
@@ -510,6 +547,9 @@ export default function CommunityCenter({ navigation }) {
         </Pressable>
         <Text style={styles.title}>Community</Text>
         <View style={styles.headerRightRow}>
+          <Pressable onPress={handleShareInvite} style={styles.backBtn}>
+            <Ionicons name="person-add-outline" size={18} color="#C8F135" />
+          </Pressable>
           <Pressable onPress={() => navigation.navigate('Messages')} style={styles.backBtn}>
             <Ionicons name="chatbubble-ellipses-outline" size={18} color="#C8F135" />
             {unreadCount > 0 && (

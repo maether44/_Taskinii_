@@ -760,6 +760,24 @@ export default function Profile({ replayTour }) {
           <Ionicons name="chevron-forward" size={18} color={C.sub} />
         </TouchableOpacity>
 
+        {/* ── Friends button ── */}
+        <TouchableOpacity
+          style={s.historyBtn}
+          onPress={() => navigation.navigate('FriendsList')}
+          activeOpacity={0.85}
+        >
+          <View style={s.historyBtnLeft}>
+            <View style={s.historyBtnIcon}>
+              <Text style={{ fontSize: 20 }}>👥</Text>
+            </View>
+            <View>
+              <Text style={s.historyBtnTitle}>Friends</Text>
+              <Text style={s.historyBtnSub}>View your friend list</Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={C.sub} />
+        </TouchableOpacity>
+
         {/* ── Body Stats card ── */}
         <View style={s.card}>
           <Text style={s.cardLabel}>BODY STATS</Text>
