@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { ensureThread, listThreads } from '../../services/dmService';
 import { getProfile } from '../../services/profileService';
+import { searchProfilesByName } from '../../services/inboxService';
 import { supabase } from '../../lib/supabase';
 import { AVATAR_BUCKET } from '../../lib/avatar';
-import { AppEvents, on } from '../../lib/eventBus';
 
 async function resolveDmAvatarUri(value) {
   if (!value || typeof value !== 'string') return null;
@@ -43,6 +43,10 @@ export default function MessagesInbox({ navigation, route }) {
   const { user } = useAuth();
   const [threads, setThreads] = useState([]);
   const [me, setMe] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [searchAnchorLayout, setSearchAnchorLayout] = useState(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -93,6 +97,119 @@ export default function MessagesInbox({ navigation, route }) {
       console.error('Failed to load threads:', error);
     }
   }, [user?.id]);
+
+  useEffect(() => {
+    let active = true;
+    const trimmedQuery = searchQuery.trim();
+
+    if (!trimmedQuery) {
+      setSearchResults([]);
+      setSearching(false);
+      return undefined;
+    }
+
+    setSearching(true);
+
+    const timer = setTimeout(async () => {
+      try {
+        const matches = await searchProfilesByName(trimmedQuery, 6);
+        // console.log('[Search] Matches found:', matches?.length, matches);
+
+        if (!matches || !matches.length) {
+          if (active) {
+            setSearchResults([]);
+            setSearching(false);
+          }
+          return;
+        }
+
+        const avatarCache = new Map();
+        const filtered = (matches || []).filter(
+          (profile) => profile?.id && profile.id !== user?.id,
+        );
+        console.log('[Search] Filtered matches:', filtered.length);
+
+        const hydrated = await Promise.allSettled(
+          filtered.map(async (profile) => {
+            try {
+              const key = profile?.avatar_url || '';
+              if (!key) {
+                return { ...profile, avatarUri: null };
+              }
+
+              if (avatarCache.has(key)) {
+                return { ...profile, avatarUri: avatarCache.get(key) };
+              }
+
+              const resolved = await resolveDmAvatarUri(key);
+              avatarCache.set(key, resolved);
+              return { ...profile, avatarUri: resolved };
+            } catch (err) {
+              console.error('[Search] Error hydrating profile:', profile.id, err);
+              return { ...profile, avatarUri: null };
+            }
+          }),
+        );
+
+        const results = hydrated
+          .filter((result) => result.status === 'fulfilled')
+          .map((result) => result.value);
+
+        console.log('[Search] Hydrated results:', results.length);
+
+        if (active) {
+          setSearchResults(results);
+        }
+      } catch (error) {
+        if (active) {
+          console.error('[Search] Search error:', error);
+          setSearchResults([]);
+        }
+      } finally {
+        if (active) {
+          setSearching(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [searchQuery, user?.id]);
+
+  const openProfileThread = useCallback(
+    async (profile) => {
+      if (!user?.id || !profile?.id) return;
+
+      try {
+        const thread = await ensureThread(user.id, {
+          id: profile.id,
+          name: profile.full_name,
+          handle: `@${
+            String(profile.full_name || 'user')
+              .trim()
+              .toLowerCase()
+              .replace(/[^a-z0-9_ ]/g, '')
+              .replace(/\s+/g, '_') || 'user'
+          }`,
+          avatarUri: profile.avatarUri || profile.avatar_url || null,
+        });
+
+        setSearchQuery('');
+        setSearchResults([]);
+        navigation.navigate('DMThread', {
+          threadId: thread.id,
+          peerName: thread.peerName,
+          peerHandle: thread.peerHandle,
+          peerAvatarUri: thread.peerAvatarUri || null,
+        });
+      } catch (error) {
+        Alert.alert('DM unavailable', error?.message || 'Could not open this conversation.');
+      }
+    },
+    [navigation, user?.id],
+  );
 
   // useEffect(() => {
   //   loadDisplayName();
@@ -175,6 +292,19 @@ export default function MessagesInbox({ navigation, route }) {
     </Pressable>
   );
 
+  const renderSuggestion = ({ item }) => (
+    <Pressable style={styles.suggestionCard} onPress={() => openProfileThread(item)}>
+      <AvatarSeed label={item.full_name} uri={item.avatarUri} />
+
+      <View style={styles.suggestionBody}>
+        <Text style={styles.suggestionName}>{item.full_name}</Text>
+        <Text style={styles.suggestionHint}>Tap to start a DM</Text>
+      </View>
+
+      <Ionicons name="chatbubble-ellipses-outline" size={18} color="#C8F135" />
+    </Pressable>
+  );
+
   return (
     <View style={styles.root}>
       <View style={styles.header}>
@@ -185,10 +315,66 @@ export default function MessagesInbox({ navigation, route }) {
         <View style={styles.backBtnGhost} />
       </View>
 
-      <View style={styles.meCard}>
+      {/* <View style={styles.meCard}>
         <Text style={styles.meTitle}>Logged in as</Text>
         <Text style={styles.meName}>{me}</Text>
+      </View> */}
+
+      <View
+        style={styles.searchCard}
+        onLayout={(event) => setSearchAnchorLayout(event.nativeEvent.layout)}
+      >
+        <View style={styles.searchInputWrap}>
+          <Ionicons name="search" size={18} color="#8E85AE" />
+          <TextInput
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search profiles by name"
+            placeholderTextColor="#70688E"
+            style={styles.searchInput}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+          />
+        </View>
+
+        {searching ? <Text style={styles.searchMeta}>Searching...</Text> : null}
       </View>
+
+      {searchQuery.trim() && searchAnchorLayout ? (
+        <View
+          pointerEvents="box-none"
+          style={[
+            styles.dropdownPortal,
+            {
+              top: searchAnchorLayout.y + searchAnchorLayout.height + 8,
+              left: searchAnchorLayout.x,
+              width: searchAnchorLayout.width,
+            },
+          ]}
+        >
+          <View style={styles.dropdownShell}>
+            <FlatList
+              data={searchResults}
+              keyExtractor={(item) => item.id}
+              renderItem={renderSuggestion}
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled
+              initialNumToRender={5}
+              maxToRenderPerBatch={5}
+              windowSize={5}
+              removeClippedSubviews
+              contentContainerStyle={
+                searchResults.length ? styles.dropdownContent : styles.dropdownEmpty
+              }
+              ListHeaderComponent={<Text style={styles.suggestionsTitle}>Suggestions</Text>}
+              ListEmptyComponent={
+                <Text style={styles.emptySuggestions}>No matching profiles found.</Text>
+              }
+            />
+          </View>
+        </View>
+      ) : null}
 
       <FlatList
         data={threads}
@@ -248,6 +434,55 @@ const styles = StyleSheet.create({
   },
   meTitle: { color: '#8E85AE', fontSize: 11, fontWeight: '700' },
   meName: { color: '#F3F1FB', fontSize: 15, fontWeight: '800', marginTop: 2 },
+  searchCard: {
+    marginHorizontal: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#2A2346',
+    backgroundColor: '#17112A',
+    padding: 12,
+    marginBottom: 10,
+    position: 'relative',
+    zIndex: 10,
+    elevation: 10,
+  },
+  searchInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 20,
+  },
+  searchInput: { flex: 1, color: '#F3F1FB', fontSize: 14, fontWeight: '600', marginLeft: 10 },
+  searchMeta: { color: '#8E85AE', fontSize: 11, marginTop: 8, fontWeight: '600' },
+  dropdownPortal: {
+    position: 'absolute',
+    zIndex: 999,
+    elevation: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 15,
+  },
+  dropdownShell: {
+    maxHeight: 260,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#3D3462',
+    backgroundColor: '#1C1633',
+    overflow: 'hidden',
+    zIndex: 999,
+  },
+  dropdownContent: { padding: 10, gap: 8 },
+  dropdownEmpty: { padding: 10 },
+  suggestionsTitle: { color: '#C8F135', fontSize: 11, fontWeight: '800', letterSpacing: 0.6 },
+  suggestionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    gap: 10,  },
+  suggestionBody: { flex: 1 },
+  suggestionName: { color: '#F3F1FB', fontSize: 14, fontWeight: '800' },
+  suggestionHint: { color: '#8E85AE', fontSize: 11, marginTop: 2 },
+  emptySuggestions: { color: '#8E85AE', fontSize: 12 },
   list: { paddingHorizontal: 16, paddingBottom: 24, gap: 10 },
   emptyTxt: { color: '#8E85AE', textAlign: 'center', marginTop: 40 },
   threadCard: {
