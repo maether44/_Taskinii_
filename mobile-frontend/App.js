@@ -23,7 +23,7 @@ import { TodayProvider } from './context/TodayContext';
 import { MilestoneProvider, useMilestones } from './context/MilestoneContext';
 import { NetworkProvider } from './context/NetworkContext';
 
-// ✅ Custom splash screen
+// Custom splash screen
 import CustomSplashScreen from './components/CustomSplashScreen';
 
 // Screens - Auth & Onboarding
@@ -137,7 +137,7 @@ function DirectMessageNotifications({ activeRoute }) {
 
 export default function App() {
   const [appIsReady, setAppIsReady] = useState(false);
-  const [splashDone, setSplashDone] = useState(false); // ✅ NEW
+  const [splashDone, setSplashDone] = useState(false);
   const [activeTab, setActiveTab] = useState('Home');
   const [activeRoute, setActiveRoute] = useState(null);
   const showYaraAssistant = YARA_ALLOWED_ROUTES.has(activeRoute);
@@ -171,7 +171,7 @@ export default function App() {
   // Fonts still loading — show nothing
   if (!appIsReady) return null;
 
-  // ✅ Fonts ready → show custom splash
+  // Fonts ready → show custom splash
   if (!splashDone) {
     return (
       <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
@@ -181,38 +181,38 @@ export default function App() {
     );
   }
 
-  // ✅ Splash finished → show the real app
+  // Splash finished → show the real app
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ErrorBoundary>
-      <NetworkProvider>
-      <SafeAreaProvider>
-        <AuthProvider>
-          <TodayProvider>
-            <MilestoneProvider>
-              <View style={styles.container} onLayout={onLayoutRootView}>
-                <StatusBar style="light" />
-                <NavigationContainer
-                  ref={navigationRef}
-                  onStateChange={(state) => setActiveRoute(getActiveRouteName(state))}
-                >
-                  <Navigation />
-                </NavigationContainer>
-                <DirectMessageNotifications activeRoute={activeRoute} />
-                {showYaraAssistant && (
-                  <YaraAssistant
-                    onOpenSchedule={() => navigationRef.current?.navigate('Schedule')}
-                  />
-                )}
-                <AppTour activeTab={activeTab} onTabPress={setActiveTab} showOnMount={true} />
-                <CelebrationOverlay />
-                <MilestoneCelebrationOverlay />
-              </View>
-            </MilestoneProvider>
-          </TodayProvider>
-        </AuthProvider>
-      </SafeAreaProvider>
-      </NetworkProvider>
+        <NetworkProvider>
+          <SafeAreaProvider>
+            <AuthProvider>
+              <TodayProvider>
+                <MilestoneProvider>
+                  <View style={styles.container} onLayout={onLayoutRootView}>
+                    <StatusBar style="light" />
+                    <NavigationContainer
+                      ref={navigationRef}
+                      onStateChange={(state) => setActiveRoute(getActiveRouteName(state))}
+                    >
+                      <Navigation />
+                    </NavigationContainer>
+                    <DirectMessageNotifications activeRoute={activeRoute} />
+                    {showYaraAssistant && (
+                      <YaraAssistant
+                        onOpenSchedule={() => navigationRef.current?.navigate('Schedule')}
+                      />
+                    )}
+                    <AppTour activeTab={activeTab} onTabPress={setActiveTab} showOnMount={true} />
+                    <CelebrationOverlay />
+                    <MilestoneCelebrationOverlay />
+                  </View>
+                </MilestoneProvider>
+              </TodayProvider>
+            </AuthProvider>
+          </SafeAreaProvider>
+        </NetworkProvider>
       </ErrorBoundary>
     </GestureHandlerRootView>
   );
