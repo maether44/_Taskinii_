@@ -19,6 +19,7 @@ import { useAuth } from '../context/AuthContext';
 import { AppEvents, emit, on } from '../lib/eventBus';
 import { warn, log } from '../lib/logger';
 import { loadPlan, generatePlan } from '../services/aiPlanService';
+import { scheduleStore } from '../store/scheduleStore';
 
 const STREAK_MILESTONES = [3, 7, 14, 30, 60, 100, 365];
 
@@ -553,6 +554,8 @@ export default function Training({ navigation }) {
   const [aiPlanLoading,    setAiPlanLoading]    = useState(false);
   const [aiPlanDate,       setAiPlanDate]       = useState(null);   // when the plan was generated
 
+  // After AI generates the plan:
+
   const loadData = useCallback(async () => {
     if (!authUserId) return;
     try {
@@ -565,11 +568,15 @@ export default function Training({ navigation }) {
       if (profile?.environment) setEnvironment(profile.environment);
 
       // ── 0b. Load saved AI training plan ────────────────────
-      const saved = await loadPlan(authUserId);
-      if (saved?.plan_json?.days?.length) {
-        setAiPlan(saved.plan_json);
-        setAiPlanDate(saved.created_at);
-      }
+     const saved = await loadPlan(authUserId);
+if (saved?.plan_json?.days?.length) {
+  setAiPlan(saved.plan_json);
+  setAiPlanDate(saved.created_at);
+  scheduleStore.set({ // ← add this so Home stays synced on reload
+    ...saved.plan_json,
+    generated_at: saved.created_at,
+  });
+}
 
       // ── 1. Muscle fatigue ──────────────────────────────────
       const rows = await getMuscleFatigue(authUserId);
@@ -622,36 +629,39 @@ export default function Training({ navigation }) {
         });
       }
 
-      // ── 3b. Build Today's Plan from AI plan or fallback circuits ──
-      let circuit;
-      const currentSaved = saved?.plan_json;
-      if (currentSaved?.days?.length) {
-        // Use the AI plan — pick today's day (cycle through plan days by weekday)
-        const dow = new Date().getDay(); // 0=Sun, 1=Mon...
-        const adjustedDow = dow === 0 ? 6 : dow - 1; // 0=Mon, 6=Sun
-        const aiDay = currentSaved.days[adjustedDow % currentSaved.days.length];
-        // Map AI plan exercises to the circuit format
-        circuit = (aiDay.exercises || []).slice(0, 5).map((ex) => ({
-          name:   ex.name,
-          icon:   'barbell-outline',
-          key:    ex.name.toLowerCase().replace(/\s+/g, '_'),
-          sets:   typeof ex.sets === 'number' ? `${ex.sets}×${ex.reps}` : `${ex.sets}`,
-          target: aiDay.focus || '',
-        }));
-        // Update recommendation to reflect the AI day
-        setRecommendation(prev => ({
-          ...prev,
-          title: aiDay.name?.replace(/\s+/g, '\n') || prev.title,
-          focus: aiDay.focus || prev.focus,
-          reason: aiDay.coachTip ? `"${aiDay.coachTip}"` : prev.reason,
-        }));
-      } else {
-        const planKey = lowSleep ? 'recovery'
-          : topFatigued
-            ? (['Quads','Hamstrings','Glutes','Calves'].includes(topFatigued.muscle_name) ? 'upper' : 'lower')
-            : 'strength';
-        circuit = PLAN_CIRCUITS[planKey] || PLAN_CIRCUITS.strength;
-      }
+      //  day
+       // ── 3b. Build Today's Plan from AI plan or fallback circuits ──
+let circuit;
+const currentSaved = saved?.plan_json;
+if (currentSaved?.days?.length) {
+  const dow = new Date().getDay();
+  const adjustedDow = dow === 0 ? 6 : dow - 1;
+  const planLength = currentSaved.days.length;
+  const aiDayIndex = adjustedDow % planLength;
+  const aiDay = currentSaved.days[aiDayIndex]; // ← THIS was missing
+
+  circuit = (aiDay.exercises || []).slice(0, 5).map((ex) => ({
+    name:   ex.name,
+    icon:   'barbell-outline',
+    key:    ex.name.toLowerCase().replace(/\s+/g, '_'),
+    sets:   typeof ex.sets === 'number' ? `${ex.sets}×${ex.reps}` : `${ex.sets}`,
+    target: aiDay.focus || aiDay.workout_type || '',
+  }));
+
+  setRecommendation(prev => ({
+    ...prev,
+    title: `Day\n${aiDayIndex + 1}`,
+    focus: aiDay.focus || aiDay.workout_type || prev.focus,
+    reason: aiDay.coachTip ? `"${aiDay.coachTip}"` : prev.reason,
+  }));
+} else {
+  const planKey = lowSleep ? 'recovery'
+    : topFatigued
+      ? (['Quads','Hamstrings','Glutes','Calves'].includes(topFatigued.muscle_name) ? 'upper' : 'lower')
+      : 'strength';
+  circuit = PLAN_CIRCUITS[planKey] || PLAN_CIRCUITS.strength;
+}
+       
 
       // Fetch previous best for each circuit exercise
       const planWithBests = await Promise.all(circuit.map(async (ex) => {
@@ -848,20 +858,26 @@ export default function Training({ navigation }) {
   }, [navigation]);
 
   const handleGeneratePlan = useCallback(async () => {
-    if (!authUserId || aiPlanLoading) return;
-    setAiPlanLoading(true);
-    try {
-      const plan = await generatePlan(authUserId);
-      setAiPlan(plan);
-      setAiPlanDate(new Date().toISOString());
-      // Reload the full screen to pick up the new plan for today's circuit
-      loadData();
-    } catch (e) {
-      warn('[Training] AI plan generation failed:', e?.message ?? e);
-    } finally {
-      setAiPlanLoading(false);
-    }
-  }, [authUserId, aiPlanLoading, loadData]);
+  if (!authUserId || aiPlanLoading) return;
+  setAiPlanLoading(true);
+  try {
+    const plan = await generatePlan(authUserId); // saves to training_plans ✅
+    setAiPlan(plan);
+    setAiPlanDate(new Date().toISOString());
+
+    // Push to scheduleStore so ScheduleScreen + FitnessContext sync
+    scheduleStore.set({
+      ...plan,
+      generated_at: new Date().toISOString(),
+    }); // ← remove the second arg authUserId
+
+    loadData();
+  } catch (e) {
+    warn('[Training] AI plan generation failed:', e?.message ?? e);
+  } finally {
+    setAiPlanLoading(false);
+  }
+}, [authUserId, aiPlanLoading, loadData]);
 
   return (
     <View style={s.root}>
@@ -1162,21 +1178,26 @@ export default function Training({ navigation }) {
                   const adjustedDow = dow === 0 ? 6 : dow - 1;
                   const isToday = i === (adjustedDow % aiPlan.days.length);
                   return (
-                    <View key={i} style={{
-                      backgroundColor: isToday ? C.lime : 'rgba(255,255,255,0.06)',
-                      paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12,
-                      borderWidth: 1, borderColor: isToday ? C.lime : 'rgba(255,255,255,0.08)',
-                    }}>
-                      <Text style={{
-                        color: isToday ? '#000' : C.text,
-                        fontSize: 11, fontWeight: '800',
-                      }}>Day {i + 1}</Text>
-                      <Text style={{
-                        color: isToday ? 'rgba(0,0,0,0.7)' : C.sub,
-                        fontSize: 10, marginTop: 2,
-                      }}>{day.name}</Text>
-                    </View>
-                  );
+  <TouchableOpacity
+    key={i}
+    style={{
+      backgroundColor: isToday ? C.lime : 'rgba(255,255,255,0.06)',
+      paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12,
+      borderWidth: 1, borderColor: isToday ? C.lime : 'rgba(255,255,255,0.08)',
+    }}
+    onPress={() => navigation.navigate('Schedule')}
+    activeOpacity={0.75}
+  >
+    <Text style={{
+      color: isToday ? '#000' : C.text,
+      fontSize: 11, fontWeight: '800',
+    }}>{day.name}</Text>
+    <Text style={{
+      color: isToday ? 'rgba(0,0,0,0.7)' : C.sub,
+      fontSize: 10, marginTop: 2,
+    }}>{day.focus}</Text>
+  </TouchableOpacity>
+);
                 })}
               </View>
               {/* Notes row */}

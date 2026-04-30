@@ -17,7 +17,11 @@ import { COLORS } from '../constants/colors';
 import { FS } from '../constants/typography';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { scheduleStore } from '../store/scheduleStore';
+
 const NOTIFICATION_PREFS_KEY = 'bodyq_notification_prefs';
+
+
 
 // ─── Level 5 Bento Components ───────────────────────────────────────────────
 
@@ -54,7 +58,9 @@ export default function Home({ navigation }) {
     water: true,
     meal: false,
   });
-
+useEffect(() => {
+  scheduleStore.hydrate();
+}, []);
   const authUserId = authUser?.id;
   const { unreadCount } = useUnreadMessageSummary(authUserId);
 

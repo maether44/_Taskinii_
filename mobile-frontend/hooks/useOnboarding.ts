@@ -112,16 +112,28 @@ export function useOnboarding() {
     });
   };
 
-  const getAnswers = () => ({
-    coachName: coachName.trim() || "Yara",
+  const getAnswers = () => {
+  // Convert DD/MM/YYYY → age in years
+  let age = null;
+  if (dob && dob.length === 10) {
+    const [dd, mm, yyyy] = dob.split('/');
+    const birth = new Date(`${yyyy}-${mm}-${dd}`);
+    if (!isNaN(birth)) {
+      age = Math.floor((Date.now() - birth) / (365.25 * 24 * 60 * 60 * 1000));
+    }
+  }
+ 
+  return {
+    coachName: coachName.trim() || 'Yara',
     goal,
     gender,
     dob,
+    age,          // ← THIS was missing — the AI was getting age: undefined
     height,
     weight,
     targetW,
     activity,
-    experience, // ← dob
+    experience,
     injuries,
     days,
     duration,
@@ -135,7 +147,8 @@ export function useOnboarding() {
     protein,
     bmr,
     tdee,
-  });
+  };
+};
 
   const retryPlan = async () => {
     setLoading(true);

@@ -4,6 +4,7 @@ import { getChatHistory, saveMessage } from '../services/chatService';
 import { useAuth }                     from '../context/AuthContext';
 import { error as logError }           from '../lib/logger';
 import { scheduleStore }               from '../store/scheduleStore';
+import { supabase }                    from '../lib/supabase'; // ← ADD
 
 function fmtTime() {
   return new Date().toLocaleTimeString('en-US', {
@@ -29,7 +30,6 @@ const isScheduleRequest = (text) => {
   return SCHEDULE_KEYWORDS.some(k => lower.includes(k));
 };
 
-// Appended to the system prompt when user asks for a schedule
 const SCHEDULE_SYSTEM_INJECTION = `
 IMPORTANT: The user is asking for a weekly schedule.
 You MUST respond with a valid JSON object and nothing else — no markdown, no explanation, no backticks.
@@ -73,7 +73,6 @@ export function useYaraChat(profile, onScheduleReady) {
   const [open,      setOpen]     = useState(false);
   const apiHistory               = useRef([]);
 
-  // Load persisted chat history on mount
   useEffect(() => {
     const loadHistory = async () => {
       const welcome = { from: 'yara', text: buildWelcome(profile), time: fmtTime() };
@@ -112,7 +111,6 @@ export function useYaraChat(profile, onScheduleReady) {
 
     const isSchedule = isScheduleRequest(msg);
 
-    // Inject schedule instructions into the history if needed
     const historyToSend = isSchedule
       ? [...apiHistory.current, { role: 'user', content: msg + '\n\n' + SCHEDULE_SYSTEM_INJECTION }]
       : [...apiHistory.current, { role: 'user', content: msg }];
@@ -124,17 +122,37 @@ export function useYaraChat(profile, onScheduleReady) {
     try {
       const reply = await callYara(historyToSend, profile);
 
-      // Try to parse schedule JSON from reply
       if (isSchedule) {
         try {
           const clean = reply.replace(/```json|```/g, '').trim();
           const parsed = JSON.parse(clean);
+
           if (parsed?.schedule?.days) {
-            scheduleStore.set({
+            const scheduleToSave = {
               ...parsed.schedule,
               generated_at: new Date().toISOString(),
-            });
-            // Show the text response + schedule card marker
+            };
+
+            // 1. Save to local store (for immediate UI update)
+            scheduleStore.set(scheduleToSave, user?.id);
+
+            // 2. Save to Supabase (so it persists across logins & devices)
+            if (user) {
+              supabase
+                .from('training_plans')
+                .upsert(
+                  {
+                    user_id:    user.id,
+                    plan_json:  scheduleToSave,
+                    created_at: new Date().toISOString(),
+                  },
+                  { onConflict: 'user_id' },
+                )
+                .then(({ error }) => {
+                  if (error) logError('[useYaraChat] Failed to save plan to Supabase:', error.message);
+                });
+            }
+
             const responseText = parsed.response || "Here's your weekly plan!";
             apiHistory.current = [...apiHistory.current, { role: 'assistant', content: responseText }];
             if (user) await saveMessage(user.id, 'assistant', responseText).catch(console.error);
@@ -142,9 +160,9 @@ export function useYaraChat(profile, onScheduleReady) {
               from: 'yara',
               text: responseText,
               time: fmtTime(),
-              schedule: parsed.schedule, // triggers preview card in UI
+              schedule: parsed.schedule,
             }]);
-            onScheduleReady?.(); // optional callback to navigate
+            onScheduleReady?.();
             return;
           }
         } catch (_) {
@@ -171,4 +189,16 @@ export function useYaraChat(profile, onScheduleReady) {
   };
 
   return { messages, input, setInput, typing, open, setOpen, send };
+}if (user) {
+  const { data, error } = await supabase  // ← make it await, remove .then()
+    .from('training_plans')
+    .upsert(
+      {
+        user_id:    user.id,
+        plan_json:  scheduleToSave,
+        created_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id' },
+    );
+  console.log('SUPABASE SAVE RESULT:', JSON.stringify({ data, error })); // ← log it
 }

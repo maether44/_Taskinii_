@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabase";
 import { getProfile } from "../services/profileService";
 import { getLocalAvatarForUser } from "../lib/avatar";
 import { warn } from "../lib/logger";
+import { scheduleStore } from "../store/scheduleStore"; // ← ADD THIS
 
 const AuthContext = createContext();
 
@@ -17,31 +18,40 @@ export function AuthProvider({ children }) {
     if (!sessionUser) {
       setUser(null);
       setProfileAvatarUri(null);
-      // setIsNewUser(false);
       setLoading(false);
+      await scheduleStore.clear(); // ← CLEAR on logout (no user ID needed, currentUid is tracked)
       return;
     }
 
     setUser(sessionUser);
+    // After setUser(sessionUser), add:
+const { data: savedPlan } = await supabase
+  .from('training_plans')
+  .select('plan_json')
+  .eq('user_id', sessionUser.id)
+  .maybeSingle();
+
+if (savedPlan?.plan_json) {
+  // Load this user's plan into the store from Supabase
+  await scheduleStore.set(savedPlan.plan_json, sessionUser.id);
+} else {
+  // No plan in Supabase, try AsyncStorage
+  await scheduleStore.hydrate(sessionUser.id);
+}
+    await scheduleStore.hydrate(sessionUser.id); // ← HYDRATE with real user ID
+
     const localAvatarUri = await getLocalAvatarForUser(sessionUser.id).catch(() => null);
     setProfileAvatarUri(localAvatarUri);
 
     try {
       const profile = await getProfile(sessionUser.id);
-      // New user = exists but hasn't completed onboarding yet
       setIsNewUser(!(profile?.goal && profile?.onboarded));
     } catch {
-      // Profile row doesn't exist yet — brand new signup
       setIsNewUser(true);
     } finally {
       setLoading(false);
     }
 
-    // Persistent login-streak bookkeeping — deferred to the next tick and
-    // wrapped in Promise.resolve(...) so PostgrestFilterBuilder rejections
-    // can't propagate into the auth flow. Runs AFTER setLoading(false) so
-    // nothing about this call can influence the splash screen. Idempotent
-    // per day — safe to call on every session resolve.
     setTimeout(() => {
       Promise.resolve(
         supabase.rpc("record_user_visit", { p_user_id: sessionUser.id }),
@@ -58,12 +68,10 @@ export function AuthProvider({ children }) {
   };
 
   useEffect(() => {
-    // Check session on app launch
     supabase.auth.getSession().then(({ data: { session } }) => {
       resolveUser(session?.user ?? null);
     });
 
-    // Listen for sign in / sign out events
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_, session) =>
@@ -75,7 +83,7 @@ export function AuthProvider({ children }) {
 
   const markOnboardingComplete = () => {
     setIsNewUser(false);
-    setShouldShowTour(true); // Trigger tour after onboarding
+    setShouldShowTour(true);
   };
 
   const resetToOnboarding = () => {
@@ -83,11 +91,10 @@ export function AuthProvider({ children }) {
   };
 
   const signOut = async () => {
+    await scheduleStore.clear(user?.id); // ← CLEAR this user's schedule on sign out
     await supabase.auth.signOut();
     setUser(null);
     setProfileAvatarUri(null);
-    // commented that line because user is not new just signed out
-    // setIsNewUser(false);
   };
 
   return (

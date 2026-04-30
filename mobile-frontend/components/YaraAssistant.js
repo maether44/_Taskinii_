@@ -19,6 +19,7 @@ import { useToday } from '../context/TodayContext';
 import { callYaraCoach } from '../lib/groqAPI';
 import { error as logError } from '../lib/logger';
 import { scheduleStore } from '../store/scheduleStore';
+import { supabase } from '../lib/supabase';
 import {
   getAiAssistantErrorMessage,
   invokeAiAssistant,
@@ -558,100 +559,125 @@ export default function YaraAssistant({ onOpenSchedule }) {
   }, [open, activeConvId, messages.length]);
 
   // ── Send ──────────────────────────────────────────────────────
-  const send = async (text) => {
-    const msg = (text || input).trim();
-    if (!msg || typing) return;
+ const send = async (text) => {
+  const msg = (text || input).trim();
+  if (!msg || typing) return;
 
-    setInput('');
-    setTyping(true);
+  setInput('');
+  setTyping(true);
 
-    setAndPersist(prev => prev.map(c => {
-      if (c.id !== activeConvId) return c;
-      return {
-        ...c,
-        title: c.title === 'New conversation' ? msg.slice(0, 42) : c.title,
-        messages: [...c.messages, { from: 'user', text: msg, time: fmtTime() }],
-      };
+  setAndPersist(prev => prev.map(c => {
+    if (c.id !== activeConvId) return c;
+    return {
+      ...c,
+      title: c.title === 'New conversation' ? msg.slice(0, 42) : c.title,
+      messages: [...c.messages, { from: 'user', text: msg, time: fmtTime() }],
+    };
+  }));
+
+  const history = apiHistoryRef.current[activeConvId] ?? [];
+  const isSchedule = isScheduleRequest(msg);
+  const queryForApi = isSchedule ? msg + SCHEDULE_USER_SUFFIX : msg;
+  const historyToSend = [...history, { role: 'user', content: queryForApi }];
+
+  try {
+    let reply = '';
+    if (isSchedule) {
+      reply = await callYaraCoach(historyToSend, profile, targets, true);
+    } else {
+      const payload = await invokeAiAssistant({
+        userId,
+        query: msg,
+        clientContext: aiClientContext,
+      });
+      reply = sanitizeAiAssistantText(payload?.response || '');
+    }
+
+    apiHistoryRef.current[activeConvId] = [
+      ...history,
+      { role: 'user',      content: msg   },
+      { role: 'assistant', content: reply },
+    ];
+
+    // ── Schedule plan handling ──
+    if (isSchedule) {
+      try {
+        const parsed = JSON.parse(reply);
+        if (parsed?.schedule?.days) {
+          const convertedPlan = {
+            intro: parsed.response || "Here's your weekly plan!",
+            days: parsed.schedule.days.map(d => ({
+              name: d.day,
+              focus: d.workout_type || (d.is_rest ? 'Rest' : 'Training'),
+              is_rest: d.is_rest || false,
+              exercises: (d.exercises || []).map(ex => ({
+                name: ex.name, sets: ex.sets, reps: ex.reps,
+                rest: ex.rest, muscle: ex.muscle,
+              })),
+              meals: d.meals || [],
+              coachTip: d.note || '',
+              sleep_target: d.sleep_target,
+              steps_target: d.steps_target,
+              water_target: d.water_target,
+            })),
+            nutritionNote: '', recoveryNote: '', motivationNote: '',
+          };
+
+          await scheduleStore.set({
+            ...parsed.schedule,
+            generated_at: new Date().toISOString(),
+          });
+
+          if (userId) {
+            await supabase
+              .from('training_plans')
+              .upsert(
+                { user_id: userId, plan_json: convertedPlan, created_at: new Date().toISOString() },
+                { onConflict: 'user_id' },
+              );
+          }
+
+          const responseText = parsed.response || "Here's your weekly plan!";
+          setAndPersist(prev => prev.map(c => c.id !== activeConvId ? c : {
+            ...c,
+            messages: [...c.messages, {
+              from: 'yara',
+              text: responseText,
+              time: fmtTime(),
+              schedule: parsed.schedule,
+            }],
+          }));
+          setTyping(false);
+          scrollToBottom(true);
+          return;
+        }
+      } catch (_) {
+        // JSON parse failed — fall through to normal reply
+      }
+    }  // ← this closing brace was missing
+
+    // Normal text reply
+    setAndPersist(prev => prev.map(c => c.id !== activeConvId ? c : {
+      ...c,
+      messages: [...c.messages, { from: 'yara', text: reply, time: fmtTime() }],
     }));
 
-    const history = apiHistoryRef.current[activeConvId] ?? [];
-    const isSchedule = isScheduleRequest(msg);
-
-    // For schedule: append the JSON structure hint to the user message
-    // and pass scheduleMode=true so groqAPI uses json_object + 70b model
-    const queryForApi = isSchedule ? msg + SCHEDULE_USER_SUFFIX : msg;
-    const historyToSend = [...history, { role: 'user', content: queryForApi }];
-
-    try {
-      // ✅ Pass isSchedule as 4th arg — groqAPI handles model/tokens/json_object
-      let reply = '';
-      if (isSchedule) {
-        reply = await callYaraCoach(historyToSend, profile, targets, true);
-      } else {
-        const payload = await invokeAiAssistant({
-          userId,
-          query: msg,
-          clientContext: aiClientContext,
-        });
-        reply = sanitizeAiAssistantText(payload?.response || '');
-      }
-
-      // Save to history using original message
-      apiHistoryRef.current[activeConvId] = [
-        ...history,
-        { role: 'user',      content: msg   },
-        { role: 'assistant', content: reply },
-      ];
-
-      // Parse schedule from reply
-      if (isSchedule) {
-        try {
-          // response_format: json_object guarantees valid JSON — just parse it
-          const parsed = JSON.parse(reply);
-          if (parsed?.schedule?.days) {
-            await scheduleStore.set({ ...parsed.schedule, generated_at: new Date().toISOString() });
-            const responseText = parsed.response || "Here's your weekly plan!";
-            setAndPersist(prev => prev.map(c => c.id !== activeConvId ? c : {
-              ...c,
-              messages: [...c.messages, {
-                from: 'yara',
-                text: responseText,
-                time: fmtTime(),
-                schedule: parsed.schedule,
-              }],
-            }));
-            setTyping(false);
-            scrollToBottom(true);
-            return;
-          }
-        } catch (_) {
-          // If json_object still somehow fails, fall through to normal reply
-        }
-      }
-
-      // Normal text reply
-      setAndPersist(prev => prev.map(c => c.id !== activeConvId ? c : {
-        ...c,
-        messages: [...c.messages, { from: 'yara', text: reply, time: fmtTime() }],
-      }));
-
-    } catch (err) {
-      const detail = await getAiAssistantErrorMessage(err);
-      logError('Yara error:', detail || err?.message || err);
-      setAndPersist(prev => prev.map(c => c.id !== activeConvId ? c : {
-        ...c,
-        messages: [...c.messages, {
-          from: 'yara',
-          text: detail || "I couldn't reach live coaching right now. Try again in a moment.",
-          time: fmtTime(),
-        }],
-      }));
-    } finally {
-      setTyping(false);
-    }
-    scrollToBottom(true);
-  };
-
+  } catch (err) {
+    const detail = await getAiAssistantErrorMessage(err);
+    logError('Yara error:', detail || err?.message || err);
+    setAndPersist(prev => prev.map(c => c.id !== activeConvId ? c : {
+      ...c,
+      messages: [...c.messages, {
+        from: 'yara',
+        text: detail || "I couldn't reach live coaching right now. Try again in a moment.",
+        time: fmtTime(),
+      }],
+    }));
+  } finally {
+    setTyping(false);
+  }
+  scrollToBottom(true);
+};
   // ── Sidebar ───────────────────────────────────────────────────
   function renderSidebar() {
     return (

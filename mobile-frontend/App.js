@@ -16,24 +16,15 @@ import { NavigationContainer, createNavigationContainerRef } from '@react-naviga
 import { createStackNavigator } from '@react-navigation/stack';
 import { registerRootComponent } from 'expo';
 import ScheduleScreen from './screens/ScheduleScreen';
-// Context & Supabase
 import { supabase } from './lib/supabase';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { TodayProvider } from './context/TodayContext';
 import { MilestoneProvider, useMilestones } from './context/MilestoneContext';
-
-// ✅ Custom splash screen
 import CustomSplashScreen from './components/CustomSplashScreen';
-
-// Screens - Auth & Onboarding
 import SignIn from './auth/SignIn';
 import SignUp from './auth/SignUp';
 import OnBoardingGoal from './screens/OnBoardingGoal';
-
-// Navigation Hub
 import NavBar from './components/NavBar';
-
-// Sub-Screens
 import MealLogger from './screens/nutrition/MealLogger';
 import FoodDetail from './screens/nutrition/FoodDetail';
 import SleepLog from './screens/sleep/SleepLog';
@@ -46,19 +37,17 @@ import MessagesInbox from './screens/community/MessagesInbox';
 import DMThread from './screens/community/DMThread';
 import { scheduleStore } from './store/scheduleStore';
 import { useUnreadMessageNotifications } from './hooks/useNotification';
-
-// Global Components
 import YaraAssistant from './components/YaraAssistant';
 import AppTour from './components/onBoarding/AppTour';
 import CelebrationOverlay from './components/CelebrationOverlay';
 import CelebrationInterstitial from './components/reports/CelebrationInterstitial';
 import { warn } from './lib/logger';
+import { FitnessProvider } from './context/FitnessContext';
 
 SplashScreen.preventAutoHideAsync();
 const Stack = createStackNavigator();
 const YARA_ALLOWED_ROUTES = new Set(['Home', 'Fuel', 'TrainingHub', 'Insights']);
-
-const navigationRef = createNavigationContainerRef(); // ← add this
+const navigationRef = createNavigationContainerRef();
 
 function getActiveRouteName(state) {
   if (!state) return null;
@@ -69,9 +58,7 @@ function getActiveRouteName(state) {
 
 function MilestoneCelebrationOverlay() {
   const { pendingCelebration, claimMilestone, dismissCelebration } = useMilestones();
-
   if (!pendingCelebration) return null;
-
   return (
     <CelebrationInterstitial
       visible={!!pendingCelebration}
@@ -87,7 +74,6 @@ function MilestoneCelebrationOverlay() {
 
 function Navigation() {
   const { user, isNewUser, loading } = useAuth();
-
   if (loading) {
     return (
       <View style={[styles.container, styles.centered]}>
@@ -95,7 +81,6 @@ function Navigation() {
       </View>
     );
   }
-
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {!user ? (
@@ -133,7 +118,7 @@ function DirectMessageNotifications({ activeRoute }) {
 
 export default function App() {
   const [appIsReady, setAppIsReady] = useState(false);
-  const [splashDone, setSplashDone] = useState(false); // ✅ NEW
+  const [splashDone, setSplashDone] = useState(false);
   const [activeTab, setActiveTab] = useState('Home');
   const [activeRoute, setActiveRoute] = useState(null);
   const showYaraAssistant = YARA_ALLOWED_ROUTES.has(activeRoute);
@@ -149,8 +134,25 @@ export default function App() {
           'Inter-Regular': Inter_400Regular,
           'Inter-SemiBold': Inter_600SemiBold,
         });
-        await supabase.auth.getSession();
+
+        // Hydrate scheduleStore from AsyncStorage first
         await scheduleStore.hydrate();
+
+        // If still empty, fall back to Supabase
+        if (!scheduleStore.get()) {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) {
+            const { data } = await supabase
+              .from('training_plans')
+              .select('plan_json')
+              .eq('user_id', session.user.id)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .single();
+            if (data?.plan_json) await scheduleStore.set(data.plan_json);
+          }
+        }
+
       } catch (e) {
         warn(e);
       } finally {
@@ -164,10 +166,8 @@ export default function App() {
     if (appIsReady) await SplashScreen.hideAsync();
   }, [appIsReady]);
 
-  // Fonts still loading — show nothing
   if (!appIsReady) return null;
 
-  // ✅ Fonts ready → show custom splash
   if (!splashDone) {
     return (
       <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
@@ -177,32 +177,33 @@ export default function App() {
     );
   }
 
-  // ✅ Splash finished → show the real app
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AuthProvider>
           <TodayProvider>
-            <MilestoneProvider>
-              <View style={styles.container} onLayout={onLayoutRootView}>
-                <StatusBar style="light" />
-                <NavigationContainer
-                  ref={navigationRef}
-                  onStateChange={(state) => setActiveRoute(getActiveRouteName(state))}
-                >
-                  <Navigation />
-                </NavigationContainer>
-                <DirectMessageNotifications activeRoute={activeRoute} />
-                {showYaraAssistant && (
-                  <YaraAssistant
-                    onOpenSchedule={() => navigationRef.current?.navigate('Schedule')}
-                  />
-                )}
-                <AppTour activeTab={activeTab} onTabPress={setActiveTab} showOnMount={true} />
-                <CelebrationOverlay />
-                <MilestoneCelebrationOverlay />
-              </View>
-            </MilestoneProvider>
+            <FitnessProvider>
+              <MilestoneProvider>
+                <View style={styles.container} onLayout={onLayoutRootView}>
+                  <StatusBar style="light" />
+                  <NavigationContainer
+                    ref={navigationRef}
+                    onStateChange={(state) => setActiveRoute(getActiveRouteName(state))}
+                  >
+                    <Navigation />
+                  </NavigationContainer>
+                  <DirectMessageNotifications activeRoute={activeRoute} />
+                  {showYaraAssistant && (
+                    <YaraAssistant
+                      onOpenSchedule={() => navigationRef.current?.navigate('Schedule')}
+                    />
+                  )}
+                  <AppTour activeTab={activeTab} onTabPress={setActiveTab} showOnMount={true} />
+                  <CelebrationOverlay />
+                  <MilestoneCelebrationOverlay />
+                </View>
+              </MilestoneProvider>
+            </FitnessProvider>
           </TodayProvider>
         </AuthProvider>
       </SafeAreaProvider>

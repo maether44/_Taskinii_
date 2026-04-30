@@ -1,12 +1,14 @@
-const GROQ_API_KEY = process.env.EXPO_PUBLIC_GROQ_API_KEY!;
+const GROQ_API_KEY   = process.env.EXPO_PUBLIC_GROQ_API_KEY;
+const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY; // ← add this to your .env
 
 const INTERNAL_LINE_RE = /^[^\n]*(COMMAND\s*:|MEMORIES\s*:|log_water|log_sleep|log_weight|log_food|log_workout|forget_fact|navigate)[^\n]*$/gim;
 
-function cleanAiText(text: string): string {
+function cleanAiText(text) {
   if (!text) return text;
   return text.replace(INTERNAL_LINE_RE, '').replace(/\n{3,}/g, '\n\n').trim();
 }
 
+// ─── Plan generation prompt ───────────────────────────────────────────────────
 function buildPrompt(answers) {
   const {
     goal, gender, age, height, weight, targetW, activity, experience,
@@ -21,39 +23,52 @@ function buildPrompt(answers) {
     gain_muscle: "build muscle", muscle: "build muscle",
     maintain: "stay healthy", gain_weight: "gain weight",
     build_habits: "build healthy habits", athletic: "athletic performance",
-  }[goal];
+  }[goal] ?? goal;
 
-  return `You are an expert fitness coach. Create a highly personalised ${days}-day training plan for this user.
+  const equipmentHint = {
+    full_gym:         "Use barbells, cables, machines, dumbbells and any gym equipment freely.",
+    dumbbells:        "Use only dumbbells and bodyweight. No barbells or machines.",
+    home:             "Bodyweight only — no equipment at all. Use floor, wall, chair variants.",
+    resistance_bands: "Use resistance bands and bodyweight only.",
+    kettlebells:      "Use kettlebells and bodyweight only.",
+  }[equipment] ?? `Equipment available: ${equipment}.`;
+
+  const experienceHint = {
+    beginner:     "User is a BEGINNER — simple compound movements, no Olympic lifts, reps 10-15.",
+    intermediate: "User is INTERMEDIATE — progressive overload, compound + isolation, reps 8-12.",
+    advanced:     "User is ADVANCED — periodisation, complex movements, heavy compounds, reps 4-12.",
+  }[experience] ?? "";
+
+  const focusHint = focus?.length
+    ? `Priority muscle groups: ${focusList}. Give these more exercises than other muscles.`
+    : "Balanced full-body approach.";
+
+  const injHint = injList !== "none"
+    ? `IMPORTANT — Injuries/limitations: ${injList}. Avoid exercises that stress these areas.`
+    : "";
+
+  return `You are an expert fitness coach. Create a HIGHLY PERSONALISED ${days}-day training plan.
 
 USER PROFILE:
-- Goal: ${goal} (${goalLabel})
-- Gender: ${gender}, Age: ${age}, Height: ${height}cm, Weight: ${weight}kg${targetW ? `, Target: ${targetW}kg` : ""}
-- Experience: ${experience}
-- Equipment: ${equipment}
-- Training: ${days} days/week, ${duration} min per session, ${timeOfDay} time preferred
-- Focus areas: ${focusList}
-- Injuries/limitations: ${injList}
-- Sleep: ${sleep}, Stress: ${stress}, Diet: ${diet}
-- Daily calorie target: ${calTarget} kcal, Protein: ${protein}g/day
-- Activity level: ${activity}
+- Goal: ${goalLabel} | Gender: ${gender} | Age: ${age ?? "unknown"} | Height: ${height}cm | Weight: ${weight}kg${targetW ? ` | Target: ${targetW}kg` : ""}
+- Experience: ${experience} | Equipment: ${equipment} | ${days} days/week | ${duration} min/session
+- Focus: ${focusList} | Injuries: ${injList} | Sleep: ${sleep} | Stress: ${stress} | Diet: ${diet}
+- Calories: ${calTarget} kcal/day | Protein: ${protein}g/day | Activity: ${activity}
 
-Generate a ${days}-day weekly training split. For each day provide:
-1. Session name (e.g. "Push Day", "Full Body A", "Legs & Glutes")
-2. Exactly 5 exercises suited to their equipment, injuries, and focus areas
-3. Sets x reps and rest time for each exercise
-4. One personalised coaching tip for that day
+RULES:
+1. ${equipmentHint}
+2. ${experienceHint}
+3. ${focusHint}
+${injHint ? `4. ${injHint}` : ""}
 
-Also provide:
-- A 2-sentence nutrition note based on their goal and diet preference
-- One recovery tip based on their sleep and stress level
-- One motivational note personalised to their specific situation
+Generate ${days} training days with exactly 5 exercises each. For each day include 4 meals with per-food calorie breakdown summing to ~${calTarget} kcal/day for a ${diet} diet.
 
-CRITICAL: Respond with ONLY a JSON object. No markdown. No code fences. No explanation. Start your response with { and end with }.
+CRITICAL: Output ONLY raw JSON. No markdown. No backticks. No explanation. The response must start with { and end with }.
 Use this exact structure:
-{"intro":"string","days":[{"name":"string","focus":"string","exercises":[{"name":"string","sets":3,"reps":"string","rest":"string"}],"coachTip":"string"}],"nutritionNote":"string","recoveryNote":"string","motivationNote":"string"}`;
+{"intro":"2 sentence intro","days":[{"name":"Push Day","focus":"Chest and Triceps","exercises":[{"name":"Bench Press","sets":4,"reps":"8-10","rest":"90s","muscle":"Chest"}],"coachTip":"one tip","meals":[{"type":"Breakfast","calories":420,"foods":[{"name":"Oats with banana","calories":280},{"name":"2 boiled eggs","calories":140}]},{"type":"Lunch","calories":550,"foods":[{"name":"Grilled chicken","calories":300},{"name":"Brown rice","calories":250}]},{"type":"Dinner","calories":500,"foods":[{"name":"Salmon","calories":300},{"name":"Sweet potato","calories":200}]},{"type":"Snack","calories":200,"foods":[{"name":"Greek yogurt","calories":120},{"name":"Almonds","calories":80}]}]}],"nutritionNote":"2 sentence note","recoveryNote":"1 sentence","motivationNote":"1 sentence"}`;
 }
 
-function parseGroqResponse(text) {
+function parsePlanResponse(text) {
   const jsonMatch = text.match(/{[\s\S]*}/);
   if (!jsonMatch) throw new Error("No JSON found in response");
 
@@ -77,29 +92,35 @@ function parseGroqResponse(text) {
   catch (e) { throw new Error("Could not parse AI response. Please retry."); }
 }
 
+// ─── Plan generation — Gemini (1M tokens/min free tier, no rate limit issues) ─
 export async function generateAIPlan(answers) {
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${GROQ_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: "llama-3.1-8b-instant",
-      max_tokens: 4096,
-      temperature: 0.4,
-      messages: [{ role: "user", content: buildPrompt(answers) }],
-    }),
-  });
+  const prompt = buildPrompt(answers);
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature:     0.7,
+          maxOutputTokens: 4096,
+        },
+      }),
+    }
+  );
 
   const data = await res.json();
-  if (!res.ok) throw new Error(JSON.stringify(data?.error));
+  if (!res.ok) throw new Error(JSON.stringify(data?.error ?? data));
 
-  const text = data.choices?.[0]?.message?.content ?? "";
-  return parseGroqResponse(text);
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+  if (!text) throw new Error('Empty response from Gemini');
+
+  return parsePlanResponse(text);
 }
 
-// ─── Yara chatbot (onboarding profile shape) ──────────────────────────────────
+// ─── Yara chatbot (onboarding profile shape) — Groq ──────────────────────────
 function buildYaraSystem(profile) {
   const base = `You are Yara, a warm and direct personal fitness and sports coach inside a mobile app.
 
@@ -173,8 +194,8 @@ export async function callYara(history, profile) {
     ?? "I'm having trouble connecting. Try again in a moment.");
 }
 
-// ─── Yara coach (Supabase profile shape) ─────────────────────────────────────
-function buildYaraCoachSystem(profile: any, targets: any, scheduleMode = false) {
+// ─── Yara coach (Supabase profile shape) — Groq ──────────────────────────────
+function buildYaraCoachSystem(profile, targets, scheduleMode = false) {
   const base = `You are Yara, a warm and direct personal fitness coach inside the BodyQ app.
 
 Your voice:
@@ -196,13 +217,13 @@ Rules:
 
   if (!profile) return base;
 
-  const goalMap: Record<string, string> = {
+  const goalMap = {
     lose_fat: 'lose body fat', gain_muscle: 'build muscle',
     gain_weight: 'gain weight', maintain: 'maintain fitness',
     build_habits: 'build healthy habits',
   };
   const age = profile.date_of_birth
-    ? new Date().getFullYear() - new Date(profile.date_of_birth).getFullYear()
+    ? Math.floor((Date.now() - new Date(profile.date_of_birth)) / (365.25 * 24 * 60 * 60 * 1000))
     : 'unknown';
 
   return base + `
@@ -214,17 +235,12 @@ USER PROFILE — memorise this, never ask for it again:
 • Gender: ${profile.gender || 'unknown'} | Age: ${age} | Height: ${profile.height_cm || '?'}cm | Weight: ${profile.weight_kg || '?'}kg
 • Activity level: ${profile.activity_level || 'moderate'}
 • Daily calorie target: ${targets?.daily_calories || '?'} kcal
-• Protein / Carbs / Fat targets: ${targets?.protein_target || '?'}g / ${targets?.carbs_target || '?'}g / ${targets?.fat_target || '?'}g
+• Protein / Carbs / Fat: ${targets?.protein_target || '?'}g / ${targets?.carbs_target || '?'}g / ${targets?.fat_target || '?'}g
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Use this to give precise, personalised advice every time.`;
 }
 
-export async function callYaraCoach(
-  history: { role: string; content: string }[],
-  profile: any,
-  targets: any,
-  scheduleMode = false,
-): Promise<string> {
+export async function callYaraCoach(history, profile, targets, scheduleMode = false) {
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -232,7 +248,7 @@ export async function callYaraCoach(
       'Authorization': `Bearer ${GROQ_API_KEY}`,
     },
     body: JSON.stringify({
-      model:           scheduleMode ? 'llama-3.3-70b-versatile' : 'llama-3.1-8b-instant',
+      model:           'llama-3.1-8b-instant',
       max_tokens:      scheduleMode ? 4096 : 512,
       temperature:     scheduleMode ? 0.3 : 0.7,
       response_format: scheduleMode ? { type: 'json_object' } : undefined,
