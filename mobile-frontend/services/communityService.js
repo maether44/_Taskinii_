@@ -7,11 +7,15 @@ import { getProfilesByIds } from './profileService';
 const POST_MEDIA_BUCKET = 'post-media';
 
 function deriveHandle(name) {
-  const base = String(name || 'user')
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_ ]/g, '')
-    .replace(/\s+/g, '_');
+  const trimmed = String(name || 'user').trim();
+  if (!trimmed) return '@user';
+  
+  // Extract first word and limit length, preserving Unicode characters
+  const base = trimmed
+    .split(/\s+/)[0]  // Get first word
+    .substring(0, 15) // Limit to 15 chars
+    .toLowerCase();
+  
   return `@${base || 'user'}`;
 }
 
