@@ -18,11 +18,9 @@ import { getMuscleFatigue } from '../services/workoutService';
 import { useAuth } from '../context/AuthContext';
 import { AppEvents, emit, on } from '../lib/eventBus';
 import { warn, log } from '../lib/logger';
-import { loadPlan, generatePlan } from '../services/aiPlanService';
 import { scheduleStore } from '../store/scheduleStore';
-
+import { loadPlan, generatePlan, regeneratePlan } from '../services/aiPlanService';
 const STREAK_MILESTONES = [3, 7, 14, 30, 60, 100, 365];
-
 const { width } = Dimensions.get('window');
 
 const C = {
@@ -857,27 +855,32 @@ if (currentSaved?.days?.length) {
     }, 300);
   }, [navigation]);
 
+const [splitIndex, setSplitIndex] = useState(0);
+
   const handleGeneratePlan = useCallback(async () => {
   if (!authUserId || aiPlanLoading) return;
   setAiPlanLoading(true);
   try {
-    const plan = await generatePlan(authUserId); // saves to training_plans ✅
+    let plan;
+    if (aiPlan) {
+      // Already have a plan — regenerate with different split
+      const result = await regeneratePlan(authUserId, splitIndex);
+      plan = result.plan;
+      setSplitIndex(result.nextSplitIndex);
+    } else {
+      // First time — generate normally
+      plan = await generatePlan(authUserId);
+    }
     setAiPlan(plan);
     setAiPlanDate(new Date().toISOString());
-
-    // Push to scheduleStore so ScheduleScreen + FitnessContext sync
-    scheduleStore.set({
-      ...plan,
-      generated_at: new Date().toISOString(),
-    }); // ← remove the second arg authUserId
-
+    scheduleStore.set({ ...plan, generated_at: new Date().toISOString() }, authUserId);
     loadData();
   } catch (e) {
     warn('[Training] AI plan generation failed:', e?.message ?? e);
   } finally {
     setAiPlanLoading(false);
   }
-}, [authUserId, aiPlanLoading, loadData]);
+}, [authUserId, aiPlanLoading, aiPlan, splitIndex, loadData]);
 
   return (
     <View style={s.root}>
@@ -1232,8 +1235,7 @@ if (currentSaved?.days?.length) {
               >
                 <Ionicons name="refresh-outline" size={14} color={C.accent} />
                 <Text style={{ color: C.accent, fontSize: 12, fontWeight: '700' }}>
-                  {aiPlanLoading ? 'Generating...' : 'Regenerate Plan'}
-                </Text>
+{aiPlanLoading ? 'Generating...' : '🔄 Regenerate Plan'}                </Text>
               </TouchableOpacity>
             </View>
           ) : (
