@@ -102,7 +102,7 @@ export const saveWorkoutSession = async ({
 export const getMuscleFatigue = async (userId: string) => {
   const { data, error } = await supabase
     .from('muscle_fatigue')
-    .select('muscle_name, fatigue_pct')
+    .select('muscle_name, fatigue_pct, last_updated')
     .eq('user_id', userId)
     .order('fatigue_pct', { ascending: false });
 
@@ -110,7 +110,7 @@ export const getMuscleFatigue = async (userId: string) => {
     warn('[BodyQ] muscle_fatigue fetch:', error.message);
     return [];
   }
-  return (data ?? []) as { muscle_name: string; fatigue_pct: number }[];
+  return (data ?? []) as { muscle_name: string; fatigue_pct: number; last_updated: string }[];
 };
 
 // ── Fetch workout history with exercises joined ───────────────

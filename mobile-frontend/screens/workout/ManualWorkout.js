@@ -1,7 +1,8 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   StyleSheet, Modal, FlatList, Alert, Dimensions, Pressable,
+  SectionList,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -9,11 +10,13 @@ import { BlurView } from 'expo-blur';
 import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
 import { useAuth } from '../../context/AuthContext';
 import { useWorkouts } from '../../hooks/useWorkout';
+import { fetchExercises } from '../../services/exerciseService';
 import { supabase } from '../../lib/supabase';
 import { AppEvents, emit } from '../../lib/eventBus';
 import { warn } from '../../lib/logger';
 import { mediumTap, successTap, lightTap } from '../../lib/haptics';
 import { FS } from '../../constants/typography';
+import { fatigueForExercise, exerciseNeedsWeight } from '../../constants/muscleFatigue';
 
 const { width } = Dimensions.get('window');
 
@@ -23,22 +26,44 @@ const C = {
   sub: '#6B5F8A', accent: '#9D85F5', red: '#FF6B6B',
 };
 
-const MUSCLE_FATIGUE_MAP = {
-  chest:      [{ name: 'Chest', inc: 25 }, { name: 'Triceps', inc: 15 }],
-  back:       [{ name: 'Back', inc: 25 }, { name: 'Biceps', inc: 15 }],
-  shoulders:  [{ name: 'Shoulders', inc: 25 }, { name: 'Triceps', inc: 10 }],
-  legs:       [{ name: 'Quads', inc: 20 }, { name: 'Glutes', inc: 20 }, { name: 'Hamstrings', inc: 15 }],
-  arms:       [{ name: 'Biceps', inc: 25 }, { name: 'Triceps', inc: 25 }, { name: 'Forearms', inc: 15 }],
-  core:       [{ name: 'Core', inc: 25 }],
-  cardio:     [],
-  stretching: [],
+const EQUIPMENT_ICONS = {
+  barbell: 'barbell-outline',
+  dumbbell: 'fitness-outline',
+  machine: 'cog-outline',
+  cable: 'git-commit-outline',
+  kettlebell: 'water-outline',
+  'body only': 'body-outline',
+  'e-z curl bar': 'barbell-outline',
+  other: 'ellipsis-horizontal-outline',
+  'medicine ball': 'football-outline',
+  'exercise ball': 'ellipse-outline',
+  'foam roll': 'remove-outline',
+  bands: 'resize-outline',
 };
 
-function mapMuscleGroup(group) {
-  if (!group) return [];
-  const key = group.toLowerCase().replace(/[^a-z]/g, '');
-  return MUSCLE_FATIGUE_MAP[key] || MUSCLE_FATIGUE_MAP[key.slice(0, -1)] || [];
-}
+const MUSCLE_GROUP_LABELS = {
+  abdominals: 'Core',
+  abductors: 'Legs',
+  adductors: 'Legs',
+  biceps: 'Arms',
+  calves: 'Legs',
+  chest: 'Chest',
+  forearms: 'Arms',
+  glutes: 'Legs',
+  hamstrings: 'Legs',
+  lats: 'Back',
+  'lower back': 'Back',
+  'middle back': 'Back',
+  neck: 'Neck',
+  quadriceps: 'Legs',
+  shoulders: 'Shoulders',
+  traps: 'Back',
+  triceps: 'Arms',
+};
+
+const ALL_MUSCLE_FILTERS = [
+  'All', 'Chest', 'Back', 'Shoulders', 'Arms', 'Legs', 'Core',
+];
 
 // ── Rest Timer Overlay ──────────────────────────────────────────
 function RestTimer({ seconds, onSkip, onDone }) {
@@ -71,26 +96,54 @@ function RestTimer({ seconds, onSkip, onDone }) {
 // ── Exercise Picker Modal ───────────────────────────────────────
 function ExercisePicker({ visible, exercises, onSelect, onClose }) {
   const [search, setSearch] = useState('');
+  const [muscleFilter, setMuscleFilter] = useState('All');
 
-  const filtered = exercises.filter(ex =>
-    ex.name.toLowerCase().includes(search.toLowerCase()) ||
-    (ex.muscle_group || '').toLowerCase().includes(search.toLowerCase()) ||
-    (ex.category || '').toLowerCase().includes(search.toLowerCase())
+  const sections = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    let list = exercises;
+
+    if (muscleFilter !== 'All') {
+      list = list.filter(ex => {
+        const primary = (ex.primaryMuscles || []).map(m => m.toLowerCase());
+        return primary.some(m => MUSCLE_GROUP_LABELS[m] === muscleFilter);
+      });
+    }
+
+    if (q) {
+      list = list.filter(ex =>
+        ex.name.toLowerCase().includes(q) ||
+        (ex.primaryMuscles || []).some(m => m.toLowerCase().includes(q)) ||
+        (ex.category || '').toLowerCase().includes(q) ||
+        (ex.equipment || '').toLowerCase().includes(q)
+      );
+    }
+
+    const grouped = {};
+    list.forEach(ex => {
+      const primary = (ex.primaryMuscles || [])[0] || 'other';
+      const group = MUSCLE_GROUP_LABELS[primary.toLowerCase()] || 'Other';
+      if (!grouped[group]) grouped[group] = [];
+      grouped[group].push(ex);
+    });
+
+    return Object.entries(grouped)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([title, data]) => ({ title, data }));
+  }, [exercises, search, muscleFilter]);
+
+  const totalCount = useMemo(
+    () => sections.reduce((sum, s) => sum + s.data.length, 0),
+    [sections],
   );
-
-  const grouped = {};
-  filtered.forEach(ex => {
-    const group = ex.muscle_group || 'Other';
-    if (!grouped[group]) grouped[group] = [];
-    grouped[group].push(ex);
-  });
-  const sections = Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b));
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <View style={ep.root}>
         <View style={ep.header}>
-          <Text style={ep.title}>Add Exercise</Text>
+          <View>
+            <Text style={ep.title}>Exercise Library</Text>
+            <Text style={ep.countLabel}>{totalCount} exercises</Text>
+          </View>
           <TouchableOpacity onPress={onClose} style={ep.closeBtn}>
             <Ionicons name="close" size={22} color={C.sub} />
           </TouchableOpacity>
@@ -100,7 +153,7 @@ function ExercisePicker({ visible, exercises, onSelect, onClose }) {
           <Ionicons name="search-outline" size={18} color={C.sub} />
           <TextInput
             style={ep.searchInput}
-            placeholder="Search exercises..."
+            placeholder="Search by name, muscle, or equipment..."
             placeholderTextColor={C.sub}
             value={search}
             onChangeText={setSearch}
@@ -113,31 +166,53 @@ function ExercisePicker({ visible, exercises, onSelect, onClose }) {
           )}
         </View>
 
-        <FlatList
-          data={sections}
-          keyExtractor={([group]) => group}
+        {/* Muscle group filter chips */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={ep.filterRow}
+        >
+          {ALL_MUSCLE_FILTERS.map(f => (
+            <TouchableOpacity
+              key={f}
+              style={[ep.filterChip, muscleFilter === f && ep.filterChipActive]}
+              onPress={() => setMuscleFilter(f)}
+            >
+              <Text style={[ep.filterTxt, muscleFilter === f && ep.filterTxtActive]}>{f}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        <SectionList
+          sections={sections}
+          keyExtractor={(ex) => ex.id}
           contentContainerStyle={{ paddingBottom: 40 }}
-          renderItem={({ item: [group, exs] }) => (
-            <View>
-              <Text style={ep.groupLabel}>{group.toUpperCase()}</Text>
-              {exs.map(ex => (
-                <TouchableOpacity
-                  key={ex.id}
-                  style={ep.exerciseRow}
-                  onPress={() => { lightTap(); onSelect(ex); }}
-                >
-                  <View style={ep.exIcon}>
-                    <Ionicons name="barbell-outline" size={18} color={C.lime} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={ep.exName}>{ex.name}</Text>
-                    <Text style={ep.exMeta}>{ex.category}{ex.difficulty ? ` · ${ex.difficulty}` : ''}</Text>
-                  </View>
-                  <Ionicons name="add-circle-outline" size={22} color={C.lime} />
-                </TouchableOpacity>
-              ))}
-            </View>
+          stickySectionHeadersEnabled={false}
+          renderSectionHeader={({ section: { title, data } }) => (
+            <Text style={ep.groupLabel}>{title.toUpperCase()} ({data.length})</Text>
           )}
+          renderItem={({ item: ex }) => {
+            const icon = EQUIPMENT_ICONS[ex.equipment] || 'barbell-outline';
+            const muscles = (ex.primaryMuscles || []).join(', ');
+            return (
+              <TouchableOpacity
+                style={ep.exerciseRow}
+                onPress={() => { lightTap(); onSelect(ex); }}
+              >
+                <View style={ep.exIcon}>
+                  <Ionicons name={icon} size={18} color={C.lime} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={ep.exName}>{ex.name}</Text>
+                  <Text style={ep.exMeta}>
+                    {muscles}{ex.equipment && ex.equipment !== 'body only' ? ` · ${ex.equipment}` : ''}
+                    {ex.level ? ` · ${ex.level}` : ''}
+                  </Text>
+                </View>
+                <Ionicons name="add-circle-outline" size={22} color={C.lime} />
+              </TouchableOpacity>
+            );
+          }}
           ListEmptyComponent={
             <Text style={ep.empty}>No exercises found</Text>
           }
@@ -148,13 +223,13 @@ function ExercisePicker({ visible, exercises, onSelect, onClose }) {
 }
 
 // ── Set Row ─────────────────────────────────────────────────────
-function SetRow({ set, index, onUpdate, onRemove }) {
+function SetRow({ set, index, onUpdate, onRemove, showWeight }) {
   return (
     <Animated.View entering={FadeIn.duration(200)} style={sr.row}>
       <View style={sr.badge}>
         <Text style={sr.badgeTxt}>{index + 1}</Text>
       </View>
-      <View style={sr.field}>
+      <View style={[sr.field, !showWeight && { flex: 2 }]}>
         <Text style={sr.fieldLabel}>Reps</Text>
         <TextInput
           style={sr.input}
@@ -166,18 +241,20 @@ function SetRow({ set, index, onUpdate, onRemove }) {
           maxLength={4}
         />
       </View>
-      <View style={sr.field}>
-        <Text style={sr.fieldLabel}>kg</Text>
-        <TextInput
-          style={sr.input}
-          value={set.weight}
-          onChangeText={v => onUpdate({ ...set, weight: v.replace(/[^0-9.]/g, '') })}
-          keyboardType="decimal-pad"
-          placeholder="0"
-          placeholderTextColor="rgba(255,255,255,0.2)"
-          maxLength={6}
-        />
-      </View>
+      {showWeight && (
+        <View style={sr.field}>
+          <Text style={sr.fieldLabel}>kg</Text>
+          <TextInput
+            style={sr.input}
+            value={set.weight}
+            onChangeText={v => onUpdate({ ...set, weight: v.replace(/[^0-9.]/g, '') })}
+            keyboardType="decimal-pad"
+            placeholder="0"
+            placeholderTextColor="rgba(255,255,255,0.2)"
+            maxLength={6}
+          />
+        </View>
+      )}
       <TouchableOpacity onPress={onRemove} hitSlop={8}>
         <Ionicons name="trash-outline" size={16} color={C.red} />
       </TouchableOpacity>
@@ -186,10 +263,11 @@ function SetRow({ set, index, onUpdate, onRemove }) {
 }
 
 // ── Exercise Card (with sets) ───────────────────────────────────
-function ExerciseBlock({ exercise, onRemove, onRestStart }) {
-  const [sets, setSets] = useState([{ reps: '', weight: '' }]);
-  const exerciseRef = useRef(exercise);
-  exerciseRef.current = exercise;
+function ExerciseBlock({ exercise, onRemove, onRestStart, initialSets }) {
+  const [sets, setSets] = useState(initialSets?.length ? initialSets : [{ reps: '', weight: '' }]);
+  const showWeight = exerciseNeedsWeight(exercise.equipment);
+  const icon = EQUIPMENT_ICONS[exercise.equipment] || 'barbell-outline';
+  const muscles = (exercise.primaryMuscles || []).join(', ');
 
   const addSet = () => {
     const last = sets[sets.length - 1];
@@ -220,11 +298,15 @@ function ExerciseBlock({ exercise, onRemove, onRestStart }) {
     <Animated.View entering={FadeInDown.duration(300).springify()} style={eb.card}>
       <View style={eb.header}>
         <View style={eb.iconWrap}>
-          <Ionicons name="barbell-outline" size={20} color={C.lime} />
+          <Ionicons name={icon} size={20} color={C.lime} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={eb.name}>{exercise.name}</Text>
-          <Text style={eb.meta}>{exercise.muscle_group || exercise.category}</Text>
+          <Text style={eb.meta}>
+            {muscles}
+            {exercise.equipment && exercise.equipment !== 'body only'
+              ? ` · ${exercise.equipment}` : ' · bodyweight'}
+          </Text>
         </View>
         <TouchableOpacity onPress={onRemove} style={eb.removeBtn}>
           <Ionicons name="close-circle" size={22} color="rgba(255,255,255,0.3)" />
@@ -233,8 +315,8 @@ function ExerciseBlock({ exercise, onRemove, onRestStart }) {
 
       <View style={eb.setsHeader}>
         <Text style={eb.setsLabel}>SET</Text>
-        <Text style={[eb.setsLabel, { flex: 1, textAlign: 'center' }]}>REPS</Text>
-        <Text style={[eb.setsLabel, { flex: 1, textAlign: 'center' }]}>KG</Text>
+        <Text style={[eb.setsLabel, { flex: showWeight ? 1 : 2, textAlign: 'center' }]}>REPS</Text>
+        {showWeight && <Text style={[eb.setsLabel, { flex: 1, textAlign: 'center' }]}>KG</Text>}
         <View style={{ width: 16 }} />
       </View>
 
@@ -243,6 +325,7 @@ function ExerciseBlock({ exercise, onRemove, onRestStart }) {
           key={i}
           set={set}
           index={i}
+          showWeight={showWeight}
           onUpdate={(updated) => updateSet(i, updated)}
           onRemove={() => removeSet(i)}
         />
@@ -268,11 +351,13 @@ function ExerciseBlock({ exercise, onRemove, onRestStart }) {
 }
 
 // ── Main Screen ─────────────────────────────────────────────────
-export default function ManualWorkout({ navigation }) {
+export default function ManualWorkout({ navigation, route }) {
   const { user: authUser } = useAuth();
   const userId = authUser?.id;
-  const { exercises: dbExercises, startSession, logExercise, finishSession } = useWorkouts(userId);
+  const { startSession, logExercise, finishSession } = useWorkouts(userId);
 
+  const prefill = route?.params?.prefill;
+  const [libraryExercises, setLibraryExercises] = useState([]);
   const [selectedExercises, setSelectedExercises] = useState([]);
   const [pickerVisible, setPickerVisible] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -281,6 +366,22 @@ export default function ManualWorkout({ navigation }) {
   const [restSeconds, setRestSeconds] = useState(90);
   const startTime = useRef(Date.now());
   const exerciseRefs = useRef([]);
+
+  // Load 873-exercise library from JSON
+  useEffect(() => {
+    fetchExercises().then(setLibraryExercises).catch(() => {});
+  }, []);
+
+  // Pre-fill from "Repeat Last Workout" navigation params
+  useEffect(() => {
+    if (!prefill?.length || !libraryExercises.length) return;
+    const mapped = prefill.map(p => {
+      const match = libraryExercises.find(e => e.name === p.name);
+      if (!match) return null;
+      return { ...match, _prefillSets: p.sets, _getSets: () => [] };
+    }).filter(Boolean);
+    if (mapped.length) setSelectedExercises(mapped);
+  }, [prefill, libraryExercises]);
 
   // Elapsed timer
   useEffect(() => {
@@ -304,6 +405,30 @@ export default function ManualWorkout({ navigation }) {
     setSelectedExercises(prev => prev.filter((_, i) => i !== idx));
   }, []);
 
+  const resolveDbExerciseId = useCallback(async (exercise) => {
+    const { data: existing } = await supabase
+      .from('exercises')
+      .select('id')
+      .eq('name', exercise.name)
+      .limit(1)
+      .maybeSingle();
+
+    if (existing) return existing.id;
+
+    const { data: inserted } = await supabase
+      .from('exercises')
+      .insert({
+        name: exercise.name,
+        category: exercise.category || null,
+        muscle_group: (exercise.primaryMuscles || [])[0] || null,
+        difficulty: exercise.level || null,
+      })
+      .select('id')
+      .single();
+
+    return inserted?.id ?? null;
+  }, []);
+
   const handleSave = useCallback(async () => {
     if (!userId || saving) return;
     if (selectedExercises.length === 0) {
@@ -311,7 +436,6 @@ export default function ManualWorkout({ navigation }) {
       return;
     }
 
-    // Collect all sets data from exercise blocks
     const exerciseData = selectedExercises.map(ex => {
       const sets = ex._getSets?.() || [];
       const validSets = sets.filter(s => s.reps && parseInt(s.reps) > 0);
@@ -325,25 +449,27 @@ export default function ManualWorkout({ navigation }) {
 
     setSaving(true);
     try {
-      // 1. Start session
       const sessionId = await startSession();
       if (!sessionId) throw new Error('Failed to create session');
 
-      // 2. Log each exercise
       let totalReps = 0;
       let totalSets = 0;
       const exerciseNames = [];
 
       for (const { exercise, sets } of exerciseData) {
+        const dbId = await resolveDbExerciseId(exercise);
         const setCount = sets.length;
         const repCount = sets.reduce((sum, s) => sum + parseInt(s.reps || 0), 0);
-        const avgWeight = sets.reduce((sum, s) => sum + parseFloat(s.weight || 0), 0) / sets.length;
+        const hasWeight = exerciseNeedsWeight(exercise.equipment);
+        const avgWeight = hasWeight
+          ? sets.reduce((sum, s) => sum + parseFloat(s.weight || 0), 0) / sets.length
+          : null;
 
         await logExercise(sessionId, {
-          exerciseId: exercise.id,
+          exerciseId: dbId,
           sets: setCount,
           reps: repCount,
-          weightKg: Math.round(avgWeight * 10) / 10 || null,
+          weightKg: avgWeight != null ? Math.round(avgWeight * 10) / 10 || null : null,
           durationSecs: null,
           postureScore: null,
         });
@@ -353,16 +479,11 @@ export default function ManualWorkout({ navigation }) {
         exerciseNames.push(exercise.name);
       }
 
-      // 3. Calculate calories (rough: reps * 5, minimum 1 per exercise)
       const calories = Math.max(exerciseData.length, totalReps * 5);
-
-      // 4. Build notes string (load-bearing format for Training.js parsing)
       const notesStr = exerciseNames.join(' · ') + ` — ${totalSets} sets · ${totalReps} reps`;
 
-      // 5. Finish session
       await finishSession(sessionId, { caloriesBurned: calories, notes: notesStr });
 
-      // 6. Update daily_activity calories
       const TODAY = new Date().toISOString().split('T')[0];
       const { data: existing } = await supabase
         .from('daily_activity')
@@ -378,7 +499,6 @@ export default function ManualWorkout({ navigation }) {
         await supabase.from('daily_activity').insert({ user_id: userId, date: TODAY, calories_burned: calories });
       }
 
-      // 7. Award XP
       const { data: xpResult } = await supabase.rpc('award_xp', {
         p_user_id: userId,
         p_amount: 50,
@@ -387,13 +507,12 @@ export default function ManualWorkout({ navigation }) {
       });
       emit(AppEvents.XP_AWARDED, { amount: 50, source: 'workout', result: xpResult });
 
-      // 8. Check achievements
       await supabase.rpc('check_achievements', { p_user_id: userId });
 
-      // 9. Update muscle fatigue
+      // Update muscle fatigue using exercise primaryMuscles
       const fatigueUpdates = {};
       for (const { exercise } of exerciseData) {
-        const muscles = mapMuscleGroup(exercise.muscle_group);
+        const muscles = fatigueForExercise(exercise);
         for (const m of muscles) {
           fatigueUpdates[m.name] = Math.min(100, (fatigueUpdates[m.name] || 0) + m.inc);
         }
@@ -416,14 +535,12 @@ export default function ManualWorkout({ navigation }) {
         await supabase.from('muscle_fatigue').upsert(upserts, { onConflict: 'user_id,muscle_name' });
       }
 
-      // 10. Emit completion event
       emit(AppEvents.WORKOUT_COMPLETED, {
         sessionId, exerciseNames, totalReps, totalSets, calories,
       });
 
       successTap();
 
-      // Navigate to summary
       navigation.replace('WorkoutSummary', {
         exerciseName: exerciseNames.join(' · '),
         repCount: totalReps,
@@ -437,7 +554,7 @@ export default function ManualWorkout({ navigation }) {
     } finally {
       setSaving(false);
     }
-  }, [userId, saving, selectedExercises, elapsed, startSession, logExercise, finishSession, navigation]);
+  }, [userId, saving, selectedExercises, elapsed, startSession, logExercise, finishSession, navigation, resolveDbExerciseId]);
 
   return (
     <View style={s.root}>
@@ -480,6 +597,7 @@ export default function ManualWorkout({ navigation }) {
           <ExerciseBlock
             key={ex.id}
             exercise={ex}
+            initialSets={ex._prefillSets}
             onRemove={() => removeExercise(i)}
             onRestStart={() => setRestVisible(true)}
           />
@@ -533,10 +651,10 @@ export default function ManualWorkout({ navigation }) {
         </View>
       )}
 
-      {/* Exercise Picker */}
+      {/* Exercise Picker — 873 exercises from JSON library */}
       <ExercisePicker
         visible={pickerVisible}
-        exercises={dbExercises}
+        exercises={libraryExercises}
         onSelect={addExercise}
         onClose={() => setPickerVisible(false)}
       />
@@ -645,7 +763,7 @@ const sr = StyleSheet.create({
   },
 });
 
-// ── Exercise Picker styles ───────────────────���──────────────────
+// ── Exercise Picker styles ──────────────────────────────────────
 const ep = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
   header: {
@@ -653,14 +771,23 @@ const ep = StyleSheet.create({
     paddingTop: 58, paddingHorizontal: 20, paddingBottom: 16,
   },
   title: { color: C.text, fontSize: FS.cardTitle, fontWeight: '900' },
+  countLabel: { color: C.sub, fontSize: FS.sub, marginTop: 2 },
   closeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.card, alignItems: 'center', justifyContent: 'center' },
   searchWrap: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    marginHorizontal: 20, marginBottom: 16,
+    marginHorizontal: 20, marginBottom: 12,
     backgroundColor: C.card, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12,
     borderWidth: 1, borderColor: C.border,
   },
   searchInput: { flex: 1, color: C.text, fontSize: FS.body },
+  filterRow: { paddingHorizontal: 20, gap: 8, paddingBottom: 12 },
+  filterChip: {
+    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 10,
+    backgroundColor: C.card, borderWidth: 1, borderColor: C.border,
+  },
+  filterChipActive: { backgroundColor: C.lime, borderColor: C.lime },
+  filterTxt: { color: C.sub, fontSize: FS.sub, fontWeight: '700' },
+  filterTxtActive: { color: '#000' },
   groupLabel: { color: C.lime, fontSize: 10, fontWeight: '900', letterSpacing: 1.5, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
   exerciseRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,

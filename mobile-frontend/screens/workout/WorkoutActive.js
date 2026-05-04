@@ -18,6 +18,7 @@ import { saveWorkoutSession } from '../../services/workoutService';
 import { supabase } from '../../lib/supabase';
 import { AppEvents, emit } from '../../lib/eventBus';
 import { log, error as logError } from '../../lib/logger';
+import { fatigueForKey } from '../../constants/muscleFatigue';
 
 const { height: SH } = Dimensions.get('window');
 
@@ -37,16 +38,7 @@ const BREATHING_TIPS = [
   'Full range of motion',
 ];
 
-// ── Exercise → muscles targeted (for fatigue tracking) ─────────
-const EXERCISE_MUSCLES = {
-  squat:         [{ name: 'Quads', inc: 25 }, { name: 'Glutes', inc: 20 }, { name: 'Hamstrings', inc: 15 }],
-  pushup:        [{ name: 'Chest', inc: 25 }, { name: 'Triceps', inc: 20 }, { name: 'Shoulders', inc: 15 }],
-  bicepCurl:     [{ name: 'Biceps', inc: 30 }, { name: 'Forearms', inc: 15 }],
-  shoulderPress: [{ name: 'Shoulders', inc: 30 }, { name: 'Triceps', inc: 20 }],
-  deadlift:      [{ name: 'Hamstrings', inc: 25 }, { name: 'Glutes', inc: 20 }, { name: 'Back', inc: 25 }],
-  lunge:         [{ name: 'Quads', inc: 25 }, { name: 'Glutes', inc: 20 }, { name: 'Hamstrings', inc: 10 }],
-  plank:         [{ name: 'Core', inc: 25 }, { name: 'Shoulders', inc: 10 }],
-};
+// Fatigue mapping now lives in constants/muscleFatigue.js (fatigueForKey)
 
 // ── Canvas skeleton demo (Hologram Guide, Electric Violet glow) ─
 const SKELETON_DEMO_HTML = `<!DOCTYPE html>
@@ -142,13 +134,25 @@ tick();
 // ── Helpers ─────────────────────────────────────────────────────
 function resolveHtmlKey(name) {
   const k = name.trim().toLowerCase();
-  if (k.includes('push') || k.includes('bench')) return 'pushup';
-  if (k.includes('squat'))                        return 'squat';
-  if (k.includes('curl'))                         return 'bicepCurl';
-  if (k.includes('press'))                        return 'shoulderPress';
-  if (k.includes('deadlift') || k.includes('rdl')) return 'deadlift';
-  if (k.includes('lunge'))                        return 'lunge';
-  if (k.includes('plank'))                        return 'plank';
+
+  // Exact-match first (covers direct keys like "squat", "pushup", etc.)
+  const EXACT = { squat:1, pushup:1, bicepCurl:1, shoulderPress:1, deadlift:1, lunge:1, plank:1 };
+  if (EXACT[name.trim()]) return name.trim();
+
+  // Order matters — more specific patterns before broader ones
+  if (k.includes('push-up') || k.includes('pushup') || k.includes('push up')) return 'pushup';
+  if (k.includes('bench press') || k.includes('chest press'))                  return 'pushup';
+  if (k.includes('deadlift') || k.includes('rdl') || k.includes('romanian'))  return 'deadlift';
+  if (k.includes('squat') || k.includes('goblet'))                             return 'squat';
+  if (k.includes('lunge') || k.includes('split squat'))                        return 'lunge';
+  if (k.includes('plank') || k.includes('hold'))                               return 'plank';
+  // "curl" is ambiguous — only match bicep/arm curls, not leg curl, cable curl, etc.
+  if ((k.includes('bicep') || k.includes('hammer') || k.includes('dumbbell curl') || k.includes('barbell curl') || k.includes('ez curl')) && k.includes('curl')) return 'bicepCurl';
+  if (k.includes('curl') && !k.includes('leg') && !k.includes('ham'))         return 'bicepCurl';
+  // "press" — shoulder/overhead/military, not bench/chest/leg press
+  if ((k.includes('shoulder') || k.includes('overhead') || k.includes('military') || k.includes('arnold')) && k.includes('press')) return 'shoulderPress';
+  if (k.includes('press') && !k.includes('bench') && !k.includes('chest') && !k.includes('leg')) return 'shoulderPress';
+
   return null;
 }
 
@@ -704,8 +708,8 @@ export default function WorkoutActive({ route, navigation }) {
               logError('[BodyQ] check_achievements exception:', e);
             }
 
-            // ── Update muscle fatigue ───────────────────────────
-            const muscles = EXERCISE_MUSCLES[htmlKey] || [];
+            // ── Update muscle fatigue (shared mapping) ────────────
+            const muscles = fatigueForKey(htmlKey);
             if (muscles.length > 0) {
               try {
                 const { data: currentRows } = await supabase

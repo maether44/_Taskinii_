@@ -16,6 +16,7 @@ import { searchFoodLibrary } from "../../services/foodScannerApi";
 import { lightTap, successTap } from "../../lib/haptics";
 import { useNutrition } from "../../hooks/useNutrition";
 import { error as logError } from '../../lib/logger';
+import { getEmoji, getPortions } from "../../data/foodMeta";
 
 const C = {
   bg: "#0F0B1E",
@@ -256,6 +257,7 @@ export default function MealLogger() {
                 const isAdded = added.some((addedItem) => addedItem.foodId === item.id);
                 return (
                   <View style={[s.foodRow, isAdded && s.foodRowAdded]}>
+                    <Text style={s.foodEmoji}>{getEmoji(item)}</Text>
                     <View style={{ flex: 1 }}>
                       <Text style={s.foodName}>{item.name}</Text>
                       <Text style={s.foodMeta}>
@@ -281,26 +283,49 @@ export default function MealLogger() {
               <Text style={s.emptySub}>Search your saved foods and build this meal piece by piece.</Text>
             </View>
           ) : (
-            added.map((item) => (
-              <View key={item.foodId} style={s.addedRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.foodName}>{item.foodName}</Text>
-                  <Text style={s.foodMeta}>{item.calories} kcal • {item.protein}g P • {item.carbs}g C • {item.fat}g F</Text>
+            added.map((item) => {
+              const sourceFood = foods.find((f) => f.id === item.foodId);
+              const portions = getPortions(sourceFood || { id: item.foodId, name: item.foodName });
+              return (
+                <View key={item.foodId} style={s.addedRow}>
+                  <View style={s.addedRowTop}>
+                    <Text style={s.foodEmoji}>{getEmoji(sourceFood || { id: item.foodId, name: item.foodName })}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.foodName}>{item.foodName}</Text>
+                      <Text style={s.foodMeta}>{item.calories} kcal • {item.protein}g P • {item.carbs}g C • {item.fat}g F</Text>
+                    </View>
+                    <View style={s.qtyControl}>
+                      <TouchableOpacity style={s.qtyBtn} onPress={() => updateQty(item.foodId, item.quantity - 25)}>
+                        <Ionicons name="remove" size={14} color={C.accent} />
+                      </TouchableOpacity>
+                      <Text style={s.qtyVal}>{item.quantity}g</Text>
+                      <TouchableOpacity style={s.qtyBtn} onPress={() => updateQty(item.foodId, item.quantity + 25)}>
+                        <Ionicons name="add" size={14} color={C.accent} />
+                      </TouchableOpacity>
+                    </View>
+                    <TouchableOpacity onPress={() => removeFood(item.foodId)} style={s.deleteBtn}>
+                      <Ionicons name="trash-outline" size={16} color={C.sub} />
+                    </TouchableOpacity>
+                  </View>
+                  {portions.length > 1 && (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.portionRow}>
+                      {portions.map((p) => {
+                        const active = item.quantity === p.grams;
+                        return (
+                          <TouchableOpacity
+                            key={p.label}
+                            style={[s.portionChip, active && s.portionChipActive]}
+                            onPress={() => { updateQty(item.foodId, p.grams); lightTap(); }}
+                          >
+                            <Text style={[s.portionTxt, active && s.portionTxtActive]}>{p.label}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                  )}
                 </View>
-                <View style={s.qtyControl}>
-                  <TouchableOpacity style={s.qtyBtn} onPress={() => updateQty(item.foodId, item.quantity - 25)}>
-                    <Ionicons name="remove" size={14} color={C.accent} />
-                  </TouchableOpacity>
-                  <Text style={s.qtyVal}>{item.quantity}g</Text>
-                  <TouchableOpacity style={s.qtyBtn} onPress={() => updateQty(item.foodId, item.quantity + 25)}>
-                    <Ionicons name="add" size={14} color={C.accent} />
-                  </TouchableOpacity>
-                </View>
-                <TouchableOpacity onPress={() => removeFood(item.foodId)} style={s.deleteBtn}>
-                  <Ionicons name="trash-outline" size={16} color={C.sub} />
-                </TouchableOpacity>
-              </View>
-            ))
+              );
+            })
           )}
         </ScrollView>
       )}
@@ -398,6 +423,7 @@ const s = StyleSheet.create({
   emptyState: { alignItems: "center", paddingTop: 48, paddingHorizontal: 24 },
   emptyTitle: { color: C.text, fontSize: FS.cardTitle, fontWeight: "700", textAlign: "center" },
   emptySub: { color: C.sub, fontSize: FS.body, lineHeight: 19, marginTop: 6, textAlign: "center" },
+  foodEmoji: { fontSize: 28, marginRight: 2 },
   foodRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -424,9 +450,6 @@ const s = StyleSheet.create({
   addBtnTxt: { color: "#fff", fontSize: FS.cardTitle, fontWeight: "800" },
   addedScroll: { padding: 16 },
   addedRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
     backgroundColor: C.card,
     borderWidth: 1,
     borderColor: C.border,
@@ -434,6 +457,23 @@ const s = StyleSheet.create({
     padding: 14,
     marginBottom: 10,
   },
+  addedRowTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  portionRow: { paddingTop: 10, gap: 6 },
+  portionChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: C.cardAlt,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  portionChipActive: { backgroundColor: `${C.purple}25`, borderColor: `${C.purple}50` },
+  portionTxt: { color: C.sub, fontSize: FS.sub, fontWeight: "600" },
+  portionTxtActive: { color: C.text },
   qtyControl: { flexDirection: "row", alignItems: "center", gap: 8 },
   qtyBtn: {
     width: 28,

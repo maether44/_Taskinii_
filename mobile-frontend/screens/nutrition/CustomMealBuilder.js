@@ -17,6 +17,7 @@ import {
 import { searchFoodLibrary } from "../../services/foodScannerApi";
 import { useNutrition } from "../../hooks/useNutrition";
 import { error as logError } from "../../lib/logger";
+import { getEmoji, getPortions } from "../../data/foodMeta";
 
 const C = {
   bg: "#0F0B1E",
@@ -312,6 +313,7 @@ export default function CustomMealBuilder() {
                 const isAdded = ingredients.some((i) => i.foodId === item.id);
                 return (
                   <View style={[s.foodRow, isAdded && s.foodRowAdded]}>
+                    <Text style={s.foodEmoji}>{getEmoji(item)}</Text>
                     <View style={{ flex: 1 }}>
                       <Text style={s.foodName}>{item.name}</Text>
                       <Text style={s.foodMeta}>
@@ -341,28 +343,51 @@ export default function CustomMealBuilder() {
               <Text style={s.emptySub}>Go to the food library tab and search for ingredients to add.</Text>
             </View>
           ) : (
-            ingredients.map((item) => (
-              <View key={item.foodId} style={s.addedRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.foodName}>{item.foodName}</Text>
-                  <Text style={s.foodMeta}>
-                    {item.calories} kcal · {item.protein}g P · {item.carbs}g C · {item.fat}g F
-                  </Text>
+            ingredients.map((item) => {
+              const sourceFood = foods.find((f) => f.id === item.foodId);
+              const portions = getPortions(sourceFood || { id: item.foodId, name: item.foodName });
+              return (
+                <View key={item.foodId} style={s.addedRow}>
+                  <View style={s.addedRowTop}>
+                    <Text style={s.foodEmoji}>{getEmoji(sourceFood || { id: item.foodId, name: item.foodName })}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.foodName}>{item.foodName}</Text>
+                      <Text style={s.foodMeta}>
+                        {item.calories} kcal · {item.protein}g P · {item.carbs}g C · {item.fat}g F
+                      </Text>
+                    </View>
+                    <View style={s.qtyControl}>
+                      <TouchableOpacity style={s.qtyBtn} onPress={() => updateQty(item.foodId, item.quantity - 25)}>
+                        <Ionicons name="remove" size={13} color={C.accent} />
+                      </TouchableOpacity>
+                      <Text style={s.qtyVal}>{item.quantity}g</Text>
+                      <TouchableOpacity style={s.qtyBtn} onPress={() => updateQty(item.foodId, item.quantity + 25)}>
+                        <Ionicons name="add" size={13} color={C.accent} />
+                      </TouchableOpacity>
+                    </View>
+                    <TouchableOpacity onPress={() => removeIngredient(item.foodId)} style={s.deleteBtn}>
+                      <Ionicons name="trash-outline" size={16} color={C.sub} />
+                    </TouchableOpacity>
+                  </View>
+                  {portions.length > 1 && (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.portionRow}>
+                      {portions.map((p) => {
+                        const active = item.quantity === p.grams;
+                        return (
+                          <TouchableOpacity
+                            key={p.label}
+                            style={[s.portionChip, active && s.portionChipActive]}
+                            onPress={() => updateQty(item.foodId, p.grams)}
+                          >
+                            <Text style={[s.portionTxt, active && s.portionTxtActive]}>{p.label}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                  )}
                 </View>
-                <View style={s.qtyControl}>
-                  <TouchableOpacity style={s.qtyBtn} onPress={() => updateQty(item.foodId, item.quantity - 25)}>
-                    <Ionicons name="remove" size={13} color={C.accent} />
-                  </TouchableOpacity>
-                  <Text style={s.qtyVal}>{item.quantity}g</Text>
-                  <TouchableOpacity style={s.qtyBtn} onPress={() => updateQty(item.foodId, item.quantity + 25)}>
-                    <Ionicons name="add" size={13} color={C.accent} />
-                  </TouchableOpacity>
-                </View>
-                <TouchableOpacity onPress={() => removeIngredient(item.foodId)} style={s.deleteBtn}>
-                  <Ionicons name="trash-outline" size={16} color={C.sub} />
-                </TouchableOpacity>
-              </View>
-            ))
+              );
+            })
           )}
         </ScrollView>
       )}
@@ -443,6 +468,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: C.border,
   },
   chipTxt: { color: C.lime, fontSize: FS.btnSecondary, fontWeight: "700" },
+  foodEmoji: { fontSize: 28, marginRight: 2 },
   foodRow: {
     flexDirection: "row", alignItems: "center", gap: 12,
     backgroundColor: C.card, borderWidth: 1, borderColor: C.border,
@@ -458,10 +484,21 @@ const s = StyleSheet.create({
   addBtnDone: { backgroundColor: "#3DAD6B" },
   addedScroll: { padding: 16 },
   addedRow: {
-    flexDirection: "row", alignItems: "center", gap: 10,
     backgroundColor: C.card, borderWidth: 1, borderColor: C.border,
     borderRadius: 16, padding: 14, marginBottom: 10,
   },
+  addedRowTop: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+  },
+  portionRow: { paddingTop: 10, gap: 6 },
+  portionChip: {
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: 10, backgroundColor: C.cardAlt,
+    borderWidth: 1, borderColor: C.border,
+  },
+  portionChipActive: { backgroundColor: `${C.purple}25`, borderColor: `${C.purple}50` },
+  portionTxt: { color: C.sub, fontSize: FS.sub, fontWeight: "600" },
+  portionTxtActive: { color: C.text },
   qtyControl: { flexDirection: "row", alignItems: "center", gap: 6 },
   qtyBtn: {
     width: 28, height: 28, borderRadius: 8,

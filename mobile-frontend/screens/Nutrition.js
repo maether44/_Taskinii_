@@ -25,6 +25,7 @@ import {
   invokeAiAssistant,
   sanitizeAiAssistantText,
 } from "../services/aiAssistantService";
+import { getEmoji } from "../data/foodMeta";
 
 const C = {
   bg: "#0F0B1E",
@@ -450,6 +451,7 @@ export default function Nutrition({ navigation }) {
                 <View style={s.foodList}>
                   {meal.items.map((item) => (
                     <View key={item.id} style={s.foodRow}>
+                      <Text style={s.foodEmoji}>{getEmoji({ name: item.name })}</Text>
                       <View style={{ flex: 1 }}>
                         <Text style={s.foodName}>{item.name}</Text>
                         <Text style={s.foodMeta}>
@@ -661,6 +663,7 @@ const s = StyleSheet.create({
     paddingVertical: 11,
     gap: 10,
   },
+  foodEmoji: { fontSize: 22, marginRight: 4 },
   foodName: { color: C.text, fontSize: FS.body, fontWeight: "700" },
   foodMeta: { color: C.sub, fontSize: FS.badge, marginTop: 2 },
   foodCals: { color: C.accent, fontSize: FS.btnSecondary, fontWeight: "700" },

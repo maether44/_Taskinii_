@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { FS } from '../constants/typography';
 import {
-  View, Text, ScrollView, TouchableOpacity,
+  View, Text, ScrollView, TouchableOpacity, TextInput,
   StyleSheet, Dimensions, Modal, Pressable, Image, Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -25,6 +25,7 @@ import {
 } from '../data/trainingData';
 import BodySilhouette from '../components/training/BodySilhouette';
 import MachineCard from '../components/training/MachineCard';
+import { decayFatigue } from '../constants/muscleFatigue';
 
 const { width } = Dimensions.get('window');
 
@@ -221,6 +222,11 @@ export default function Training({ navigation }) {
   const [aiPlan,           setAiPlan]           = useState(null);   // full AI plan object
   const [aiPlanLoading,    setAiPlanLoading]    = useState(false);
   const [aiPlanDate,       setAiPlanDate]       = useState(null);   // when the plan was generated
+  const [todayExercises,   setTodayExercises]   = useState([]);     // completed exercises today
+  const [lastWorkout,      setLastWorkout]      = useState(null);
+  const [equipSearch,      setEquipSearch]      = useState('');
+  const [editingList,      setEditingList]       = useState(false);
+  const [editListValues,   setEditListValues]   = useState({});
 
   const loadData = useCallback(async () => {
     if (!authUserId) return;
@@ -240,8 +246,15 @@ export default function Training({ navigation }) {
         setAiPlanDate(saved.created_at);
       }
 
-      // ── 1. Muscle fatigue ──────────────────────────────────
-      const rows = await getMuscleFatigue(authUserId);
+      // ── 1. Muscle fatigue (with time-based decay) ─────────
+      const rawRows = await getMuscleFatigue(authUserId);
+      const rows = rawRows
+        .map(r => ({
+          ...r,
+          fatigue_pct: decayFatigue(r.fatigue_pct, r.last_updated),
+        }))
+        .filter(r => r.fatigue_pct > 0)
+        .sort((a, b) => b.fatigue_pct - a.fatigue_pct);
       const map = {};
       rows.forEach(r => { map[r.muscle_name] = r; });
       setFatigueMap(map);
@@ -467,6 +480,126 @@ export default function Training({ navigation }) {
         setNutritionTip(null);
       }
 
+      // ── 8. Today's completed exercises ─────────────────────
+      const { data: todaySessions } = await supabase
+        .from('workout_sessions')
+        .select(`
+          id, notes, started_at, calories_burned,
+          workout_exercises (
+            id, sets, reps, weight_kg, posture_score,
+            exercises ( name, category, muscle_group )
+          )
+        `)
+        .eq('user_id', authUserId)
+        .gte('started_at', `${TODAY_STR}T00:00:00.000Z`)
+        .lte('started_at', `${TODAY_STR}T23:59:59.999Z`)
+        .order('started_at', { ascending: false });
+
+      const raw = [];
+      for (const sess of (todaySessions || [])) {
+        const wExercises = sess.workout_exercises || [];
+        if (wExercises.length > 0) {
+          for (const we of wExercises) {
+            raw.push({
+              id: we.id,
+              name: we.exercises?.name || 'Unknown',
+              muscle: we.exercises?.muscle_group || we.exercises?.category || '',
+              sets: we.sets,
+              reps: we.reps,
+              weightKg: we.weight_kg,
+              formScore: we.posture_score,
+              sessionId: sess.id,
+              source: 'logged',
+            });
+          }
+        } else if (sess.notes) {
+          const nameMatch = sess.notes.match(/^(.+?)\s*[·—]/);
+          const repsMatch = sess.notes.match(/(\d+)\s*reps/i);
+          const formMatch = sess.notes.match(/(\d+)%\s*form/i);
+          raw.push({
+            id: sess.id,
+            name: nameMatch ? nameMatch[1].trim() : sess.notes.split('·')[0].trim(),
+            muscle: '',
+            sets: null,
+            reps: repsMatch ? parseInt(repsMatch[1]) : null,
+            weightKg: null,
+            formScore: formMatch ? parseInt(formMatch[1]) : null,
+            sessionId: sess.id,
+            source: 'ai',
+          });
+        }
+      }
+
+      const grouped = new Map();
+      for (const entry of raw) {
+        const key = entry.name.toLowerCase().trim();
+        if (grouped.has(key)) {
+          const g = grouped.get(key);
+          g.sets = (g.sets || 0) + (entry.sets || 0);
+          g.reps = (g.reps || 0) + (entry.reps || 0);
+          g.weightKg = Math.max(g.weightKg || 0, entry.weightKg || 0) || null;
+          if (entry.formScore != null) {
+            g.formScore = g.formScore != null ? Math.max(g.formScore, entry.formScore) : entry.formScore;
+          }
+          g.ids.push({ id: entry.id, sessionId: entry.sessionId, source: entry.source });
+        } else {
+          grouped.set(key, {
+            name: entry.name,
+            muscle: entry.muscle,
+            sets: entry.sets || 0,
+            reps: entry.reps || 0,
+            weightKg: entry.weightKg || null,
+            formScore: entry.formScore,
+            ids: [{ id: entry.id, sessionId: entry.sessionId, source: entry.source }],
+          });
+        }
+      }
+
+      const completed = [];
+      for (const [, g] of grouped) {
+        completed.push({
+          id: g.ids[0].id,
+          name: g.name,
+          muscle: g.muscle,
+          sets: g.sets || null,
+          reps: g.reps || null,
+          weightKg: g.weightKg,
+          formScore: g.formScore,
+          ids: g.ids,
+        });
+      }
+      setTodayExercises(completed);
+
+      // ── 9. Last workout (for repeat) ──────────────────────
+      const { data: lastSess } = await supabase
+        .from('workout_sessions')
+        .select(`
+          id, started_at, notes,
+          workout_exercises (
+            sets, reps, weight_kg,
+            exercises ( name )
+          )
+        `)
+        .eq('user_id', authUserId)
+        .order('started_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (lastSess?.workout_exercises?.length) {
+        setLastWorkout({
+          date: lastSess.started_at,
+          exercises: lastSess.workout_exercises.map(we => ({
+            name: we.exercises?.name,
+            sets: Array.from({ length: we.sets || 1 }, () => ({
+              reps: String(Math.round((we.reps || 0) / Math.max(1, we.sets || 1))),
+              weight: we.weight_kg != null ? String(we.weight_kg) : '',
+            })),
+          })).filter(e => e.name),
+        });
+      } else {
+        setLastWorkout(null);
+      }
+
     } catch (e) {
       warn('[BodyQ] Training fetch:', e);
     } finally {
@@ -533,6 +666,76 @@ export default function Training({ navigation }) {
     }
   }, [authUserId, aiPlanLoading, loadData]);
 
+  const startEditList = useCallback(() => {
+    const vals = {};
+    for (const ex of todayExercises) {
+      vals[ex.id] = {
+        sets: ex.sets != null ? String(ex.sets) : '',
+        reps: ex.reps != null ? String(ex.reps) : '',
+        weightKg: ex.weightKg != null ? String(ex.weightKg) : '',
+      };
+    }
+    setEditListValues(vals);
+    setEditingList(true);
+  }, [todayExercises]);
+
+  const cancelEditList = useCallback(() => {
+    setEditingList(false);
+    setEditListValues({});
+  }, []);
+
+  const updateField = useCallback((id, field, value) => {
+    setEditListValues(prev => ({
+      ...prev,
+      [id]: { ...prev[id], [field]: value },
+    }));
+  }, []);
+
+  const saveEditList = useCallback(async () => {
+    try {
+      const promises = [];
+      for (const ex of todayExercises) {
+        const v = editListValues[ex.id];
+        if (!v) continue;
+        const sets = v.sets ? parseInt(v.sets, 10) : null;
+        const reps = v.reps ? parseInt(v.reps, 10) : null;
+        const weightKg = v.weightKg ? parseFloat(v.weightKg) : null;
+
+        const loggedIds = ex.ids.filter(e => e.source === 'logged').map(e => e.id);
+        const aiSessionIds = ex.ids.filter(e => e.source === 'ai').map(e => e.sessionId);
+
+        if (loggedIds.length) {
+          promises.push(
+            supabase
+              .from('workout_exercises')
+              .update({ sets, reps, weight_kg: weightKg })
+              .in('id', loggedIds)
+          );
+        }
+        for (const sid of aiSessionIds) {
+          const parts = [ex.name];
+          if (reps != null) parts.push(`${reps} reps`);
+          if (sets != null) parts.push(`${sets} sets`);
+          if (weightKg != null) parts.push(`${weightKg}kg`);
+          if (ex.formScore != null) parts.push(`${ex.formScore}% form`);
+          promises.push(
+            supabase
+              .from('workout_sessions')
+              .update({ notes: parts.join(' · ') })
+              .eq('id', sid)
+          );
+        }
+      }
+      await Promise.all(promises);
+      setEditingList(false);
+      setEditListValues({});
+      loadData();
+    } catch (e) {
+      warn('[Training] Failed to update exercises:', e?.message ?? e);
+      Alert.alert('Update Failed', 'Could not save changes.');
+    }
+  }, [todayExercises, editListValues, loadData]);
+
   return (
     <View style={s.root}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
@@ -569,7 +772,6 @@ export default function Training({ navigation }) {
           >
             <View style={s.heroAccentLine} />
 
-            {/* Environment badge — top right */}
             <TouchableOpacity
               style={s.envBadge}
               onPress={() => toggleEnvironment(environment === 'gym' ? 'home' : 'gym')}
@@ -580,7 +782,6 @@ export default function Training({ navigation }) {
               <Text style={s.envBadgeTxt}>{environment === 'gym' ? 'Full Gym' : 'Home'}</Text>
             </TouchableOpacity>
 
-            {/* AI header */}
             <View style={s.heroBadge}>
               <Ionicons name="sparkles" size={10} color={C.lime} />
               <Text style={s.heroBadgeTxt}>  {aiPlan ? 'AI PERSONALISED PLAN' : 'AI RECOMMENDED'}</Text>
@@ -605,7 +806,6 @@ export default function Training({ navigation }) {
                 <Text style={s.overloadBadgeTxt}>{overloadTip}</Text>
               </View>
             )}
-            {/* Why this workout */}
             <Text style={s.heroLogic}>{recommendation.reason}</Text>
 
             {/* ── Circuit ── */}
@@ -657,6 +857,27 @@ export default function Training({ navigation }) {
             </TouchableOpacity>
           </LinearGradient>
         </Reanimated.View>
+
+        {/* ── Repeat Last Workout ── */}
+        {lastWorkout && (
+          <TouchableOpacity
+            style={[s.repeatBtn, SHADOW]}
+            onPress={() => {
+              mediumTap();
+              navigation.navigate('ManualWorkout', { prefill: lastWorkout.exercises });
+            }}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="repeat-outline" size={18} color={C.lime} />
+            <View style={{ flex: 1 }}>
+              <Text style={s.repeatTxt}>Repeat Last Workout</Text>
+              <Text style={s.repeatSub}>
+                {lastWorkout.exercises.length} exercise{lastWorkout.exercises.length !== 1 ? 's' : ''} · {new Date(lastWorkout.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </Text>
+            </View>
+            <Ionicons name="arrow-forward" size={16} color="rgba(255,255,255,0.4)" />
+          </TouchableOpacity>
+        )}
 
         {/* ══════════════════════════════════════
             §2  BODY RECOVERY ARCHITECT
@@ -788,6 +1009,22 @@ export default function Training({ navigation }) {
             title="THE EQUIPMENT FLOOR"
             sub={selectedMuscle ? `Filtered: ${selectedMuscle}` : 'Gym + Home · Tap to explore'}
           />
+          <View style={s.equipSearchWrap}>
+            <Ionicons name="search-outline" size={14} color={C.sub} />
+            <TextInput
+              style={s.equipSearchInput}
+              placeholder="Search equipment…"
+              placeholderTextColor="rgba(255,255,255,0.25)"
+              value={equipSearch}
+              onChangeText={setEquipSearch}
+              returnKeyType="search"
+            />
+            {equipSearch.length > 0 && (
+              <TouchableOpacity onPress={() => setEquipSearch('')} hitSlop={8}>
+                <Ionicons name="close-circle" size={14} color={C.sub} />
+              </TouchableOpacity>
+            )}
+          </View>
           <ScrollView
             ref={(r) => { machineScrollRef.current = r; }}
             horizontal
@@ -796,11 +1033,12 @@ export default function Training({ navigation }) {
             decelerationRate="fast"
             snapToInterval={156}
           >
-            {(selectedMuscle
-              ? COMBINED_EQUIPMENT.filter(m =>
-                  m.primaryMuscle.toLowerCase().includes(selectedMuscle.toLowerCase()))
-              : COMBINED_EQUIPMENT
-            ).map((item) => (
+            {COMBINED_EQUIPMENT.filter(m => {
+              const q = equipSearch.trim().toLowerCase();
+              const muscleMatch = !selectedMuscle || m.primaryMuscle.toLowerCase().includes(selectedMuscle.toLowerCase());
+              const searchMatch = !q || m.name.toLowerCase().includes(q) || m.primaryMuscle.toLowerCase().includes(q);
+              return muscleMatch && searchMatch;
+            }).map((item) => (
               <MachineCard
                 key={item.id}
                 machine={item}
@@ -949,7 +1187,7 @@ export default function Training({ navigation }) {
                 </View>
                 <View>
                   <Text style={s.labCardTitle}>Exercise Library</Text>
-                  <Text style={s.labCardSub}>1,300+ exercises with AI form check</Text>
+                  <Text style={s.labCardSub}>873 exercises · Log & AI form check</Text>
                 </View>
               </View>
               <View style={[s.labArrow, { backgroundColor: C.lime, position: 'absolute', top: 16, right: 16 }]}>
@@ -981,6 +1219,138 @@ export default function Training({ navigation }) {
             </TouchableOpacity>
 
           </View>
+        </Reanimated.View>
+
+        {/* ══════════════════════════════════════
+            §6  TODAY'S COMPLETED EXERCISES
+        ══════════════════════════════════════ */}
+        <Reanimated.View entering={FadeInDown.delay(340).springify()}>
+          <View style={s.sectionHeaderRow}>
+            <SectionHeader
+              title="TODAY'S EXERCISES"
+              sub={todayExercises.length > 0 ? `${todayExercises.length} completed` : 'Nothing yet'}
+            />
+            {todayExercises.length > 0 && !editingList && (
+              <TouchableOpacity
+                style={s.editListBtn}
+                onPress={startEditList}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="pencil" size={13} color={C.lime} />
+                <Text style={s.editListBtnTxt}>Edit</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {todayExercises.length > 0 ? (
+            <View style={[s.glassCard, SHADOW, { padding: 0, overflow: 'hidden' }]}>
+              <BlurView intensity={22} tint="dark" style={StyleSheet.absoluteFillObject} />
+              <View style={s.glassCardBorder} pointerEvents="none" />
+              {todayExercises.map((ex, i) => {
+                const v = editListValues[ex.id];
+                return (
+                  <View
+                    key={ex.id}
+                    style={[
+                      s.completedRow,
+                      editingList && { flexDirection: 'column', alignItems: 'stretch' },
+                      i === todayExercises.length - 1 && !editingList && { borderBottomWidth: 0 },
+                    ]}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                      <View style={s.completedNumCircle}>
+                        {ex.formScore != null ? (
+                          <Text style={s.completedNumTxt}>{ex.formScore}%</Text>
+                        ) : (
+                          <Ionicons name="checkmark" size={14} color={C.lime} />
+                        )}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.completedName}>{ex.name}</Text>
+                        {!editingList && (
+                          <Text style={s.completedMeta}>
+                            {[
+                              ex.sets != null ? `${ex.sets} sets` : null,
+                              ex.reps != null ? `${ex.reps} reps` : null,
+                              ex.weightKg != null ? `${ex.weightKg}kg` : null,
+                              ex.muscle || null,
+                            ].filter(Boolean).join(' · ')}
+                          </Text>
+                        )}
+                      </View>
+                      {!editingList && ex.sets != null && ex.reps != null && (
+                        <View style={s.completedVolumeBadge}>
+                          <Text style={s.completedVolumeTxt}>
+                            {ex.sets}×{ex.reps}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    {editingList && v && (
+                      <View style={s.editFieldsRow}>
+                        <View style={s.editFieldWrap}>
+                          <Text style={s.editFieldLabel}>Sets</Text>
+                          <TextInput
+                            style={s.editFieldInput}
+                            keyboardType="number-pad"
+                            value={v.sets}
+                            onChangeText={(val) => updateField(ex.id, 'sets', val)}
+                            placeholder="—"
+                            placeholderTextColor="rgba(255,255,255,0.2)"
+                          />
+                        </View>
+                        <View style={s.editFieldWrap}>
+                          <Text style={s.editFieldLabel}>Reps</Text>
+                          <TextInput
+                            style={s.editFieldInput}
+                            keyboardType="number-pad"
+                            value={v.reps}
+                            onChangeText={(val) => updateField(ex.id, 'reps', val)}
+                            placeholder="—"
+                            placeholderTextColor="rgba(255,255,255,0.2)"
+                          />
+                        </View>
+                        <View style={s.editFieldWrap}>
+                          <Text style={s.editFieldLabel}>Weight</Text>
+                          <TextInput
+                            style={s.editFieldInput}
+                            keyboardType="decimal-pad"
+                            value={v.weightKg}
+                            onChangeText={(val) => updateField(ex.id, 'weightKg', val)}
+                            placeholder="—"
+                            placeholderTextColor="rgba(255,255,255,0.2)"
+                          />
+                        </View>
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+              {editingList && (
+                <View style={s.editActions}>
+                  <TouchableOpacity style={s.editCancelBtn} onPress={cancelEditList}>
+                    <Text style={s.editCancelTxt}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={s.editSaveBtn} onPress={saveEditList}>
+                    <Ionicons name="checkmark" size={14} color="#000" />
+                    <Text style={s.editSaveTxt}>Save</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          ) : (
+            <View style={[s.glassCard, SHADOW, { padding: 24, alignItems: 'center' }]}>
+              <BlurView intensity={22} tint="dark" style={StyleSheet.absoluteFillObject} />
+              <View style={s.glassCardBorder} pointerEvents="none" />
+              <Ionicons name="barbell-outline" size={32} color="rgba(255,255,255,0.1)" />
+              <Text style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14, fontWeight: '700', marginTop: 10 }}>
+                No exercises completed today
+              </Text>
+              <Text style={{ color: 'rgba(255,255,255,0.15)', fontSize: 12, marginTop: 4, textAlign: 'center' }}>
+                Start a circuit or log from the Exercise Library
+              </Text>
+            </View>
+          )}
         </Reanimated.View>
 
         <View style={{ height: 100 }} />
@@ -1080,6 +1450,8 @@ const s = StyleSheet.create({
   // ── Machine Intelligence Hub ─────────────────────────────
   hubBadge:     { backgroundColor: 'rgba(200,241,53,0.12)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: 'rgba(200,241,53,0.3)' },
   hubBadgeTxt:  { color: C.lime, fontSize: 9, fontWeight: '900', letterSpacing: 1.2 },
+  equipSearchWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' },
+  equipSearchInput: { flex: 1, color: C.text, fontSize: FS.body, fontWeight: '600', padding: 0 },
   machineScroll:{ paddingHorizontal: 0, paddingBottom: 8, paddingRight: 20, gap: 12, flexDirection: 'row', marginBottom: 28 },
 
   machineCard: {
@@ -1293,6 +1665,9 @@ const s = StyleSheet.create({
   envBadgeTxt: { color: C.lime, fontSize: FS.label, fontWeight: '800' },
 
   // ── Blueprint Circuit (embedded in hero card) ─────────────
+  repeatBtn:        { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.card, borderRadius: 14, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: 'rgba(200,241,53,0.2)' },
+  repeatTxt:        { color: C.text, fontSize: FS.body, fontWeight: '800' },
+  repeatSub:        { color: C.sub, fontSize: FS.sub, marginTop: 2 },
   circuitDivider:   { height: 1, backgroundColor: 'rgba(255,255,255,0.1)', marginTop: 16, marginBottom: 14 },
   circuitLabel:     { color: 'rgba(255,255,255,0.4)', fontSize: 9, fontWeight: '900', letterSpacing: 1.8, marginBottom: 10 },
   circuitRow:       { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.08)' },
@@ -1337,4 +1712,71 @@ const s = StyleSheet.create({
   labCardSub:   { color: C.sub, fontSize: FS.sub, lineHeight: 16 },
   labArrow: { position: 'absolute', bottom: 14, right: 14, width: 28, height: 28, borderRadius: 14, backgroundColor: C.purple, alignItems: 'center', justifyContent: 'center' },
   labWideInner: { flexDirection: 'row', alignItems: 'center' },
+
+  // ── Today's Completed Exercises ─────────────────────────────
+  completedRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 16, paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
+  completedNumCircle: {
+    width: 36, height: 36, borderRadius: 12,
+    backgroundColor: 'rgba(200,241,53,0.1)',
+    borderWidth: 1, borderColor: 'rgba(200,241,53,0.25)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  completedNumTxt: { color: C.lime, fontSize: 9, fontWeight: '900' },
+  completedName: { color: C.text, fontSize: FS.body, fontWeight: '800' },
+  completedMeta: { color: C.sub, fontSize: FS.sub, marginTop: 2 },
+  completedVolumeBadge: {
+    backgroundColor: 'rgba(200,241,53,0.1)',
+    borderWidth: 1, borderColor: 'rgba(200,241,53,0.25)',
+    borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4,
+  },
+  completedVolumeTxt: { color: C.lime, fontSize: 11, fontWeight: '900' },
+
+  // ── Exercise List Edit Mode ──────────────────────────────────
+  sectionHeaderRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  },
+  editListBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: 'rgba(200,241,53,0.1)',
+    borderWidth: 1, borderColor: 'rgba(200,241,53,0.25)',
+    borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5,
+    marginRight: 4,
+  },
+  editListBtnTxt: { color: C.lime, fontSize: 11, fontWeight: '800' },
+  editFieldsRow: {
+    flexDirection: 'row', gap: 10, marginTop: 10,
+  },
+  editFieldWrap: { flex: 1 },
+  editFieldLabel: {
+    color: C.sub, fontSize: 10, fontWeight: '700',
+    marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5,
+  },
+  editFieldInput: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8,
+    color: C.text, fontSize: 14, fontWeight: '700', textAlign: 'center',
+  },
+  editActions: {
+    flexDirection: 'row', justifyContent: 'flex-end', gap: 10,
+    paddingHorizontal: 16, paddingVertical: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(255,255,255,0.08)',
+  },
+  editCancelBtn: {
+    paddingHorizontal: 16, paddingVertical: 8,
+    borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  editCancelTxt: { color: C.sub, fontSize: 12, fontWeight: '700' },
+  editSaveBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 16, paddingVertical: 8,
+    borderRadius: 8, backgroundColor: C.lime,
+  },
+  editSaveTxt: { color: '#000', fontSize: 12, fontWeight: '800' },
 });

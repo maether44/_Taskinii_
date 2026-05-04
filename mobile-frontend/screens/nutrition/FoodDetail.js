@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useNutrition } from "../../hooks/useNutrition";
 import { FS } from '../../constants/typography';
+import { getEmoji, getPortions } from "../../data/foodMeta";
 
 const C = {
   bg: "#0F0B1E",
@@ -67,11 +68,12 @@ export default function FoodDetail() {
         <TouchableOpacity onPress={() => navigation.goBack()} style={s.iconBtn}>
           <Ionicons name="chevron-back" size={20} color={C.text} />
         </TouchableOpacity>
-        <Text style={s.title}>{food.name}</Text>
+        <Text style={s.title}>{getEmoji(food)} {food.name}</Text>
         <View style={{ width: 40 }} />
       </View>
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
         <View style={s.calCard}>
+          <Text style={s.foodEmojiLg}>{getEmoji(food)}</Text>
           <Text style={s.calNum}>{totals.calories}</Text>
           <Text style={s.calUnit}>kcal for {qty}g</Text>
         </View>
@@ -88,7 +90,7 @@ export default function FoodDetail() {
           ))}
         </View>
         <View style={s.qtyRow}>
-          <TouchableOpacity style={s.qtyBtn} onPress={() => setQty((prev) => Math.max(25, prev - 25))}>
+          <TouchableOpacity style={s.qtyBtn} onPress={() => setQty((prev) => Math.max(1, prev - 25))}>
             <Ionicons name="remove" size={18} color={C.accent} />
           </TouchableOpacity>
           <Text style={s.qtyText}>{qty}g</Text>
@@ -96,6 +98,25 @@ export default function FoodDetail() {
             <Ionicons name="add" size={18} color={C.accent} />
           </TouchableOpacity>
         </View>
+        {(() => {
+          const portions = getPortions(food);
+          return portions.length > 1 ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.portionRow}>
+              {portions.map((p) => {
+                const active = qty === p.grams;
+                return (
+                  <TouchableOpacity
+                    key={p.label}
+                    style={[s.portionChip, active && s.portionChipActive]}
+                    onPress={() => setQty(p.grams)}
+                  >
+                    <Text style={[s.portionTxt, active && s.portionTxtActive]}>{p.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          ) : null;
+        })()}
         <TouchableOpacity style={s.addBtn} onPress={handleAdd}>
           <Text style={s.addBtnTxt}>Add to meal</Text>
         </TouchableOpacity>
@@ -112,6 +133,7 @@ const s = StyleSheet.create({
   title: { color: C.text, fontSize: FS.cardTitle, fontWeight: "800" },
   scroll: { padding: 16 },
   calCard: { backgroundColor: C.card, borderRadius: 20, padding: 24, alignItems: "center", marginBottom: 14, borderWidth: 1, borderColor: C.border },
+  foodEmojiLg: { fontSize: 48, marginBottom: 8 },
   calNum: { color: C.text, fontSize: FS.hero, fontWeight: "900" },
   calUnit: { color: C.sub, fontSize: FS.btnPrimary, marginTop: 4 },
   row: { flexDirection: "row", gap: 10, marginBottom: 20 },
@@ -121,6 +143,15 @@ const s = StyleSheet.create({
   qtyRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 20, marginBottom: 20 },
   qtyBtn: { width: 44, height: 44, borderRadius: 14, backgroundColor: C.card, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border },
   qtyText: { color: C.text, fontSize: FS.screenTitle, fontWeight: "900" },
+  portionRow: { marginBottom: 20, gap: 8 },
+  portionChip: {
+    paddingHorizontal: 14, paddingVertical: 8,
+    borderRadius: 12, backgroundColor: C.card,
+    borderWidth: 1, borderColor: C.border,
+  },
+  portionChipActive: { backgroundColor: `${C.purple}25`, borderColor: `${C.purple}50` },
+  portionTxt: { color: C.sub, fontSize: FS.body, fontWeight: "600" },
+  portionTxtActive: { color: C.text },
   addBtn: { backgroundColor: C.purple, borderRadius: 16, paddingVertical: 16, alignItems: "center" },
   addBtnTxt: { color: "#fff", fontSize: FS.bodyLarge, fontWeight: "800" },
 });

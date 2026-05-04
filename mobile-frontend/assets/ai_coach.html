@@ -636,25 +636,29 @@ const EXERCISES = {
   squat: {
     name: "Squat",
     description: "Stand with feet shoulder-width apart. Lower until thighs are parallel to floor, then drive back up.",
-    // [A, B (vertex), C] index triplets into MediaPipe landmark array
     angleGroups: [
       { id: "leftKnee",  label: "Left Knee",  pts: [23,25,27] },
       { id: "rightKnee", label: "Right Knee", pts: [24,26,28] },
       { id: "leftHip",   label: "Left Hip",   pts: [11,23,25] },
       { id: "rightHip",  label: "Right Hip",  pts: [12,24,26] },
     ],
+    // Bilateral pairs: left/right ids share the same form rule
+    bilateral: [
+      { left: "leftKnee",  right: "rightKnee" },
+      { left: "leftHip",   right: "rightHip"  },
+    ],
     formRules: [
-      { id: "leftKnee",  min: 60,  max: 175, cue: "Bend left knee deeper" },
-      { id: "rightKnee", min: 60,  max: 175, cue: "Bend right knee deeper" },
-      { id: "leftHip",   min: 60,  max: 130, cue: "Keep torso upright — don't lean too far forward" },
-      { id: "rightHip",  min: 60,  max: 130, cue: "Keep torso upright — don't lean too far forward" },
+      { id: "leftKnee",  min: 50,  max: 180, cue: "Bend knees deeper" },
+      { id: "rightKnee", min: 50,  max: 180, cue: "Bend knees deeper" },
+      { id: "leftHip",   min: 45,  max: 150, cue: "Keep torso upright — don't lean too far forward" },
+      { id: "rightHip",  min: 45,  max: 150, cue: "Keep torso upright — don't lean too far forward" },
     ],
     repConfig: {
       joint:         "leftKnee",
-      upThreshold:   165,   // standing upright
-      downThreshold: 100,   // < 100° = proper squat depth
+      jointAlt:      "rightKnee",
+      upThreshold:   150,
+      downThreshold: 110,
     },
-    // Hip alignment must stay within spec — torso must not crash forward
     criticalJoints: ['leftHip', 'rightHip'],
     isPlank: false,
   },
@@ -663,19 +667,22 @@ const EXERCISES = {
     name: "Push-Up",
     description: "Start in high plank. Lower chest toward floor keeping body straight, then press back up.",
     angleGroups: [
-      { id: "leftElbow",  label: "Left Elbow",  pts: [11,13,15] },
-      { id: "rightElbow", label: "Right Elbow", pts: [12,14,16] },
+      { id: "leftElbow",  label: "Left Elbow",   pts: [11,13,15] },
+      { id: "rightElbow", label: "Right Elbow",  pts: [12,14,16] },
       { id: "hipLeft",    label: "Hip Align (L)", pts: [11,23,25] },
       { id: "hipRight",   label: "Hip Align (R)", pts: [12,24,26] },
     ],
-    formRules: [
-      { id: "leftElbow",  min: 60,  max: 175, cue: "Keep elbows tucked — don't flare out" },
-      { id: "rightElbow", min: 60,  max: 175, cue: "Keep elbows tucked — don't flare out" },
-      { id: "hipLeft",    min: 155, max: 180, cue: "Don't let hips sag — keep body straight" },
-      { id: "hipRight",   min: 155, max: 180, cue: "Don't let hips sag — keep body straight" },
+    bilateral: [
+      { left: "leftElbow",  right: "rightElbow" },
+      { left: "hipLeft",    right: "hipRight"   },
     ],
-    repConfig: { joint: "leftElbow", upThreshold: 160, downThreshold: 70 },
-    // Hips MUST stay level — a sagging body = rep aborted
+    formRules: [
+      { id: "leftElbow",  min: 45,  max: 180, cue: "Keep elbows tucked — don't flare out" },
+      { id: "rightElbow", min: 45,  max: 180, cue: "Keep elbows tucked — don't flare out" },
+      { id: "hipLeft",    min: 140, max: 180, cue: "Don't let hips sag — keep body straight" },
+      { id: "hipRight",   min: 140, max: 180, cue: "Don't let hips sag — keep body straight" },
+    ],
+    repConfig: { joint: "leftElbow", jointAlt: "rightElbow", upThreshold: 145, downThreshold: 90 },
     criticalJoints: ['hipLeft', 'hipRight'],
     isPlank: false,
   },
@@ -689,14 +696,17 @@ const EXERCISES = {
       { id: "leftShoulder",  label: "Left Shoulder", pts: [13,11,23] },
       { id: "rightShoulder", label: "Right Shoulder",pts: [14,12,24] },
     ],
+    bilateral: [
+      { left: "leftElbow",    right: "rightElbow"    },
+      { left: "leftShoulder", right: "rightShoulder" },
+    ],
     formRules: [
       { id: "leftElbow",     min: 30,  max: 170, cue: "Curl through full range of motion" },
       { id: "rightElbow",    min: 30,  max: 170, cue: "Curl through full range of motion" },
-      { id: "leftShoulder",  min: 0,   max: 40,  cue: "Don't swing your elbow — keep it tucked" },
-      { id: "rightShoulder", min: 0,   max: 40,  cue: "Don't swing your elbow — keep it tucked" },
+      { id: "leftShoulder",  min: 0,   max: 45,  cue: "Don't swing your elbow — keep it tucked" },
+      { id: "rightShoulder", min: 0,   max: 45,  cue: "Don't swing your elbow — keep it tucked" },
     ],
-    repConfig: { joint: "leftElbow", upThreshold: 45, downThreshold: 140 },
-    // Shoulder must stay still — any swing aborts the rep
+    repConfig: { joint: "leftElbow", jointAlt: "rightElbow", upThreshold: 50, downThreshold: 140 },
     criticalJoints: ['leftShoulder', 'rightShoulder'],
     isPlank: false,
   },
@@ -705,10 +715,14 @@ const EXERCISES = {
     name: "Shoulder Press",
     description: "Press dumbbells from shoulder height overhead to full arm extension, then lower with control.",
     angleGroups: [
-      { id: "leftElbow",  label: "Left Elbow",  pts: [11,13,15] },
-      { id: "rightElbow", label: "Right Elbow", pts: [12,14,16] },
+      { id: "leftElbow",  label: "Left Elbow",    pts: [11,13,15] },
+      { id: "rightElbow", label: "Right Elbow",   pts: [12,14,16] },
       { id: "leftHip",    label: "Back Arch (L)", pts: [11,23,25] },
       { id: "rightHip",   label: "Back Arch (R)", pts: [12,24,26] },
+    ],
+    bilateral: [
+      { left: "leftElbow", right: "rightElbow" },
+      { left: "leftHip",   right: "rightHip"   },
     ],
     formRules: [
       { id: "leftElbow",  min: 60,  max: 175, cue: "Press to full extension overhead" },
@@ -716,9 +730,8 @@ const EXERCISES = {
       { id: "leftHip",    min: 150, max: 180, cue: "Don't arch your back — brace your core" },
       { id: "rightHip",   min: 150, max: 180, cue: "Don't arch your back — brace your core" },
     ],
-    repConfig: { joint: "leftElbow", upThreshold: 160, downThreshold: 90 },
-    // Must reach full overhead extension — partial press = rep aborted
-    criticalJoints: ['leftElbow', 'rightElbow'],
+    repConfig: { joint: "leftElbow", jointAlt: "rightElbow", upThreshold: 160, downThreshold: 90 },
+    criticalJoints: ['leftHip', 'rightHip'],
     isPlank: false,
   },
 
@@ -726,20 +739,22 @@ const EXERCISES = {
     name: "Deadlift",
     description: "Hinge at hips to lower and lift weight, keeping back flat and bar close to your body.",
     angleGroups: [
-      { id: "leftKnee",  label: "Left Knee",  pts: [23,25,27] },
-      { id: "rightKnee", label: "Right Knee", pts: [24,26,28] },
+      { id: "leftKnee",  label: "Left Knee",      pts: [23,25,27] },
+      { id: "rightKnee", label: "Right Knee",     pts: [24,26,28] },
       { id: "backLeft",  label: "Back Angle (L)", pts: [11,23,25] },
       { id: "backRight", label: "Back Angle (R)", pts: [12,24,26] },
+    ],
+    bilateral: [
+      { left: "leftKnee",  right: "rightKnee" },
+      { left: "backLeft",  right: "backRight"  },
     ],
     formRules: [
       { id: "leftKnee",  min: 70,  max: 180, cue: "Drive through your heels — keep knees aligned" },
       { id: "rightKnee", min: 70,  max: 180, cue: "Drive through your heels — keep knees aligned" },
-      // min: 45 catches dangerous rounding; max: 180 allows full standing position
-      { id: "backLeft",  min: 45,  max: 180, cue: "Keep back flat — don't round your spine" },
-      { id: "backRight", min: 45,  max: 180, cue: "Keep back flat — don't round your spine" },
+      { id: "backLeft",  min: 55,  max: 180, cue: "Keep back flat — don't round your spine" },
+      { id: "backRight", min: 55,  max: 180, cue: "Keep back flat — don't round your spine" },
     ],
-    repConfig: { joint: "backLeft", upThreshold: 160, downThreshold: 65 },
-    // Back must not round below 45° — knees advisory only
+    repConfig: { joint: "backLeft", jointAlt: "backRight", upThreshold: 155, downThreshold: 80 },
     criticalJoints: ['backLeft', 'backRight'],
     isPlank: false,
   },
@@ -752,14 +767,14 @@ const EXERCISES = {
       { id: "rightKnee", label: "Back Knee",   pts: [24,26,28] },
       { id: "torso",     label: "Torso Angle", pts: [11,23,25] },
     ],
+    bilateral: [],
     formRules: [
-      { id: "leftKnee",  min: 80,  max: 100, cue: "Keep front knee at 90° — don't push past toes" },
-      { id: "rightKnee", min: 80,  max: 110, cue: "Lower back knee toward floor" },
-      { id: "torso",     min: 80,  max: 180, cue: "Keep torso upright — don't lean forward" },
+      { id: "leftKnee",  min: 55,  max: 170, cue: "Bend front knee to about 90° — don't push past toes" },
+      { id: "rightKnee", min: 55,  max: 170, cue: "Lower back knee closer to floor" },
+      { id: "torso",     min: 65,  max: 180, cue: "Keep torso upright — don't lean forward" },
     ],
-    repConfig: { joint: "leftKnee", upThreshold: 165, downThreshold: 90 },
-    // Front knee must track correctly — misalignment aborts the rep
-    criticalJoints: ['leftKnee'],
+    repConfig: { joint: "leftKnee", jointAlt: null, upThreshold: 145, downThreshold: 115 },
+    criticalJoints: ['torso'],
     isPlank: false,
   },
 
@@ -772,13 +787,17 @@ const EXERCISES = {
       { id: "shoulderL", label: "Shoulder (L)",  pts: [13,11,23] },
       { id: "shoulderR", label: "Shoulder (R)",  pts: [14,12,24] },
     ],
-    formRules: [
-      { id: "hipLeft",   min: 155, max: 180, cue: "Raise/lower hips — keep body in a straight line" },
-      { id: "hipRight",  min: 155, max: 180, cue: "Raise/lower hips — keep body in a straight line" },
-      { id: "shoulderL", min: 50,  max: 100, cue: "Stack shoulders over elbows/wrists" },
-      { id: "shoulderR", min: 50,  max: 100, cue: "Stack shoulders over elbows/wrists" },
+    bilateral: [
+      { left: "hipLeft",   right: "hipRight"   },
+      { left: "shoulderL", right: "shoulderR"  },
     ],
-    repConfig: null,   // plank uses timer
+    formRules: [
+      { id: "hipLeft",   min: 150, max: 180, cue: "Raise/lower hips — keep body in a straight line" },
+      { id: "hipRight",  min: 150, max: 180, cue: "Raise/lower hips — keep body in a straight line" },
+      { id: "shoulderL", min: 45,  max: 110, cue: "Stack shoulders over elbows/wrists" },
+      { id: "shoulderR", min: 45,  max: 110, cue: "Stack shoulders over elbows/wrists" },
+    ],
+    repConfig: null,
     isPlank: true,
   },
 
@@ -850,6 +869,35 @@ let repCountingEnabled = false; // gated until RN calls window.startAI() after c
 
 // debounce rep flash
 let repFlashTimeout = null;
+
+// ── Visibility gating ─────────────────────────────────────────
+const MIN_VISIBILITY = 0.55;
+
+// ── Angle smoothing (EMA) ─────────────────────────────────────
+const SMOOTHING_ALPHA = 0.45;  // 0 = full smooth, 1 = raw (0.45 balances responsiveness + stability)
+let smoothedAngles = {};
+
+function smoothAngle(id, raw) {
+  if (smoothedAngles[id] === undefined) { smoothedAngles[id] = raw; return raw; }
+  smoothedAngles[id] = SMOOTHING_ALPHA * raw + (1 - SMOOTHING_ALPHA) * smoothedAngles[id];
+  return smoothedAngles[id];
+}
+
+// ── Hysteresis buffer ─────────────────────────────────────────
+const HYSTERESIS_DEG = 5;  // degrees of dead zone around thresholds to prevent flicker
+
+// ── Best-visible-side selection ───────────────────────────────
+// For bilateral exercises, pick the side whose landmarks have higher average visibility.
+// Returns the average visibility of the landmark indices in the given triplet.
+function tripletVisibility(pts, landmarks) {
+  let sum = 0;
+  for (const idx of pts) {
+    sum += (landmarks[idx]?.visibility ?? 0);
+  }
+  return sum / pts.length;
+}
+
+let activeSide = 'left';  // which side is currently being tracked
 
 /* ───────────────────────────────────────────────────────────────────
    DOM REFS
@@ -940,10 +988,12 @@ function doReset() {
   plankSeconds = 0;
   formScore    = 0;
   badJoints.clear();
-  currentAngles = {};
-  lastCue       = "";
-  stableStart   = null;
-  isCalibrated  = false;
+  currentAngles  = {};
+  smoothedAngles = {};
+  activeSide     = 'left';
+  lastCue        = "";
+  stableStart    = null;
+  isCalibrated   = false;
   wasPostureCorrect  = true;
   repCountingEnabled = false;
 
@@ -1029,13 +1079,32 @@ function onResults(results) {
 
   const ex = EXERCISES[currentExercise];
 
-  // ── Calculate angles ─────────────────────────────────────────
+  // ── Calculate angles (with visibility gating + smoothing) ────
   currentAngles = {};
+  const rawVisibility = {};   // per angle-group: avg visibility of its landmarks
   for (const ag of ex.angleGroups) {
     const [ai, bi, ci] = ag.pts;
-    if (pts[ai] && pts[bi] && pts[ci]) {
-      currentAngles[ag.id] = angleBetween(pts[ai], pts[bi], pts[ci]);
+    const a = pts[ai], b = pts[bi], c = pts[ci];
+    if (!a || !b || !c) continue;
+    const avgVis = (a.v + b.v + c.v) / 3;
+    rawVisibility[ag.id] = avgVis;
+    if (avgVis < MIN_VISIBILITY) continue;   // skip unreliable landmarks
+    const raw = angleBetween(a, b, c);
+    currentAngles[ag.id] = smoothAngle(ag.id, raw);
+  }
+
+  // ── Best-visible-side selection ─────────────────────────────
+  // For bilateral pairs, pick the side with higher landmark visibility.
+  // The chosen side's angle is used for rep counting; both sides still
+  // generate form cues independently.
+  if (ex.bilateral && ex.bilateral.length > 0) {
+    let leftScore = 0, rightScore = 0, count = 0;
+    for (const pair of ex.bilateral) {
+      leftScore  += (rawVisibility[pair.left]  ?? 0);
+      rightScore += (rawVisibility[pair.right] ?? 0);
+      count++;
     }
+    activeSide = (rightScore > leftScore) ? 'right' : 'left';
   }
 
   // ── Form validation ──────────────────────────────────────────
@@ -1044,7 +1113,18 @@ function onResults(results) {
   let activeCue   = "";
   let activeJoint = null;
 
+  // Deduplicate bilateral rules: only evaluate the more visible side's rule
+  const skipIds = new Set();
+  if (ex.bilateral) {
+    for (const pair of ex.bilateral) {
+      const keep = activeSide === 'right' ? pair.right : pair.left;
+      const skip = activeSide === 'right' ? pair.left  : pair.right;
+      if (currentAngles[keep] !== undefined) skipIds.add(skip);
+    }
+  }
+
   for (const rule of ex.formRules) {
+    if (skipIds.has(rule.id)) continue;
     const angle = currentAngles[rule.id];
     if (angle === undefined) continue;
     const ok = angle >= rule.min && angle <= rule.max;
@@ -1059,7 +1139,7 @@ function onResults(results) {
     }
   }
 
-  const totalRules = ex.formRules.filter(r => currentAngles[r.id] !== undefined).length;
+  const totalRules = ex.formRules.filter(r => !skipIds.has(r.id) && currentAngles[r.id] !== undefined).length;
   formScore = totalRules > 0 ? Math.round((passed / totalRules) * 100) : 100;
 
   // ── Posture mode: collect 60 frames then send final score ────
@@ -1114,7 +1194,7 @@ function onResults(results) {
 
   // ── Rep counting / Plank timer ───────────────────────────────
   if (ex.isPlank) {
-    const good = formScore >= 70;
+    const good = formScore >= 55;
     if (good) {
       if (!plankStart) plankStart = Date.now();
       plankSeconds = Math.floor((Date.now() - plankStart) / 1000);
@@ -1128,16 +1208,24 @@ function onResults(results) {
     stateEl.textContent  = '—';
 
   } else if (ex.repConfig && repCountingEnabled) {
-    const { joint, upThreshold, downThreshold } = ex.repConfig;
-    const angle = currentAngles[joint];
+    const { joint, jointAlt, upThreshold, downThreshold } = ex.repConfig;
+
+    // Pick the more visible side for rep tracking
+    const primaryAngle = currentAngles[joint];
+    const altAngle     = jointAlt ? currentAngles[jointAlt] : undefined;
+    const angle = (primaryAngle === undefined && altAngle !== undefined) ? altAngle
+                : (altAngle !== undefined && activeSide === 'right' && jointAlt) ? altAngle
+                : primaryAngle;
+
     if (angle !== undefined) {
       const inverted = upThreshold < downThreshold; // e.g. bicep curl
+      const H = HYSTERESIS_DEG;
 
       // ── Stability calibration: must hold start position for 2s ──
       if (!isCalibrated) {
         const atStart = inverted
-          ? angle > downThreshold - 10   // arm extended for curl
-          : angle > upThreshold - 10;    // standing for squat/press/etc.
+          ? angle > downThreshold - 20   // arm extended for curl
+          : angle > upThreshold - 20;    // standing for squat/press/etc.
 
         if (atStart) {
           if (!stableStart) stableStart = Date.now();
@@ -1147,7 +1235,7 @@ function onResults(results) {
           stateEl.textContent = Math.round(angle) + '°';
           if (elapsed >= STABILITY_MS) {
             isCalibrated = true;
-            repState = inverted ? 'idle' : 'up'; // start waiting for first DOWN
+            repState = 'up';
             cueBox.textContent = '✓ Calibrated — begin your reps!';
             cueBox.className = 'good';
             if (window.ReactNativeWebView) {
@@ -1162,12 +1250,20 @@ function onResults(results) {
         return; // don't count reps until calibrated
       }
 
-      // ── Rep state machine (strict quality gate: 100% green required) ─
+      // ── Rep state machine with hysteresis ──────────────────────
+      // Hysteresis: transition DOWN requires crossing threshold by H degrees
+      // past the trigger point, and UP requires crossing back by H degrees.
+      // This prevents flicker when the angle hovers near a threshold.
+      //
+      // Posture gate: form must be >= 70% (not 100%) to count.
+      // Critical joint failure still aborts a rep mid-movement.
+      const formOk = formScore >= 55;
+
       if (!inverted) {
         // Normal (squat, pushup, press, deadlift, lunge):
-        // up (standing) → down (low angle) → up (count rep)
+        // up (standing high angle) → down (low angle) → up (count rep)
         if (repState === 'up') {
-          if (angle < downThreshold) {
+          if (angle < downThreshold - H) {
             repState = 'down';
             if (window.ReactNativeWebView) {
               window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'SYNC_STATUS', inSync: isPostureCorrect }));
@@ -1175,14 +1271,12 @@ function onResults(results) {
           }
         } else if (repState === 'down') {
           if (!isPostureCorrect && wasPostureCorrect) {
-            // Posture broke mid-rep — abort and demand a fresh rep
             repState = 'up';
             playErrorSound();
             if (window.ReactNativeWebView) {
               window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'SYNC_STATUS', inSync: false }));
             }
-          } else if (angle > upThreshold && isPostureCorrect) {
-            // Full clean rep completed
+          } else if (angle > upThreshold + H && formOk) {
             repState = 'up';
             repCount++;
             repCountEl.textContent = repCount;
@@ -1193,24 +1287,26 @@ function onResults(results) {
           }
         }
       } else {
-        // Inverted (bicep curl): arm extended (high angle) → contracted (low) → extended (count rep)
-        if (repState === 'idle' || repState === 'up') {
-          if (angle > downThreshold) {
-            repState = 'down'; // fully extended
+        // Inverted (bicep curl):
+        // States: up (arm extended, high angle) → down (arm contracted, low angle) → up (count rep)
+        // The full cycle is: extend → curl in → extend back = 1 rep
+        if (repState === 'up') {
+          if (angle < upThreshold + H) {
+            // Arm has curled in past the contracted threshold
+            repState = 'down';
             if (window.ReactNativeWebView) {
               window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'SYNC_STATUS', inSync: isPostureCorrect }));
             }
           }
         } else if (repState === 'down') {
           if (!isPostureCorrect && wasPostureCorrect) {
-            // Posture broke mid-rep — abort
-            repState = 'idle';
+            repState = 'up';
             playErrorSound();
             if (window.ReactNativeWebView) {
               window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'SYNC_STATUS', inSync: false }));
             }
-          } else if (angle < upThreshold && isPostureCorrect) {
-            // Full clean rep completed
+          } else if (angle > downThreshold - H && formOk) {
+            // Arm extended back out — full rep completed
             repState = 'up';
             repCount++;
             repCountEl.textContent = repCount;
