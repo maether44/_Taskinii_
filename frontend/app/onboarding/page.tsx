@@ -346,7 +346,7 @@ export default function OnboardingPage() {
         .single();
 
       if (profile?.onboarded) {
-        const role = profile.role as string ?? '';
+        const role = profile.role ?? '';
         router.push(['admin', 'super_admin'].includes(role) ? '/dashboard' : '/app');
         return;
       }
