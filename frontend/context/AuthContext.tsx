@@ -31,6 +31,9 @@ interface Profile {
   goal: string | null;
   onboarded: boolean | null;
   role: string | null;
+  weight_kg: number | null;
+  height_cm: number | null;
+  target_weight_kg: number | null;
 }
 
 interface AuthContextValue {
