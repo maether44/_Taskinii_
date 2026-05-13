@@ -35,6 +35,13 @@ interface Profile {
   height_cm: number | null;
   target_weight_kg: number | null;
   activity_level: string | null;
+  gender: string | null;
+  date_of_birth: string | null;
+  experience: string | null;
+  equipment: string | null;
+  sleep_quality: string | null;
+  stress_level: string | null;
+  diet_pref: string | null;
 }
 
 interface AuthContextValue {
