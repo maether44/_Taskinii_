@@ -318,15 +318,26 @@ export default function Home({ navigation }) {
               <Text style={styles.statNum}>{stats.sleep || 0}</Text>
               <Text style={styles.statUnit}> hrs</Text>
             </View>
-            <Pressable
-              style={styles.miniAdd}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                logSleep((stats.sleep || 0) + 0.5);
-              }}
-            >
-              <Text style={styles.miniAddTxt}>+ 30m</Text>
-            </Pressable>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              <Pressable
+                style={styles.miniAdd}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  logSleep(Math.max(0, (stats.sleep || 0) - 0.5));
+                }}
+              >
+                <Text style={styles.miniAddTxt}>− 30m</Text>
+              </Pressable>
+              <Pressable
+                style={styles.miniAdd}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  logSleep((stats.sleep || 0) + 0.5);
+                }}
+              >
+                <Text style={styles.miniAddTxt}>+ 30m</Text>
+              </Pressable>
+            </View>
           </BentoCard>
         </View>
 

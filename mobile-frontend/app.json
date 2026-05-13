@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "mobile",
+    "name": "BodyQ",
     "slug": "mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -22,11 +22,18 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/Alexi_mascott.png",
+        "backgroundColor": "#0F0B1E"
       },
-      "permissions": ["android.permission.ACTIVITY_RECOGNITION", "CAMERA", "RECORD_AUDIO"],
-      "edgeToEdgeEnabled": true
+      "permissions": [
+        "android.permission.ACTIVITY_RECOGNITION",
+        "CAMERA",
+        "RECORD_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "edgeToEdgeEnabled": true,
+      "package": "bodyq.id"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -47,6 +54,10 @@
       "expo-asset",
       "@react-native-community/datetimepicker"
     ],
-    "extra": {}
+    "extra": {
+      "eas": {
+        "projectId": "66359035-24fd-455c-bec2-583be7e98fdb"
+      }
+    }
   }
 }
