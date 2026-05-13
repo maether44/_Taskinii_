@@ -34,6 +34,7 @@ interface Profile {
   weight_kg: number | null;
   height_cm: number | null;
   target_weight_kg: number | null;
+  activity_level: string | null;
 }
 
 interface AuthContextValue {
