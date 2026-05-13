@@ -797,7 +797,12 @@ export default function Profile({ replayTour }) {
           </View>
           <View style={s.badgesGrid}>
             {(showAllAchievements ? achievements : achievements.slice(0, 6)).map((a) => (
-              <View key={a.id} style={[s.badge, !a.earned && s.badgeLocked]}>
+              <TouchableOpacity
+                key={a.id}
+                style={[s.badge, !a.earned && s.badgeLocked]}
+                onPress={() => setAchievementPopup(a)}
+                activeOpacity={0.75}
+              >
                 <View style={[s.badgeIconWrap, a.earned && s.badgeIconWrapEarned]}>
                   <Ionicons
                     name={a.earned ? (a.icon || 'trophy-outline') : 'lock-closed-outline'}
@@ -807,7 +812,7 @@ export default function Profile({ replayTour }) {
                 </View>
                 <Text style={[s.badgeLabel, !a.earned && s.badgeLabelLocked]}>{a.name}</Text>
                 <Text style={[s.badgeXP, !a.earned && s.badgeXPLocked]}>+{a.xp_reward} XP</Text>
-              </View>
+              </TouchableOpacity>
             ))}
           </View>
           {achievements.length > 6 && (
@@ -1010,8 +1015,18 @@ export default function Profile({ replayTour }) {
           <View style={s.popupContainer}>
             <View style={s.popupGlow} />
             <View style={s.popupContent}>
-              <Text style={s.popupIcon}>{achievementPopup?.icon}</Text>
-              <Text style={s.popupTitle}>Achievement Unlocked!</Text>
+              <View style={s.popupIconWrap}>
+                <Ionicons
+                  name={achievementPopup?.earned
+                    ? (achievementPopup?.icon || 'trophy-outline')
+                    : 'lock-closed-outline'}
+                  size={40}
+                  color={achievementPopup?.earned ? C.purple : C.sub}
+                />
+              </View>
+              <Text style={s.popupTitle}>
+                {achievementPopup?.earned ? 'Achievement Unlocked! 🎉' : 'Locked'}
+              </Text>
               <Text style={s.popupName}>{achievementPopup?.name}</Text>
               <Text style={s.popupDesc}>{achievementPopup?.description}</Text>
               <Text style={s.popupXP}>+{achievementPopup?.xp_reward} XP</Text>
@@ -1296,7 +1311,7 @@ const s = StyleSheet.create({
     borderColor: C.lime,
     minWidth: 280,
   },
-  popupIcon: { fontSize: 48, marginBottom: 16 },
+  popupIconWrap: { width: 72, height: 72, borderRadius: 36, backgroundColor: C.purple + '20', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
   popupTitle: { color: C.lime, fontSize: 18, fontWeight: '800', marginBottom: 8 },
   popupName: {
     color: C.text,
