@@ -47,7 +47,7 @@ export function useStreaks() {
           nutritionDays.add(row.consumed_at.split('T')[0]);
         }
 
-        function countStreak(hasActivity: (date: string) => boolean): number {
+        const countStreak = (hasActivity: (date: string) => boolean): number => {
           let streak = 0;
           const d = new Date(today);
           let skippedToday = false;
@@ -65,7 +65,7 @@ export function useStreaks() {
             }
           }
           return streak;
-        }
+        };
 
         const workout = countStreak((d) => workoutDays.has(d));
         const nutrition = countStreak((d) => nutritionDays.has(d));
