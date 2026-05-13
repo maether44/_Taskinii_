@@ -467,6 +467,86 @@
   #sidePanel::-webkit-scrollbar-track { background: var(--bg2); }
   #sidePanel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
+  /* ─── BAD FORM VIGNETTE ──────────────────────────────────── */
+  /* Uses opacity animation (GPU-composited, no paint triggers)  */
+  #feedArea.bad-form::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 4;
+    border: 3px solid rgba(255,51,85,0.75);
+    box-shadow: inset 0 0 70px rgba(255,51,85,0.4);
+    animation: bad-form-pulse 0.9s ease-in-out infinite alternate;
+    will-change: opacity;
+  }
+  @keyframes bad-form-pulse {
+    from { opacity: 0.5; }
+    to   { opacity: 1;   }
+  }
+
+  /* ─── LIVE REP COUNTER OVERLAY ───────────────────────────── */
+  #repCounterOverlay {
+    position: absolute;
+    bottom: 36px;
+    left: 16px;
+    text-align: center;
+    z-index: 6;
+    background: rgba(8,12,16,0.72);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 18px;
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    min-width: 72px;
+    transition: border-color .3s;
+  }
+  #repCounterOverlay.rep-flash-glow {
+    border-color: var(--green);
+    box-shadow: 0 0 18px rgba(0,255,136,0.45);
+  }
+  #liveRepCount {
+    font-family: var(--font-head);
+    font-size: 44px;
+    font-weight: 900;
+    color: var(--green);
+    line-height: 1;
+    text-shadow: 0 0 20px rgba(0,255,136,0.45);
+    transition: color .2s;
+  }
+  .rep-overlay-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-dim);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-top: 3px;
+  }
+
+  /* ─── PHASE OVERLAY ──────────────────────────────────────── */
+  #phaseOverlay {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    background: rgba(8,12,16,0.72);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 14px;
+    z-index: 6;
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    color: var(--cyan);
+    transition: color .2s, border-color .2s;
+  }
+  #phaseOverlay.phase-down  { color: var(--amber); border-color: rgba(255,170,0,0.4); }
+  #phaseOverlay.phase-ready { color: var(--green); border-color: rgba(0,255,136,0.4); }
+  #phaseOverlay.phase-bad   { color: var(--red);   border-color: rgba(255,51,85,0.4); }
+
   /* ─── MOBILE ─────────────────────────────────────────────── */
   @media (max-width: 800px) {
     #app {
@@ -546,6 +626,15 @@
 
     <!-- rep flash -->
     <div id="repFlash">REP!</div>
+
+    <!-- live rep counter (bottom-left of feed) -->
+    <div id="repCounterOverlay">
+      <div id="liveRepCount">0</div>
+      <div class="rep-overlay-label">Reps</div>
+    </div>
+
+    <!-- phase indicator (top-right of feed) -->
+    <div id="phaseOverlay">IDLE</div>
 
     <!-- fps -->
     <div id="fpsDisplay">0 fps</div>
@@ -854,29 +943,54 @@ let repFlashTimeout = null;
 /* ───────────────────────────────────────────────────────────────────
    DOM REFS
 ─────────────────────────────────────────────────────────────────── */
-const videoEl    = document.getElementById('inputVideo');
-const canvasEl   = document.getElementById('outputCanvas');
-const ctx        = canvasEl.getContext('2d');
-const startBtn   = document.getElementById('startBtn');
-const stopBtn    = document.getElementById('stopBtn');
-const resetBtn   = document.getElementById('resetBtn');
-const exSelect   = document.getElementById('exerciseSelect');
-const statusDot  = document.getElementById('statusDot');
-const placeholder= document.getElementById('cameraPlaceholder');
-const repFlashEl = document.getElementById('repFlash');
-const scoreVal   = document.getElementById('scoreValue');
-const scoreFill  = document.getElementById('scoreFill');
-const repCountEl = document.getElementById('repCount');
-const formPctEl  = document.getElementById('formPct');
-const phaseEl    = document.getElementById('phaseLabel');
-const stateEl    = document.getElementById('stateLabel');
-const cueBox     = document.getElementById('cueBox');
-const jointList  = document.getElementById('jointList');
-const fpsDisplay = document.getElementById('fpsDisplay');
-const plankWrap  = document.getElementById('plankTimerWrap');
-const plankTimerEl=document.getElementById('plankTimer');
-const exInfoName = document.getElementById('exInfoName');
-const exInfoDesc = document.getElementById('exInfoDesc');
+const videoEl       = document.getElementById('inputVideo');
+const canvasEl      = document.getElementById('outputCanvas');
+const ctx           = canvasEl.getContext('2d');
+const startBtn      = document.getElementById('startBtn');
+const stopBtn       = document.getElementById('stopBtn');
+const resetBtn      = document.getElementById('resetBtn');
+const exSelect      = document.getElementById('exerciseSelect');
+const statusDot     = document.getElementById('statusDot');
+const placeholder   = document.getElementById('cameraPlaceholder');
+const repFlashEl    = document.getElementById('repFlash');
+const scoreVal      = document.getElementById('scoreValue');
+const scoreFill     = document.getElementById('scoreFill');
+const repCountEl    = document.getElementById('repCount');
+const formPctEl     = document.getElementById('formPct');
+const phaseEl       = document.getElementById('phaseLabel');
+const stateEl       = document.getElementById('stateLabel');
+const cueBox        = document.getElementById('cueBox');
+const jointList     = document.getElementById('jointList');
+const fpsDisplay    = document.getElementById('fpsDisplay');
+const plankWrap     = document.getElementById('plankTimerWrap');
+const plankTimerEl  = document.getElementById('plankTimer');
+const exInfoName    = document.getElementById('exInfoName');
+const exInfoDesc    = document.getElementById('exInfoDesc');
+const feedArea      = document.getElementById('feedArea');
+const liveRepCountEl= document.getElementById('liveRepCount');
+const repCounterOverlay = document.getElementById('repCounterOverlay');
+const phaseOverlayEl= document.getElementById('phaseOverlay');
+
+/* ───────────────────────────────────────────────────────────────────
+   ANGLE SMOOTHING — exponential moving average (EMA)
+   α=0.55: weights the latest frame more, removes jitter without lag
+─────────────────────────────────────────────────────────────────── */
+const _ema = {};
+const EMA_ALPHA = 0.55;
+function smoothAngle(id, raw) {
+  _ema[id] = (_ema[id] === undefined) ? raw : EMA_ALPHA * raw + (1 - EMA_ALPHA) * _ema[id];
+  return _ema[id];
+}
+
+/* ───────────────────────────────────────────────────────────────────
+   FRAME DEBOUNCE — prevents single-frame jitter from changing state
+─────────────────────────────────────────────────────────────────── */
+const CONFIRM_FRAMES       = 3;   // consecutive frames needed to confirm state change
+const BAD_POSTURE_FRAMES   = 8;   // consecutive bad-posture frames before aborting rep
+let _downFrames      = 0;
+let _upFrames        = 0;
+let _badStreak       = 0;
+let _repGlowTimeout  = null;
 
 /* ───────────────────────────────────────────────────────────────────
    UPDATE PANEL FOR SELECTED EXERCISE
@@ -947,16 +1061,28 @@ function doReset() {
   wasPostureCorrect  = true;
   repCountingEnabled = false;
 
-  repCountEl.textContent = '0';
-  formPctEl.textContent  = '—';
-  phaseEl.textContent    = 'IDLE';
-  stateEl.textContent    = '—';
-  scoreVal.textContent   = '—';
-  scoreFill.style.width  = '0%';
-  plankTimerEl.textContent = '0:00';
-  cueBox.textContent     = 'Start moving to receive coaching cues…';
-  cueBox.className       = '';
-  jointList.innerHTML    = '<div class="joint-item" style="color:var(--text-dim);font-size:11px;justify-content:center;">No pose detected yet</div>';
+  // Reset debounce counters
+  _downFrames = 0;
+  _upFrames   = 0;
+  _badStreak  = 0;
+  // Reset EMA smoother so stale angles don't bleed into the next exercise
+  for (const k of Object.keys(_ema)) delete _ema[k];
+
+  repCountEl.textContent       = '0';
+  liveRepCountEl.textContent   = '0';
+  formPctEl.textContent        = '—';
+  phaseEl.textContent          = 'IDLE';
+  phaseOverlayEl.textContent   = 'IDLE';
+  phaseOverlayEl.className     = '';
+  stateEl.textContent          = '—';
+  scoreVal.textContent         = '—';
+  scoreFill.style.width        = '0%';
+  plankTimerEl.textContent     = '0:00';
+  cueBox.textContent           = 'Start moving to receive coaching cues…';
+  cueBox.className             = '';
+  feedArea.classList.remove('bad-form');
+  repCounterOverlay.classList.remove('rep-flash-glow');
+  jointList.innerHTML = '<div class="joint-item" style="color:var(--text-dim);font-size:11px;justify-content:center;">No pose detected yet</div>';
 }
 
 /* ───────────────────────────────────────────────────────────────────
@@ -1029,12 +1155,13 @@ function onResults(results) {
 
   const ex = EXERCISES[currentExercise];
 
-  // ── Calculate angles ─────────────────────────────────────────
+  // ── Calculate angles (EMA-smoothed to remove jitter) ─────────
   currentAngles = {};
   for (const ag of ex.angleGroups) {
     const [ai, bi, ci] = ag.pts;
-    if (pts[ai] && pts[bi] && pts[ci]) {
-      currentAngles[ag.id] = angleBetween(pts[ai], pts[bi], pts[ci]);
+    if (pts[ai] && pts[bi] && pts[ci] &&
+        pts[ai].v >= 0.45 && pts[bi].v >= 0.45 && pts[ci].v >= 0.45) {
+      currentAngles[ag.id] = smoothAngle(ag.id, angleBetween(pts[ai], pts[bi], pts[ci]));
     }
   }
 
@@ -1089,6 +1216,13 @@ function onResults(results) {
     ? !criticals.some(j => badJoints.has(j))
     : badJoints.size === 0;  // no criticals defined: require all joints clean
 
+  // ── Bad-form vignette ────────────────────────────────────────
+  if (badJoints.size > 0 && isCalibrated) {
+    feedArea.classList.add('bad-form');
+  } else {
+    feedArea.classList.remove('bad-form');
+  }
+
   // ── Update score UI ──────────────────────────────────────────
   const sc = scoreColor(formScore);
   scoreVal.textContent   = formScore + '%';
@@ -1133,97 +1267,161 @@ function onResults(results) {
     if (angle !== undefined) {
       const inverted = upThreshold < downThreshold; // e.g. bicep curl
 
-      // ── Stability calibration: must hold start position for 2s ──
+      // ── Stability calibration: must hold start position for 2 s ─
       if (!isCalibrated) {
         const atStart = inverted
-          ? angle > downThreshold - 10   // arm extended for curl
-          : angle > upThreshold - 10;    // standing for squat/press/etc.
+          ? angle > downThreshold - 10
+          : angle > upThreshold - 10;
 
         if (atStart) {
           if (!stableStart) stableStart = Date.now();
-          const elapsed = Date.now() - stableStart;
+          const elapsed   = Date.now() - stableStart;
           const remaining = Math.ceil((STABILITY_MS - elapsed) / 1000);
-          phaseEl.textContent = remaining > 0 ? `HOLD ${remaining}s` : 'READY';
+          const txt = remaining > 0 ? `HOLD ${remaining}s` : 'READY';
+          phaseEl.textContent      = txt;
+          phaseOverlayEl.textContent = txt;
+          phaseOverlayEl.className = remaining > 0 ? '' : 'phase-ready';
           stateEl.textContent = Math.round(angle) + '°';
           if (elapsed >= STABILITY_MS) {
             isCalibrated = true;
-            repState = inverted ? 'idle' : 'up'; // start waiting for first DOWN
+            repState     = inverted ? 'idle' : 'up';
+            _downFrames = _upFrames = _badStreak = 0;
             cueBox.textContent = '✓ Calibrated — begin your reps!';
-            cueBox.className = 'good';
+            cueBox.className   = 'good';
             if (window.ReactNativeWebView) {
               window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'CALIBRATED' }));
             }
           }
         } else {
           stableStart = null;
-          phaseEl.textContent = 'STAND STILL';
-          stateEl.textContent = Math.round(angle) + '°';
+          phaseEl.textContent        = 'STAND STILL';
+          phaseOverlayEl.textContent = 'STAND STILL';
+          phaseOverlayEl.className   = '';
+          stateEl.textContent        = Math.round(angle) + '°';
         }
-        return; // don't count reps until calibrated
+        return;
       }
 
-      // ── Rep state machine (strict quality gate: 100% green required) ─
+      // ── Rep state machine (debounced + streak-gated) ──────────
+      // Debounce: CONFIRM_FRAMES consecutive frames must satisfy the threshold
+      // Bad posture: BAD_POSTURE_FRAMES consecutive bad frames abort the rep
       if (!inverted) {
-        // Normal (squat, pushup, press, deadlift, lunge):
-        // up (standing) → down (low angle) → up (count rep)
         if (repState === 'up') {
+          _upFrames = 0;
           if (angle < downThreshold) {
-            repState = 'down';
-            if (window.ReactNativeWebView) {
-              window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'SYNC_STATUS', inSync: isPostureCorrect }));
+            _downFrames++;
+            if (_downFrames >= CONFIRM_FRAMES) {
+              repState    = 'down';
+              _downFrames = 0;
+              _badStreak  = 0;
+              phaseOverlayEl.className = 'phase-down';
+              if (window.ReactNativeWebView) {
+                window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'SYNC_STATUS', inSync: isPostureCorrect }));
+              }
             }
+          } else {
+            _downFrames = 0;
           }
         } else if (repState === 'down') {
-          if (!isPostureCorrect && wasPostureCorrect) {
-            // Posture broke mid-rep — abort and demand a fresh rep
-            repState = 'up';
-            playErrorSound();
-            if (window.ReactNativeWebView) {
-              window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'SYNC_STATUS', inSync: false }));
+          if (!isPostureCorrect) {
+            _badStreak++;
+            if (_badStreak >= BAD_POSTURE_FRAMES) {
+              repState   = 'up';
+              _badStreak = _downFrames = _upFrames = 0;
+              playErrorSound();
+              phaseOverlayEl.className = 'phase-bad';
+              if (window.ReactNativeWebView) {
+                window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'SYNC_STATUS', inSync: false }));
+              }
             }
-          } else if (angle > upThreshold && isPostureCorrect) {
-            // Full clean rep completed
-            repState = 'up';
-            repCount++;
-            repCountEl.textContent = repCount;
-            flashRep();
-            if (window.ReactNativeWebView) {
-              window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'REP_COUNTED', count: repCount }));
+          } else {
+            _badStreak = 0;
+          }
+          if (isPostureCorrect && angle > upThreshold) {
+            _upFrames++;
+            if (_upFrames >= CONFIRM_FRAMES) {
+              repState  = 'up';
+              _upFrames = _downFrames = _badStreak = 0;
+              repCount++;
+              repCountEl.textContent    = repCount;
+              liveRepCountEl.textContent = repCount;
+              flashRep();
+              phaseOverlayEl.className = 'phase-ready';
+              clearTimeout(_repGlowTimeout);
+              repCounterOverlay.classList.add('rep-flash-glow');
+              _repGlowTimeout = setTimeout(() => repCounterOverlay.classList.remove('rep-flash-glow'), 700);
+              if (window.ReactNativeWebView) {
+                window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'REP_COUNTED', count: repCount }));
+              }
             }
+          } else {
+            _upFrames = 0;
           }
         }
       } else {
-        // Inverted (bicep curl): arm extended (high angle) → contracted (low) → extended (count rep)
+        // Inverted (bicep curl): extended → contracted → extended
         if (repState === 'idle' || repState === 'up') {
+          _upFrames = 0;
           if (angle > downThreshold) {
-            repState = 'down'; // fully extended
-            if (window.ReactNativeWebView) {
-              window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'SYNC_STATUS', inSync: isPostureCorrect }));
+            _downFrames++;
+            if (_downFrames >= CONFIRM_FRAMES) {
+              repState    = 'down';
+              _downFrames = 0;
+              _badStreak  = 0;
+              phaseOverlayEl.className = 'phase-down';
+              if (window.ReactNativeWebView) {
+                window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'SYNC_STATUS', inSync: isPostureCorrect }));
+              }
             }
+          } else {
+            _downFrames = 0;
           }
         } else if (repState === 'down') {
-          if (!isPostureCorrect && wasPostureCorrect) {
-            // Posture broke mid-rep — abort
-            repState = 'idle';
-            playErrorSound();
-            if (window.ReactNativeWebView) {
-              window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'SYNC_STATUS', inSync: false }));
+          if (!isPostureCorrect) {
+            _badStreak++;
+            if (_badStreak >= BAD_POSTURE_FRAMES) {
+              repState   = 'idle';
+              _badStreak = _downFrames = _upFrames = 0;
+              playErrorSound();
+              phaseOverlayEl.className = 'phase-bad';
+              if (window.ReactNativeWebView) {
+                window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'SYNC_STATUS', inSync: false }));
+              }
             }
-          } else if (angle < upThreshold && isPostureCorrect) {
-            // Full clean rep completed
-            repState = 'up';
-            repCount++;
-            repCountEl.textContent = repCount;
-            flashRep();
-            if (window.ReactNativeWebView) {
-              window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'REP_COUNTED', count: repCount }));
+          } else {
+            _badStreak = 0;
+          }
+          if (isPostureCorrect && angle < upThreshold) {
+            _upFrames++;
+            if (_upFrames >= CONFIRM_FRAMES) {
+              repState  = 'up';
+              _upFrames = _downFrames = _badStreak = 0;
+              repCount++;
+              repCountEl.textContent    = repCount;
+              liveRepCountEl.textContent = repCount;
+              flashRep();
+              phaseOverlayEl.className = 'phase-ready';
+              clearTimeout(_repGlowTimeout);
+              repCounterOverlay.classList.add('rep-flash-glow');
+              _repGlowTimeout = setTimeout(() => repCounterOverlay.classList.remove('rep-flash-glow'), 700);
+              if (window.ReactNativeWebView) {
+                window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'REP_COUNTED', count: repCount }));
+              }
             }
+          } else {
+            _upFrames = 0;
           }
         }
       }
       wasPostureCorrect = isPostureCorrect;
 
-      phaseEl.textContent = repState.toUpperCase();
+      const phaseTxt = repState.toUpperCase();
+      phaseEl.textContent = phaseTxt;
+      if (!['phase-down','phase-ready','phase-bad'].some(c => phaseOverlayEl.classList.contains(c))) {
+        phaseOverlayEl.textContent = phaseTxt;
+      } else {
+        phaseOverlayEl.textContent = phaseTxt;
+      }
       stateEl.textContent = Math.round(angle) + '°';
     }
   }
@@ -1335,6 +1533,14 @@ function drawSkeleton(pts, ex) {
 
   ctx.shadowBlur = 0;
 
+  // ── Rep progress arc on the tracking joint ───────────────────
+  if (ex.repConfig && isCalibrated && repState === 'down') {
+    drawRepArc(pts, ex);
+  }
+
+  // ── On-canvas coaching cue (bottom-centre) ───────────────────
+  drawCanvasCue(W, H);
+
   // Draw angle labels for monitored joints
   for (const ag of ex.angleGroups) {
     const angle = currentAngles[ag.id];
@@ -1361,6 +1567,91 @@ function drawSkeleton(pts, ex) {
     ctx.fillStyle = hl ? '#ff3355' : (bad ? '#ff8080' : '#00ff88');
     ctx.fillText(txt, pB.x, pB.y - 14);
   }
+}
+
+/* ───────────────────────────────────────────────────────────────────
+   REP PROGRESS ARC — drawn around the tracking joint vertex
+   Shows 0→1 progress from start position to bottom of rep
+─────────────────────────────────────────────────────────────────── */
+function drawRepArc(pts, ex) {
+  const { joint, upThreshold, downThreshold } = ex.repConfig;
+  const angle = currentAngles[joint];
+  if (angle === undefined) return;
+
+  const ag = ex.angleGroups.find(a => a.id === joint);
+  if (!ag) return;
+  const pB = pts[ag.pts[1]];
+  if (!pB || pB.v < 0.5) return;
+
+  const inverted = upThreshold < downThreshold;
+  const progress = inverted
+    ? Math.max(0, Math.min(1, (downThreshold - angle) / (downThreshold - upThreshold)))
+    : Math.max(0, Math.min(1, (upThreshold - angle) / (upThreshold - downThreshold)));
+
+  const R          = 22;
+  const startAngle = -Math.PI / 2;
+  const endAngle   = startAngle + progress * Math.PI * 2;
+  const color      = progress >= 0.95 ? '#00ff88' : (progress >= 0.5 ? '#ffaa00' : '#00c8ff');
+
+  // Track ring
+  ctx.beginPath();
+  ctx.arc(pB.x, pB.y, R, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.lineWidth   = 3;
+  ctx.stroke();
+
+  // Progress arc
+  if (progress > 0.02) {
+    ctx.beginPath();
+    ctx.arc(pB.x, pB.y, R, startAngle, endAngle);
+    ctx.strokeStyle   = color;
+    ctx.lineWidth     = 3.5;
+    ctx.shadowColor   = color;
+    ctx.shadowBlur    = 10;
+    ctx.lineCap       = 'round';
+    ctx.stroke();
+    ctx.shadowBlur    = 0;
+    ctx.lineCap       = 'butt';
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────────
+   ON-CANVAS COACHING CUE — bottom-centre of the feed
+   Replaces the need to read the side panel mid-exercise
+─────────────────────────────────────────────────────────────────── */
+function drawCanvasCue(W, H) {
+  const isGood = badJoints.size === 0 && isCalibrated;
+  const text   = isGood ? '✓ Good form!' : lastCue;
+  if (!text) return;
+
+  const color = isGood ? '#00ff88' : '#ffaa00';
+  ctx.font = 'bold 15px Rajdhani, sans-serif';
+  const tw = ctx.measureText(text).width;
+  const px = W / 2;
+  const py = H - 28;
+  const padX = 16, padY = 10, r = 6;
+  const bx = px - tw / 2 - padX;
+  const by = py - padY - 2;
+  const bw = tw + padX * 2;
+  const bh = padY * 2 + 4;
+
+  // Pill background
+  ctx.fillStyle = 'rgba(8,12,16,0.82)';
+  ctx.beginPath();
+  ctx.roundRect(bx, by, bw, bh, r);
+  ctx.fill();
+
+  // Coloured left accent bar
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.roundRect(bx, by, 3, bh, [r, 0, 0, r]);
+  ctx.fill();
+
+  // Text
+  ctx.fillStyle    = color;
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, px, py);
 }
 
 /* ───────────────────────────────────────────────────────────────────
