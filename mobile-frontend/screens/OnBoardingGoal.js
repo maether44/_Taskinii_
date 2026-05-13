@@ -786,6 +786,17 @@ export default function OnBoardingGoal({ onComplete }) {
           </>
         )}
 
+        {/* ── Step 1 missing-fields hint ── */}
+        {ob.step === 1 && !ob.canGo && (
+          <Text style={[s.validationHint, { color: T.orange }]}>
+            {!ob.gender ? "· Select a gender\n" : ""}
+            {ob.dob && ob.dob.length > 0 && ob.dob.length < 10 ? "· Complete date of birth (DD/MM/YYYY)\n" : ""}
+            {!ob.height ? "· Enter your height\n" : ""}
+            {!ob.weight ? "· Enter your weight\n" : ""}
+            {!ob.activity ? "· Select your activity level" : ""}
+          </Text>
+        )}
+
         {/* ── Navigation CTA ── */}
         {!(ob.step === 7 && (ob.loading || ob.savingProfile)) && (
           <TouchableOpacity
@@ -1139,6 +1150,7 @@ const s = StyleSheet.create({
     marginTop: 24,
   },
   ctaTxt: { color: "#fff", fontSize: 16, fontWeight: "800", letterSpacing: 0.2 },
+  validationHint: { fontSize: 13, fontWeight: "500", marginBottom: 12, lineHeight: 22, paddingHorizontal: 4 },
   backBtn: { alignItems: "center", paddingVertical: 14 },
   backTxt: { fontSize: 14 },
 });

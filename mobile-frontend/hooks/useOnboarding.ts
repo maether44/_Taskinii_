@@ -84,7 +84,7 @@ export function useOnboarding() {
   // Per-step validation
   const canGo = [
     !!goal,
-    !!(gender && dob && dob.length === 10 && height && weight && activity), // ← dob
+    !!(gender && (!dob || dob.length === 10) && height && weight && activity), // dob optional — parseAge handles fallback
     !!experience,
     !!(days && duration && timeOfDay),
     !!equipment,
