@@ -64,7 +64,7 @@ export async function signOutUser() {
 export async function getProfile(userId: string) {
   const { data, error } = await supabase
     .from('profiles')
-    .select('full_name, goal, onboarded, role')
+    .select('full_name, goal, onboarded, role, weight_kg, height_cm, target_weight_kg, activity_level, gender, date_of_birth, experience, equipment, sleep_quality, stress_level, diet_pref')
     .eq('id', userId)
     .single();
 
