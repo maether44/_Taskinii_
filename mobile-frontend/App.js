@@ -135,6 +135,14 @@ function DirectMessageNotifications({ activeRoute }) {
   return null;
 }
 
+function ConditionalAppTour({ activeTab, onTabPress }) {
+  const { user, isNewUser } = useAuth();
+  // Only show the tour once the user is authenticated AND has finished onboarding.
+  // isNewUser===undefined means auth is still resolving; skip until it settles.
+  if (!user || isNewUser !== false) return null;
+  return <AppTour activeTab={activeTab} onTabPress={onTabPress} showOnMount={true} />;
+}
+
 export default function App() {
   const [appIsReady, setAppIsReady] = useState(false);
   const [splashDone, setSplashDone] = useState(false); // ✅ NEW
@@ -204,7 +212,7 @@ export default function App() {
                     onOpenSchedule={() => navigationRef.current?.navigate('Schedule')}
                   />
                 )}
-                <AppTour activeTab={activeTab} onTabPress={setActiveTab} showOnMount={true} />
+                <ConditionalAppTour activeTab={activeTab} onTabPress={setActiveTab} />
                 <CelebrationOverlay />
                 <MilestoneCelebrationOverlay />
               </View>
