@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
   FlatList,
   Image,
+  InteractionManager,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -20,17 +20,25 @@ import {
   markThreadRead,
   sendThreadMessage,
 } from '../../services/dmService';
-import { resolveAvatarUrl } from '../../lib/avatar';
 import { supabase } from '../../lib/supabase';
+import { AVATAR_BUCKET } from '../../lib/avatar';
 
 async function resolveDmAvatarUri(value) {
   if (!value || typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (/^(https?:\/\/|file:\/\/|data:image\/)/i.test(trimmed)) return trimmed;
 
-  try {
-    return await resolveAvatarUrl(value.trim());
-  } catch {
-    return null;
+  const { data: publicData } = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(trimmed);
+  if (publicData?.publicUrl) {
+    return `${publicData.publicUrl}${publicData.publicUrl.includes('?') ? '&' : '?'}t=${Date.now()}`;
   }
+
+  const { data, error } = await supabase.storage
+    .from(AVATAR_BUCKET)
+    .createSignedUrl(trimmed, 60 * 60 * 24 * 30);
+  if (error) return null;
+  return data?.signedUrl || null;
 }
 
 function formatTime(iso) {
@@ -49,19 +57,34 @@ export default function DMThread({ navigation, route }) {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
   const [resolvedPeerAvatarUri, setResolvedPeerAvatarUri] = useState(null);
+  const flatListRef = React.useRef(null);
+  const initialScrollDoneRef = React.useRef(false);
 
   const title = useMemo(() => `${peerName}`, [peerName]);
 
+  const scrollToLatest = useCallback((animated = false) => {
+    if (!flatListRef.current) return;
+
+    requestAnimationFrame(() => {
+      flatListRef.current?.scrollToEnd({ animated });
+    });
+  }, []);
+
   const loadMessages = useCallback(async () => {
     if (!ownerId || !threadId) return;
+
     try {
       const rows = await getThreadMessages(ownerId, threadId);
       setMessages(rows);
       await markThreadRead(ownerId, threadId);
     } catch (error) {
-      Alert.alert('Messages unavailable', error?.message || 'Could not load this conversation.');
+      console.error('Failed to load messages:', error);
     }
   }, [ownerId, threadId]);
+
+  useEffect(() => {
+    initialScrollDoneRef.current = false;
+  }, [threadId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -89,8 +112,18 @@ export default function DMThread({ navigation, route }) {
     };
   }, [ownerId, threadId]);
 
+  // Keep view pinned to latest message as messages are loaded/updated.
   useEffect(() => {
-    if (!threadId || !ownerId) return undefined;
+    if (messages.length > 0 && flatListRef.current) {
+      const interactionTask = InteractionManager.runAfterInteractions(() => {
+        scrollToLatest(false);
+      });
+      return () => interactionTask.cancel();
+    }
+  }, [messages, scrollToLatest]);
+
+  useEffect(() => {
+    if (!threadId || !ownerId) return;
 
     const channel = supabase
       .channel(`dm-${threadId}`)
@@ -111,18 +144,14 @@ export default function DMThread({ navigation, route }) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [loadMessages, ownerId, threadId]);
+  }, [threadId, ownerId, loadMessages]);
 
   const onSend = async () => {
     const trimmed = text.trim();
     if (!trimmed || !ownerId || !threadId) return;
-    try {
-      await sendThreadMessage(ownerId, threadId, trimmed);
-      setText('');
-      await loadMessages();
-    } catch (error) {
-      Alert.alert('Send failed', error?.message || 'Could not send your message.');
-    }
+    await sendThreadMessage(ownerId, threadId, trimmed);
+    setText('');
+    await loadMessages();
   };
 
   const renderMessage = ({ item }) => {
@@ -186,11 +215,23 @@ export default function DMThread({ navigation, route }) {
       </View>
 
       <FlatList
+        ref={flatListRef}
         data={messages}
         keyExtractor={(item) => item.id}
         renderItem={renderMessage}
         contentContainerStyle={styles.messagesList}
         ListEmptyComponent={<Text style={styles.empty}>No messages yet. Say hi.</Text>}
+        onContentSizeChange={() => {
+          if (!messages.length) return;
+
+          if (!initialScrollDoneRef.current) {
+            scrollToLatest(false);
+            initialScrollDoneRef.current = true;
+            return;
+          }
+
+          scrollToLatest(true);
+        }}
       />
 
       <View style={styles.composer}>

@@ -3,6 +3,7 @@ import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Font from 'expo-font';
+import * as ExpoLinking from 'expo-linking';
 import {
   Outfit_400Regular,
   Outfit_500Medium,
@@ -46,6 +47,9 @@ import ManualWorkout from './screens/workout/ManualWorkout';
 import CommunityCenter from './screens/community/CommunityCenter';
 import MessagesInbox from './screens/community/MessagesInbox';
 import DMThread from './screens/community/DMThread';
+import FriendInvite from './screens/community/FriendInvite';
+import FriendsList from './screens/FriendsList';
+import FriendProfile from './screens/FriendProfile';
 import { scheduleStore } from './store/scheduleStore';
 import { useUnreadMessageNotifications } from './hooks/useNotification';
 
@@ -62,6 +66,15 @@ const Stack = createStackNavigator();
 const YARA_ALLOWED_ROUTES = new Set(['Home', 'Fuel', 'TrainingHub', 'Insights']);
 
 const navigationRef = createNavigationContainerRef(); // ← add this
+
+const linking = {
+  prefixes: [ExpoLinking.createURL('/'), 'bodyq://', 'https://bodyq.app'],
+  config: {
+    screens: {
+      FriendInvite: 'invite',
+    },
+  },
+};
 
 function getActiveRouteName(state) {
   if (!state) return null;
@@ -120,6 +133,9 @@ function Navigation() {
           <Stack.Screen name="Community" component={CommunityCenter} />
           <Stack.Screen name="Messages" component={MessagesInbox} />
           <Stack.Screen name="DMThread" component={DMThread} />
+          <Stack.Screen name="FriendInvite" component={FriendInvite} />
+          <Stack.Screen name="FriendsList" component={FriendsList} />
+          <Stack.Screen name="FriendProfile" component={FriendProfile} />
           <Stack.Screen name="Schedule" component={ScheduleScreen} />
           <Stack.Screen name="CustomMealBuilder" component={CustomMealBuilder} />
           <Stack.Screen name="ManualWorkout" component={ManualWorkout} />
@@ -202,6 +218,7 @@ export default function App() {
                 <StatusBar style="light" />
                 <NavigationContainer
                   ref={navigationRef}
+                  linking={linking}
                   onStateChange={(state) => setActiveRoute(getActiveRouteName(state))}
                 >
                   <Navigation />

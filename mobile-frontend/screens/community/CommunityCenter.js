@@ -1,24 +1,32 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, FlatList, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import {
+  Alert,
+  FlatList,
+  Image,
+  Pressable,
+  Share,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { Fontisto, Ionicons } from '@expo/vector-icons';
+import * as ExpoLinking from 'expo-linking';
+import { Ionicons, Fontisto } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
-import { useUnreadMessageSummary } from '../../hooks/useNotification';
 import {
   createCommunityPost,
   createPostComment,
-  deleteCommunityPost,
-  deletePostComment,
   listCommunityPosts,
   listPostComments,
   togglePostLike,
-  updateCommunityPost,
-  updatePostComment,
 } from '../../services/communityService';
+import { getProfile } from '../../services/profileService';
+import { useUnreadMessageSummary } from '../../hooks/useNotification';
 
 function formatDate(iso) {
-  const date = new Date(iso);
-  return date.toLocaleString(undefined, {
+  const d = new Date(iso);
+  return d.toLocaleString(undefined, {
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
@@ -26,8 +34,15 @@ function formatDate(iso) {
   });
 }
 
+function buildFriendInviteLink(userId) {
+  return ExpoLinking.createURL('/invite', {
+    queryParams: { ref: String(userId || '') },
+  });
+}
+
 export default function CommunityCenter({ navigation }) {
-  const { user, profileAvatarUri } = useAuth();
+  const { user } = useAuth();
+  const { unreadCount } = useUnreadMessageSummary(user?.id);
   const [posts, setPosts] = useState([]);
   const [statusText, setStatusText] = useState('');
   const [pickedImageUri, setPickedImageUri] = useState(null);
@@ -40,13 +55,6 @@ export default function CommunityCenter({ navigation }) {
   const [commentDraftByPostId, setCommentDraftByPostId] = useState({});
   const [commentsLoadingByPostId, setCommentsLoadingByPostId] = useState({});
   const [commentPostingByPostId, setCommentPostingByPostId] = useState({});
-  const [editingPostId, setEditingPostId] = useState(null);
-  const [editingPostDraft, setEditingPostDraft] = useState('');
-  const [savingPostId, setSavingPostId] = useState(null);
-  const [editingCommentId, setEditingCommentId] = useState(null);
-  const [editingCommentDraft, setEditingCommentDraft] = useState('');
-  const [savingCommentId, setSavingCommentId] = useState(null);
-  const { unreadCount } = useUnreadMessageSummary(user?.id);
 
   const normalizeAvatarUri = (value) => {
     if (typeof value !== 'string') return null;
@@ -56,7 +64,7 @@ export default function CommunityCenter({ navigation }) {
     return null;
   };
 
-  const getCurrentUserDisplayName = () => {
+  const getLocalDisplayNameFallback = () => {
     const fullName = user?.user_metadata?.full_name;
     if (typeof fullName === 'string' && fullName.trim()) return fullName.trim();
 
@@ -69,36 +77,44 @@ export default function CommunityCenter({ navigation }) {
     return 'You';
   };
 
+  const getCurrentUserDisplayName = async () => {
+    if (!user?.id) return getLocalDisplayNameFallback();
+
+    try {
+      const profile = await getProfile(user.id);
+      if (typeof profile?.full_name === 'string' && profile.full_name.trim()) {
+        return profile.full_name.trim();
+      }
+    } catch {
+      // Fall back to local metadata when profile fetch fails.
+    }
+
+    return getLocalDisplayNameFallback();
+  };
+
   const getCurrentUserAvatar = () => {
     const candidate =
-      profileAvatarUri ||
       user?.user_metadata?.avatar_url ||
       user?.user_metadata?.picture ||
       user?.user_metadata?.avatar;
     return normalizeAvatarUri(candidate);
   };
 
-  const loadPosts = useCallback(
-    async (mounted = true) => {
-      setLoadingPosts(true);
-      try {
-        const saved = await listCommunityPosts(user?.id);
-        if (mounted) {
-          setPosts([...saved].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)));
-        }
-      } catch (error) {
-        if (mounted) {
-          Alert.alert(
-            'Database connection issue',
-            error?.message || 'Could not load posts from DB.',
-          );
-        }
-      } finally {
-        if (mounted) setLoadingPosts(false);
+  const loadPosts = async (mounted = true) => {
+    setLoadingPosts(true);
+    try {
+      const saved = await listCommunityPosts(user?.id);
+      if (mounted) {
+        setPosts([...saved].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)));
       }
-    },
-    [user?.id],
-  );
+    } catch (error) {
+      if (mounted) {
+        Alert.alert('Database connection issue', error?.message || 'Could not load posts from DB.');
+      }
+    } finally {
+      if (mounted) setLoadingPosts(false);
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -106,7 +122,7 @@ export default function CommunityCenter({ navigation }) {
     return () => {
       mounted = false;
     };
-  }, [loadPosts]);
+  }, [user?.id]);
 
   const pickPhoto = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -119,11 +135,28 @@ export default function CommunityCenter({ navigation }) {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       quality: 0.8,
-      base64: true,
     });
 
     if (result.canceled) return;
+    const asset = result.assets?.[0] || null;
+    setPickedImageAsset(asset);
+    setPickedImageUri(asset?.uri || null);
+  };
 
+  const takePhoto = async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission needed', 'Please allow camera access to take a photo.');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.8,
+    });
+
+    if (result.canceled) return;
     const asset = result.assets?.[0] || null;
     setPickedImageAsset(asset);
     setPickedImageUri(asset?.uri || null);
@@ -131,7 +164,6 @@ export default function CommunityCenter({ navigation }) {
 
   const submitPost = async () => {
     if (posting) return;
-
     const trimmed = statusText.trim();
     if (!trimmed && !pickedImageUri) {
       Alert.alert('Write something', 'Add a status or attach a photo before posting.');
@@ -159,84 +191,6 @@ export default function CommunityCenter({ navigation }) {
     } finally {
       setPosting(false);
     }
-  };
-
-  const startEditingPost = (post) => {
-    setEditingPostId(post.id);
-    setEditingPostDraft(post.status || '');
-  };
-
-  const cancelEditingPost = () => {
-    setEditingPostId(null);
-    setEditingPostDraft('');
-  };
-
-  const handleSavePost = async (postId) => {
-    if (!postId || !user?.id || savingPostId === postId) return;
-
-    const trimmed = editingPostDraft.trim();
-    if (!trimmed) {
-      Alert.alert('Post cannot be empty', 'Write something before saving your post.');
-      return;
-    }
-
-    setSavingPostId(postId);
-    try {
-      const updated = await updateCommunityPost({
-        postId,
-        userId: user.id,
-        content: trimmed,
-      });
-
-      setPosts((prev) =>
-        prev.map((post) =>
-          post.id === postId
-            ? {
-                ...post,
-                status: updated.content,
-              }
-            : post,
-        ),
-      );
-      cancelEditingPost();
-    } catch (error) {
-      Alert.alert('Edit failed', error?.message || 'Could not update your post.');
-    } finally {
-      setSavingPostId(null);
-    }
-  };
-
-  const handleDeletePost = (postId) => {
-    if (!postId || !user?.id) return;
-
-    Alert.alert('Delete post?', 'This will permanently remove your post and its comments.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteCommunityPost({ postId, userId: user.id });
-            setPosts((prev) => prev.filter((post) => post.id !== postId));
-            setCommentsByPostId((prev) => {
-              const next = { ...prev };
-              delete next[postId];
-              return next;
-            });
-            setExpandedCommentsByPostId((prev) => {
-              const next = { ...prev };
-              delete next[postId];
-              return next;
-            });
-            if (editingPostId === postId) {
-              cancelEditingPost();
-            }
-          } catch (error) {
-            Alert.alert('Delete failed', error?.message || 'Could not delete your post.');
-          }
-        },
-      },
-    ]);
   };
 
   const handleToggleLike = async (postId) => {
@@ -287,45 +241,25 @@ export default function CommunityCenter({ navigation }) {
 
   const loadCommentsForPost = async (postId, { force = false } = {}) => {
     if (!postId) return;
-    if (!force && commentsByPostId[postId]) return;
     if (commentsLoadingByPostId[postId]) return;
 
     setCommentsLoadingByPostId((prev) => ({ ...prev, [postId]: true }));
     try {
       const items = await listPostComments({ postId });
-      const authorFallbackById = new Map(
-        posts
-          .filter((post) => post?.authorId)
-          .map((post) => [
-            post.authorId,
-            {
-              author: post.author || 'User',
-              handle: post.handle || '@user',
-              authorAvatarUri: normalizeAvatarUri(post.authorAvatarUri),
-            },
-          ]),
-      );
 
-      const currentUserName = getCurrentUserDisplayName();
+      const currentUserName = await getCurrentUserDisplayName();
       const currentUserAvatar = getCurrentUserAvatar();
 
       const enrichedItems = (items || []).map((comment) => {
-        const fallback = authorFallbackById.get(comment.authorId);
         const isCurrentUserComment = !!user?.id && comment.authorId === user.id;
-        const hasGenericAuthor = !comment.author || comment.author === 'User';
 
         return {
           ...comment,
-          author:
-            (isCurrentUserComment ? currentUserName : null) ||
-            (!hasGenericAuthor ? comment.author : null) ||
-            fallback?.author ||
-            'User',
-          handle: comment.handle || fallback?.handle || '@user',
+          author: (isCurrentUserComment ? currentUserName : null) || comment.author || 'User',
+          handle: comment.handle || '@user',
           authorAvatarUri:
             normalizeAvatarUri(comment.authorAvatarUri) ||
             (isCurrentUserComment ? currentUserAvatar : null) ||
-            fallback?.authorAvatarUri ||
             null,
         };
       });
@@ -363,16 +297,19 @@ export default function CommunityCenter({ navigation }) {
     const draft = (commentDraftByPostId[postId] || '').trim();
     if (!draft) return;
 
+    const currentUserName = await getCurrentUserDisplayName();
+    const currentUserAvatar = getCurrentUserAvatar();
+
     const optimisticId = `temp-${Date.now()}`;
     const optimisticComment = {
       id: optimisticId,
       postId,
       authorId: user.id,
-      author: getCurrentUserDisplayName(),
+      author: currentUserName,
       handle: '@you',
       content: draft,
       createdAt: new Date().toISOString(),
-      authorAvatarUri: getCurrentUserAvatar(),
+      authorAvatarUri: currentUserAvatar,
     };
 
     setCommentPostingByPostId((prev) => ({ ...prev, [postId]: true }));
@@ -395,8 +332,8 @@ export default function CommunityCenter({ navigation }) {
         postId,
         userId: user.id,
         content: draft,
-        currentUserName: getCurrentUserDisplayName(),
-        currentUserAvatar: getCurrentUserAvatar(),
+        currentUserName,
+        currentUserAvatar,
       });
 
       setCommentsByPostId((prev) => ({
@@ -427,91 +364,14 @@ export default function CommunityCenter({ navigation }) {
     }
   };
 
-  const startEditingComment = (comment) => {
-    setEditingCommentId(comment.id);
-    setEditingCommentDraft(comment.content || '');
-  };
-
-  const cancelEditingComment = () => {
-    setEditingCommentId(null);
-    setEditingCommentDraft('');
-  };
-
-  const handleSaveComment = async (postId, commentId) => {
-    if (!postId || !commentId || !user?.id || savingCommentId === commentId) return;
-
-    const trimmed = editingCommentDraft.trim();
-    if (!trimmed) {
-      Alert.alert('Comment cannot be empty', 'Write something before saving your comment.');
-      return;
-    }
-
-    setSavingCommentId(commentId);
-    try {
-      const updated = await updatePostComment({
-        commentId,
-        userId: user.id,
-        content: trimmed,
-      });
-
-      setCommentsByPostId((prev) => ({
-        ...prev,
-        [postId]: (prev[postId] || []).map((comment) =>
-          comment.id === commentId
-            ? {
-                ...comment,
-                content: updated.content,
-              }
-            : comment,
-        ),
-      }));
-      cancelEditingComment();
-    } catch (error) {
-      Alert.alert('Edit failed', error?.message || 'Could not update your comment.');
-    } finally {
-      setSavingCommentId(null);
-    }
-  };
-
-  const handleDeleteComment = (postId, commentId) => {
-    if (!postId || !commentId || !user?.id) return;
-
-    Alert.alert('Delete comment?', 'This will permanently remove your comment.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deletePostComment({ commentId, userId: user.id });
-            setCommentsByPostId((prev) => ({
-              ...prev,
-              [postId]: (prev[postId] || []).filter((comment) => comment.id !== commentId),
-            }));
-            setPosts((prev) =>
-              prev.map((post) =>
-                post.id === postId
-                  ? { ...post, commentsCount: Math.max(0, (post.commentsCount || 0) - 1) }
-                  : post,
-              ),
-            );
-            if (editingCommentId === commentId) {
-              cancelEditingComment();
-            }
-          } catch (error) {
-            Alert.alert('Delete failed', error?.message || 'Could not delete your comment.');
-          }
-        },
-      },
-    ]);
-  };
-
   const handleRefreshPress = async () => {
     const expandedPostIds = Object.entries(expandedCommentsByPostId)
       .filter(([, isExpanded]) => !!isExpanded)
       .map(([postId]) => postId);
 
     await loadPosts(true);
+
+    // Drop cached comments so refresh always reflects latest DB values.
     setCommentsByPostId({});
 
     if (expandedPostIds.length) {
@@ -521,81 +381,57 @@ export default function CommunityCenter({ navigation }) {
     }
   };
 
+  const handleShareInvite = async () => {
+    if (!user?.id) {
+      Alert.alert('Sign in required', 'Please sign in to share your invite link.');
+      return;
+    }
+
+    try {
+      const displayName = await getCurrentUserDisplayName();
+      const inviteLink = buildFriendInviteLink(user.id);
+
+      await Share.share({
+        title: 'Join me on BodyQ',
+        message: `${displayName} invited you to connect on BodyQ.\n\nOpen this link to join: ${inviteLink}`,
+        url: inviteLink,
+      });
+    } catch (error) {
+      Alert.alert('Invite failed', error?.message || 'Could not share invite link right now.');
+    }
+  };
+
   const renderPost = ({ item }) => {
     const normalizedAvatarUri = normalizeAvatarUri(item.authorAvatarUri);
-    const isEditingPost = editingPostId === item.id;
 
     return (
       <View style={styles.postCard}>
         <View style={styles.postHeader}>
-          <View style={styles.postHeaderMain}>
-            {normalizedAvatarUri ? (
-              <View style={styles.avatarFrame}>
-                <Image
-                  source={{ uri: normalizedAvatarUri }}
-                  style={styles.avatarImage}
-                  resizeMode="cover"
-                />
-              </View>
-            ) : (
-              <View style={styles.avatarFrame}>
-                <View style={styles.avatarFallback}>
-                  <Ionicons name="person" size={16} color="#C8F135" />
-                </View>
-              </View>
-            )}
-
-            <View style={styles.postHeaderText}>
-              <Text style={styles.author}>{item.author}</Text>
-              <Text style={styles.meta}>
-                {item.handle} · {formatDate(item.createdAt)}
-              </Text>
+          {normalizedAvatarUri ? (
+            <View style={styles.avatarFrame}>
+              <Image
+                source={{ uri: normalizedAvatarUri }}
+                style={styles.avatarImage}
+                resizeMode="cover"
+              />
             </View>
+          ) : (
+            <View style={styles.avatarFrame}>
+              <View style={styles.avatarFallback}>
+                <Ionicons name="person" size={16} color="#C8F135" />
+              </View>
+            </View>
+          )}
+          <View>
+            <Text style={styles.author}>{item.author}</Text>
+            <Text style={styles.meta}>
+              {item.handle} · {formatDate(item.createdAt)}
+            </Text>
           </View>
-
-          {item.mine ? (
-            <View style={styles.ownerActions}>
-              <Pressable style={styles.ownerActionBtn} onPress={() => startEditingPost(item)}>
-                <Text style={styles.ownerActionTxt}>Edit</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.ownerActionBtn, styles.ownerDeleteBtn]}
-                onPress={() => handleDeletePost(item.id)}
-              >
-                <Text style={[styles.ownerActionTxt, styles.ownerDeleteTxt]}>Delete</Text>
-              </Pressable>
-            </View>
-          ) : null}
         </View>
 
-        {isEditingPost ? (
-          <View style={styles.inlineEditor}>
-            <TextInput
-              value={editingPostDraft}
-              onChangeText={setEditingPostDraft}
-              placeholder="Edit your post..."
-              placeholderTextColor="#7A7393"
-              multiline
-              style={styles.inlineEditorInput}
-            />
-            <View style={styles.inlineEditorActions}>
-              <Pressable style={styles.inlineSecondaryBtn} onPress={cancelEditingPost}>
-                <Text style={styles.inlineSecondaryTxt}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={styles.inlinePrimaryBtn}
-                onPress={() => handleSavePost(item.id)}
-                disabled={savingPostId === item.id}
-              >
-                <Text style={styles.inlinePrimaryTxt}>
-                  {savingPostId === item.id ? 'Saving...' : 'Save'}
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        ) : !!item.status ? (
-          <Text style={styles.status}>{item.status}</Text>
-        ) : null}
+        {!!item.status && <Text style={styles.status}>{item.status}</Text>}
+
         {!!item.imageUri && (
           <Image source={{ uri: item.imageUri }} style={styles.postImage} resizeMode="cover" />
         )}
@@ -654,8 +490,6 @@ export default function CommunityCenter({ navigation }) {
             ) : (commentsByPostId[item.id] || []).length ? (
               (commentsByPostId[item.id] || []).map((comment) => {
                 const commentAvatarUri = normalizeAvatarUri(comment.authorAvatarUri);
-                const isEditingComment = editingCommentId === comment.id;
-                const isCommentOwner = comment.authorId === user?.id;
                 return (
                   <View key={comment.id} style={styles.commentRow}>
                     {commentAvatarUri ? (
@@ -667,62 +501,8 @@ export default function CommunityCenter({ navigation }) {
                     )}
 
                     <View style={styles.commentBody}>
-                      <View style={styles.commentHeaderRow}>
-                        <View style={styles.commentHeaderText}>
-                          <Text style={styles.commentAuthor}>{comment.author}</Text>
-                          <Text style={styles.commentMeta}>{formatDate(comment.createdAt)}</Text>
-                        </View>
-                        {isCommentOwner ? (
-                          <View style={styles.commentOwnerActions}>
-                            <Pressable
-                              style={styles.commentOwnerBtn}
-                              onPress={() => startEditingComment(comment)}
-                            >
-                              <Text style={styles.commentOwnerTxt}>Edit</Text>
-                            </Pressable>
-                            <Pressable
-                              style={styles.commentOwnerBtn}
-                              onPress={() => handleDeleteComment(item.id, comment.id)}
-                            >
-                              <Text style={[styles.commentOwnerTxt, styles.ownerDeleteTxt]}>
-                                Delete
-                              </Text>
-                            </Pressable>
-                          </View>
-                        ) : null}
-                      </View>
-
-                      {isEditingComment ? (
-                        <View style={styles.commentInlineEditor}>
-                          <TextInput
-                            value={editingCommentDraft}
-                            onChangeText={setEditingCommentDraft}
-                            placeholder="Edit your comment..."
-                            placeholderTextColor="#7A7393"
-                            multiline
-                            style={styles.commentInlineInput}
-                          />
-                          <View style={styles.inlineEditorActions}>
-                            <Pressable
-                              style={styles.inlineSecondaryBtn}
-                              onPress={cancelEditingComment}
-                            >
-                              <Text style={styles.inlineSecondaryTxt}>Cancel</Text>
-                            </Pressable>
-                            <Pressable
-                              style={styles.inlinePrimaryBtn}
-                              onPress={() => handleSaveComment(item.id, comment.id)}
-                              disabled={savingCommentId === comment.id}
-                            >
-                              <Text style={styles.inlinePrimaryTxt}>
-                                {savingCommentId === comment.id ? 'Saving...' : 'Save'}
-                              </Text>
-                            </Pressable>
-                          </View>
-                        </View>
-                      ) : (
-                        <Text style={styles.commentText}>{comment.content}</Text>
-                      )}
+                      <Text style={styles.commentAuthor}>{comment.author}</Text>
+                      <Text style={styles.commentText}>{comment.content}</Text>
                     </View>
                   </View>
                 );
@@ -766,15 +546,22 @@ export default function CommunityCenter({ navigation }) {
           <Ionicons name="arrow-back" size={20} color="#fff" />
         </Pressable>
         <Text style={styles.title}>Community</Text>
-        <Pressable onPress={() => navigation.navigate('Messages')} style={styles.backBtn}>
-          <Ionicons name="chatbubble-ellipses-outline" size={18} color="#C8F135" />
-          {unreadCount > 0 && (
-            <View style={styles.communityBadge}>
-              <Text style={styles.communityBadgeTxt}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
-            </View>
-          )}
-        </Pressable>
+        <View style={styles.headerRightRow}>
+          <Pressable onPress={handleShareInvite} style={styles.backBtn}>
+            <Ionicons name="person-add-outline" size={18} color="#C8F135" />
+          </Pressable>
+          <Pressable onPress={() => navigation.navigate('Messages')} style={styles.backBtn}>
+            <Ionicons name="chatbubble-ellipses-outline" size={18} color="#C8F135" />
+            {unreadCount > 0 && (
+              <View style={styles.messageBadge}>
+                <Text style={styles.messageBadgeTxt}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+              </View>
+            )}
+          </Pressable>
+        </View>
       </View>
+
+      {/* POST CONTAINER */}
 
       <View style={styles.composer}>
         <Text style={styles.composerTitle}>Share your progress</Text>
@@ -805,14 +592,21 @@ export default function CommunityCenter({ navigation }) {
         <View style={styles.actionsRow}>
           <Pressable style={styles.attachBtn} onPress={pickPhoto}>
             <Ionicons name="image-outline" size={16} color="#C8F135" />
-            <Text style={styles.attachTxt}>Photo</Text>
+            <Text style={styles.attachTxt}>Gallery</Text>
           </Pressable>
 
-          <Pressable style={styles.postBtn} onPress={submitPost} disabled={posting}>
+          <Pressable style={styles.attachBtn} onPress={takePhoto}>
+            <Ionicons name="camera-outline" size={16} color="#C8F135" />
+            <Text style={styles.attachTxt}>Camera</Text>
+          </Pressable>
+
+          <Pressable style={styles.postBtn} onPress={submitPost}>
             <Text style={styles.postTxt}>{posting ? 'Posting...' : 'Post'}</Text>
           </Pressable>
         </View>
       </View>
+
+      {/* FEED CONTAINER */}
 
       <FlatList
         data={posts}
@@ -855,6 +649,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   title: { color: '#fff', fontSize: 20, fontWeight: '800' },
+  headerRightRow: { flexDirection: 'row', gap: 8 },
   composer: {
     marginHorizontal: 16,
     borderRadius: 18,
@@ -916,14 +711,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#17112A',
     padding: 14,
   },
-  postHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 10,
+  postHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  dot: {
+    width: 36,
+    height: 36,
+    borderRadius: 17,
+    backgroundColor: '#C8F135',
+    borderWidth: 2,
+    borderColor: '#2A2346',
   },
-  postHeaderMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  postHeaderText: { flex: 1 },
   avatarFrame: {
     width: 36,
     height: 36,
@@ -933,56 +729,9 @@ const styles = StyleSheet.create({
     borderColor: '#2A2346',
   },
   avatarImage: { width: '100%', height: '100%' },
-  avatarFallback: {
-    flex: 1,
-    backgroundColor: '#120F22',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   author: { color: '#fff', fontSize: 14, fontWeight: '800' },
   meta: { color: '#9A91B9', fontSize: 11, marginTop: 1 },
-  ownerActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  ownerActionBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 9,
-    borderWidth: 1,
-    borderColor: '#2B2449',
-    backgroundColor: '#120F22',
-  },
-  ownerActionTxt: { color: '#C8F135', fontSize: 11, fontWeight: '800' },
-  ownerDeleteBtn: { borderColor: '#4A2740' },
-  ownerDeleteTxt: { color: '#FF8EA2' },
   status: { color: '#EEEAF9', marginTop: 10, lineHeight: 20 },
-  inlineEditor: { marginTop: 10, gap: 8 },
-  inlineEditorInput: {
-    minHeight: 74,
-    color: '#fff',
-    backgroundColor: '#0F0B1E',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#28223F',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    textAlignVertical: 'top',
-  },
-  inlineEditorActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8 },
-  inlineSecondaryBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#2B2449',
-    backgroundColor: '#120F22',
-  },
-  inlineSecondaryTxt: { color: '#CFCBE4', fontSize: 12, fontWeight: '700' },
-  inlinePrimaryBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: '#C8F135',
-  },
-  inlinePrimaryTxt: { color: '#130E25', fontSize: 12, fontWeight: '800' },
   postImage: { width: '100%', height: 210, borderRadius: 12, marginTop: 10 },
   postActionsRow: {
     marginTop: 10,
@@ -990,8 +739,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  postActionsLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  postActionsLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   likeBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -1004,10 +758,14 @@ const styles = StyleSheet.create({
     minWidth: 54,
     justifyContent: 'center',
   },
-  likeBtnActive: { backgroundColor: '#C8F135', borderColor: '#C8F135' },
+  likeBtnActive: {
+    backgroundColor: '#C8F135',
+    borderColor: '#C8F135',
+  },
   likeBtnTxt: { color: '#C8F135', fontWeight: '700', fontSize: 12 },
   likeBtnTxtActive: { color: '#130E25' },
   commentBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -1022,6 +780,7 @@ const styles = StyleSheet.create({
   },
   commentBtnTxt: { color: '#C8F135', fontWeight: '700', fontSize: 12 },
   messageBtn: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -1033,6 +792,26 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   messageBtnTxt: { color: '#C8F135', fontWeight: '700', fontSize: 12 },
+  messageBadge: {
+    position: 'absolute',
+    right: -4,
+    top: -4,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    backgroundColor: '#FF4D4D',
+    borderWidth: 1,
+    borderColor: '#0F0B1E',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  messageBadgeTxt: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: '900',
+    lineHeight: 12,
+  },
   commentsWrap: {
     marginTop: 10,
     borderTopWidth: 1,
@@ -1041,7 +820,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   commentsMeta: { color: '#9A91B9', fontSize: 12 },
-  commentRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  commentRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
   commentAvatarImage: {
     width: 22,
     height: 22,
@@ -1068,32 +851,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 8,
   },
-  commentHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  commentHeaderText: { flex: 1 },
   commentAuthor: { color: '#EEEAF9', fontSize: 12, fontWeight: '700', marginBottom: 2 },
-  commentMeta: { color: '#8E85AE', fontSize: 10, marginBottom: 4 },
-  commentOwnerActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  commentOwnerBtn: { paddingVertical: 2 },
-  commentOwnerTxt: { color: '#C8F135', fontSize: 10, fontWeight: '800' },
-  commentInlineEditor: { gap: 8 },
-  commentInlineInput: {
-    minHeight: 58,
-    color: '#fff',
-    backgroundColor: '#0F0B1E',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#28223F',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    textAlignVertical: 'top',
-  },
   commentText: { color: '#D6D0EA', fontSize: 12, lineHeight: 17 },
-  commentComposerRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
+  commentComposerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 2,
+  },
   commentInput: {
     flex: 1,
     minHeight: 38,
@@ -1112,26 +877,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#C8F135',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  communityBadge: {
-    position: 'absolute',
-    right: -4,
-    top: -4,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    paddingHorizontal: 4,
-    backgroundColor: '#FF4D4D',
-    borderWidth: 1,
-    borderColor: '#0F0B1E',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  communityBadgeTxt: {
-    color: '#FFF',
-    fontSize: 10,
-    fontWeight: '900',
-    lineHeight: 12,
   },
   emptyTxt: { color: '#8E85AE', textAlign: 'center', marginTop: 24 },
 });
