@@ -12,13 +12,14 @@ function deriveHandle(name) {
 export async function listThreads(ownerId) {
   if (!ownerId) return [];
 
-  const { data, error } = await supabase.from('inbox').select('*');
+  const { data, error } = await supabase.rpc('list_inbox_threads');
   if (error) {
     const detail = [error?.message, error?.details, error?.hint].filter(Boolean).join(' | ');
     throw new Error(detail || 'Could not load inbox conversations.');
   }
 
-  return (data || [])
+  const rows = (data || [])
+    // Hide empty conversations (no messages sent yet).
     .filter((row) => !!row.last_message_at)
     .map((row) => ({
       id: row.conversation_id,
@@ -29,8 +30,9 @@ export async function listThreads(ownerId) {
       lastMessage: row.last_message || '',
       updatedAt: row.last_message_at,
       unreadCount: Number(row.unread_count || 0),
-    }))
-    .sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt));
+    }));
+
+  return rows.sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt));
 }
 
 export async function ensureThread(ownerId, peer) {
@@ -52,11 +54,18 @@ export async function ensureThread(ownerId, peer) {
     throw new Error(detail || 'Could not open conversation.');
   }
 
-  const { data: inboxRow } = await supabase
-    .from('inbox')
-    .select('*')
-    .eq('conversation_id', conversationId)
-    .maybeSingle();
+  const { data: inboxRows, error: inboxError } = await supabase.rpc('list_inbox_threads', {
+    conversation_filter: conversationId,
+  });
+
+  if (inboxError) {
+    const detail = [inboxError?.message, inboxError?.details, inboxError?.hint]
+      .filter(Boolean)
+      .join(' | ');
+    throw new Error(detail || 'Could not load conversation details.');
+  }
+
+  const inboxRow = (inboxRows || [])[0] || null;
 
   return {
     id: conversationId,
@@ -87,11 +96,11 @@ export async function getThreadMessages(ownerId, threadId) {
     throw new Error(detail || 'Could not load thread messages.');
   }
 
-  return (data || []).map((message) => ({
-    id: message.id,
-    sender: message.sender_id === ownerId ? 'me' : 'them',
-    text: message.content || (message.media_url ? '[Attachment]' : ''),
-    createdAt: message.created_at,
+  return (data || []).map((msg) => ({
+    id: msg.id,
+    sender: msg.sender_id === ownerId ? 'me' : 'them',
+    text: msg.content || (msg.media_url ? '[Attachment]' : ''),
+    createdAt: msg.created_at,
   }));
 }
 
@@ -137,6 +146,7 @@ export async function markThreadRead(ownerId, threadId) {
   }
 }
 
+// Empty conversations are hidden by listThreads() and don't need deletion.
 export async function deleteThreadIfEmpty(ownerId, threadId) {
   if (!ownerId || !threadId) return;
 
