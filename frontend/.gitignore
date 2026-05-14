@@ -4,3 +4,7 @@ node_modules/
 # database URL
 .env
 .env*.local
+
+# Next.js build output
+.next/
+out/
