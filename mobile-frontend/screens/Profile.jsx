@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useNavigation } from '@react-navigation/native';
+import { decode } from 'base64-arraybuffer';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { AppEvents, emit, on } from '../lib/eventBus';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystemLegacy from 'expo-file-system/legacy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import {
@@ -613,10 +614,15 @@ export default function Profile({ replayTour }) {
     try {
       const asset = result.assets[0];
       let base64 = asset.base64;
-      if (!base64)
-        base64 = await FileSystem.readAsStringAsync(asset.uri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
+      if (!base64) {
+              base64 = await FileSystemLegacy.readAsStringAsync(asset.uri, {
+                encoding: 'base64',
+              });
+            }
+            if (!base64 || !String(base64).trim()) {
+              throw new Error('Selected image is empty. Please pick another photo.');
+            }
+
       const mimeType = asset.mimeType || 'image/jpeg';
       const dataUri = `data:${mimeType};base64,${base64}`;
       const extension = (mimeType.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
@@ -747,6 +753,24 @@ export default function Profile({ replayTour }) {
           </View>
           <Ionicons name="chevron-forward" size={18} color={C.sub} />
         </TouchableOpacity>
+
+        {/* ── Friends button ── */}
+                <TouchableOpacity
+                  style={s.historyBtn}
+                  onPress={() => navigation.navigate('FriendsList')}
+                  activeOpacity={0.85}
+                >
+                  <View style={s.historyBtnLeft}>
+                    <View style={s.historyBtnIcon}>
+                      <Text style={{ fontSize: 20 }}>👥</Text>
+                    </View>
+                    <View>
+                      <Text style={s.historyBtnTitle}>Friends</Text>
+                      <Text style={s.historyBtnSub}>View your friend list</Text>
+                    </View>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={C.sub} />
+                </TouchableOpacity>
 
         {/* ── Body Stats card ── */}
         <View style={s.card}>
