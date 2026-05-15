@@ -2,6 +2,7 @@
   "expo": {
     "name": "BodyQ",
     "slug": "mobile",
+    "scheme": "bodyq",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/Alexi_mascott.png",
@@ -17,7 +18,8 @@
       "bundleIdentifier": "com.yourname.bodyq",
       "infoPlist": {
         "NSMotionUsageDescription": "BodyQ uses your motion data to count steps and track your activity progress automatically.",
-        "NSCameraUsageDescription": "BodyQ uses the camera to provide real-time AI posture correction and rep counting during your workouts."
+        "NSCameraUsageDescription": "BodyQ uses the camera to provide real-time AI posture correction and rep counting during your workouts.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -58,6 +60,7 @@
       "eas": {
         "projectId": "66359035-24fd-455c-bec2-583be7e98fdb"
       }
-    }
+    },
+    "owner": "zrineb"
   }
 }
